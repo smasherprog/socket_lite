@@ -15,12 +15,41 @@ else()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic")
 endif()
 
+if(WIN32)
+    set(SOCKET_LITE_PLATFORM_SRC     
+		include/internal/windows/Acceptor.h
+		src/windows/Acceptor.cpp
+		include/internal/windows/Context.h
+		include/internal/windows/IO_Service.h
+		src/windows/IO_Service.cpp
+		include/internal/windows/Structures.h
+    )
+    set(SOCKET_LITE_PLATFORM_INC     
+		include/windows
+    )
+
+elseif(APPLE)
+	
+    set(SOCKET_LITE_PLATFORM_SRC 
+    )
+    set(SOCKET_LITE_PLATFORM_INC
+		include/ios 
+    )
+else()
+	set(SOCKET_LITE_PLATFORM_SRC 
+    )
+	set(SOCKET_LITE_PLATFORM_INC
+		include/linux 
+    )	
+endif()
+
 	
 include_directories(
 	include
+	${SOCKET_LITE_PLATFORM_INC}
 )
 add_library(${PROJECT_NAME} 	
-
+	${SOCKET_LITE_PLATFORM_SRC}
 )
 
 if(WIN32) 
