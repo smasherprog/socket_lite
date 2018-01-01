@@ -4,9 +4,10 @@ namespace SL {
 namespace NET {
     class IO_Service {
         bool keepgoing = true;
+        Context &Context_;
 
       public:
-        IO_Service(Context &context) {}
+        IO_Service(Context &context) : Context_(context) {}
         ~IO_Service() { keepgoing = false; }
 
         void run()
@@ -14,7 +15,7 @@ namespace NET {
             while (true) {
                 DWORD dwIoSize = 0;
                 LPWSAOVERLAPPED lpOverlapped = nullptr;
-                SocketContext *lpPerSocketContext = nullptr;
+                Socket *lpPerSocketContext = nullptr;
                 auto gotevents =
                     GetQueuedCompletionStatus(iocp.handle, &dwIoSize, (PDWORD_PTR)&lpPerSocketContext, (LPOVERLAPPED *)&lpOverlapped, INFINITE);
                 if (!keepgoing) {

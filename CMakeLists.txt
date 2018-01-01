@@ -19,13 +19,12 @@ if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
 		include/internal/windows/Acceptor.h
 		src/windows/Acceptor.cpp
-		include/internal/windows/Context.h
 		include/internal/windows/IO_Service.h
 		src/windows/IO_Service.cpp
 		include/internal/windows/Structures.h
     )
     set(SOCKET_LITE_PLATFORM_INC     
-		include/windows
+		include/internal/windows
     )
 
 elseif(APPLE)

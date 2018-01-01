@@ -14,7 +14,7 @@ namespace NET {
             while (true) {
                 DWORD dwIoSize = 0;
                 LPWSAOVERLAPPED lpOverlapped = nullptr;
-                SocketContext *lpPerSocketContext = nullptr;
+                Socket *lpPerSocketContext = nullptr;
                 auto gotevents =
                     GetQueuedCompletionStatus(iocp.handle, &dwIoSize, (PDWORD_PTR)&lpPerSocketContext, (LPOVERLAPPED *)&lpOverlapped, INFINITE);
                 if (!keepgoing) {
