@@ -1,66 +1,67 @@
 #include "Acceptor.h"
+#include "ListenContext.h"
+#include "Socket.h"
+#include <string>
 
 namespace SL {
 namespace NET {
-
-    Acceptor::Acceptor(Context &context, unsigned short port) : Context_(context)
+    Acceptor::Acceptor(ListenContext &context, PortNumber port, NetworkProtocol protocol) : Context_(context), Protocol(protocol)
     {
-        if (!context)
-            return;
-        LINGER lingerStruct;
-        struct addrinfo hints = {0};
-        struct addrinfo *addrlocal = NULL;
-
-        lingerStruct.l_onoff = 1;
-        lingerStruct.l_linger = 0;
-
-        hints.ai_flags = AI_PASSIVE;
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_IP;
-        auto strport = std::to_string(port);
-        if (auto ret = getaddrinfo(NULL, strport.c_str(), &hints, &addrlocal); ret != 0 || addrlocal == NULL) {
-            SocketContext_.close();
-            return;
+        AcceptSocket = Socket::Create(Protocol);
+        if (Protocol == NetworkProtocol::IPV4) {
+            sockaddr_in serveraddr;
+            memset(&serveraddr, 0, sizeof(serveraddr));
+            serveraddr.sin_family = AF_INET;
+            serveraddr.sin_port = htons(port.value);
+            serveraddr.sin_addr.s_addr = INADDR_ANY;
+            if (auto nRet = bind(AcceptSocket, (struct sockaddr *)&serveraddr, sizeof(serveraddr)); nRet == SOCKET_ERROR) {
+                closesocket(AcceptSocket);
+                return;
+            }
         }
-        if (auto nRet = bind(SocketContext_.handle, addrlocal->ai_addr, (int)addrlocal->ai_addrlen); nRet == SOCKET_ERROR) {
-            SocketContext_.close();
-            freeaddrinfo(addrlocal);
-            return;
+        else {
+            sockaddr_in6 serveraddr;
+            memset(&serveraddr, 0, sizeof(serveraddr));
+            serveraddr.sin6_family = AF_INET6;
+            serveraddr.sin6_port = htons(port.value);
+            serveraddr.sin6_addr = in6addr_any;
+            if (auto nRet = bind(AcceptSocket, (struct sockaddr *)&serveraddr, sizeof(serveraddr)); nRet == SOCKET_ERROR) {
+                closesocket(AcceptSocket);
+                return;
+            }
         }
-        freeaddrinfo(addrlocal);
-        if (auto nRet = listen(SocketContext_.handle, 5); nRet == SOCKET_ERROR) {
-            SocketContext_.close();
+        if (auto nRet = listen(AcceptSocket, 5); nRet == SOCKET_ERROR) {
+            closesocket(AcceptSocket);
             return;
         }
 
         GUID acceptex_guid = WSAID_ACCEPTEX;
         DWORD bytes = 0;
-        if (auto nRet = WSAIoctl(SocketContext_.handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
+        if (auto nRet = WSAIoctl(AcceptSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
                                  sizeof(AcceptEx_), &bytes, NULL, NULL);
             nRet == SOCKET_ERROR) {
-            SocketContext_.close();
+            closesocket(AcceptSocket);
         }
-        if (auto ctx = CreateIoCompletionPort((HANDLE)SocketContext_.handle, Context_.iocp.handle, (DWORD_PTR)&SocketContext_, 0); ctx == NULL) {
-            SocketContext_.close();
+        if (auto ctx = CreateIoCompletionPort((HANDLE)AcceptSocket, Context_.iocp.handle, (DWORD_PTR)&AcceptSocket, 0); ctx == NULL) {
+            closesocket(AcceptSocket);
         }
         else {
             Context_.iocp.handle = ctx;
         }
     }
-    Acceptor::~Acceptor() { close(); }
-    void Acceptor::close()
+    Acceptor::~Acceptor()
     {
-        SocketContext_.close();
-        while (!HasOverlappedIoCompleted((LPOVERLAPPED)&SocketContext_.Overlapped))
+        closesocket(AcceptSocket);
+        while (!HasOverlappedIoCompleted((LPOVERLAPPED)&AcceptContext.Overlapped))
             Sleep(0);
     }
-    void Acceptor::async_accept(const std::shared_ptr<Socket> &socket)
+
+    void Acceptor::async_accept()
     {
         DWORD recvbytes = 0;
-
-        auto nRet = AcceptEx_(SocketContext_.handle, socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
-                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (SocketContext_.Overlapped));
+        AcceptContext.SocketAccept = Socket::Create(Protocol);
+        auto nRet = AcceptEx_(AcceptSocket, AcceptContext.SocketAccept, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (AcceptContext.Overlapped));
         if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
         }
     }

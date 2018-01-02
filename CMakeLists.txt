@@ -18,9 +18,11 @@ endif()
 if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
 		include/internal/windows/Acceptor.h
-		src/windows/Acceptor.cpp
-		include/internal/windows/IO_Service.h
-		src/windows/IO_Service.cpp
+		src/windows/Acceptor.cpp 
+		include/internal/windows/Socket.h
+		src/windows/Socket.cpp
+		include/internal/windows/ListenContext.h
+		src/windows/ListenContext.cpp
 		include/internal/windows/Structures.h
     )
     set(SOCKET_LITE_PLATFORM_INC     
@@ -32,13 +34,13 @@ elseif(APPLE)
     set(SOCKET_LITE_PLATFORM_SRC 
     )
     set(SOCKET_LITE_PLATFORM_INC
-		include/ios 
+		include/internal/ios 
     )
 else()
 	set(SOCKET_LITE_PLATFORM_SRC 
     )
 	set(SOCKET_LITE_PLATFORM_INC
-		include/linux 
+		include/internal/linux 
     )	
 endif()
 
@@ -47,7 +49,9 @@ include_directories(
 	include
 	${SOCKET_LITE_PLATFORM_INC}
 )
-add_library(${PROJECT_NAME} 	
+add_library(${PROJECT_NAME} 
+	include/Socket_Lite.h
+	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )
 
@@ -75,3 +79,7 @@ install (TARGETS ${PROJECT_NAME}
 
 install (FILES 
 	DESTINATION include)
+	
+enable_testing() 
+add_subdirectory(test)
+
