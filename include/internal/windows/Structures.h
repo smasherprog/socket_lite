@@ -77,5 +77,7 @@ namespace NET {
     };
     PER_IO_CONTEXT *createcontext(NetworkProtocol protocol);
     void freecontext(PER_IO_CONTEXT **context);
+    bool updateIOCP(SOCKET socket, HANDLE *iocphandle);
+
 } // namespace NET
 } // namespace SL

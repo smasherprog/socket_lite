@@ -5,22 +5,42 @@
 #include <string>
 #include <thread>
 using namespace std::chrono_literals;
-void testconnectins()
+
+void echolistenertest()
 {
-    double connects = 0.0;
-    double disconnects = 0.0;
+    double echos = 0.0;
     auto context = SL::NET::CreateContext(SL::NET::ThreadCount(1))
                        ->CreateListener(SL::NET::PortNumber(3000))
-                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) { connects += 1.0; })
-                       ->onDisconnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) { connects -= 1.0; });
+                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {})
+                       ->onMessage([&](const std::shared_ptr<SL::NET::ISocket> &socket, const SL::NET::Message &msg) {
+                           echos += 1.0;
+                           socket->send(msg);
+                       })
+                       ->onDisconnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {});
     auto start = std::chrono::high_resolution_clock::now();
-    context->listen();
+    auto listener = context->listen();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "Connections per Second " << disconnects / 10 << std::endl;
+    std::cout << "Echos per Second " << echos / 10 << std::endl;
 }
-
+void echoclienttest()
+{
+    double echos = 0.0;
+    auto context = SL::NET::CreateContext(SL::NET::ThreadCount(1))
+                       ->CreateClient()
+                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {})
+                       ->onMessage([&](const std::shared_ptr<SL::NET::ISocket> &socket, const SL::NET::Message &msg) {
+                           echos += 1.0;
+                           socket->send(msg);
+                       })
+                       ->onDisconnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {});
+    auto start = std::chrono::high_resolution_clock::now();
+    auto client = context->connect("localhost", SL::NET::PortNumber(3000));
+    std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    std::cout << "Connections per Second " << echos / 10 << std::endl;
+}
 int main(int argc, char *argv[])
 {
-    testconnectins();
+    echolistenertest();
+    echoclienttest();
     return 0;
 }

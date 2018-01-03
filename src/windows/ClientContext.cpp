@@ -3,7 +3,7 @@
 namespace SL {
 namespace NET {
 
-    ClientContext::ClientContext(PortNumber port, NetworkProtocol protocol) {}
+    ClientContext::ClientContext(std::string host, PortNumber port, NetworkProtocol protocol) {}
     ClientContext::~ClientContext()
     {
         KeepRunning = false;
@@ -34,10 +34,6 @@ namespace NET {
             }));
         }
     }
-
-    void ClientContext::set_MaxPayload(size_t bytes) {}
-
-    size_t ClientContext::get_MaxPayload() { return size_t(); }
 
     void ClientContext::set_ReadTimeout(std::chrono::seconds seconds) {}
 

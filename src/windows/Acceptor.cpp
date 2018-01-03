@@ -1,12 +1,11 @@
 #include "Acceptor.h"
-#include "ListenContext.h"
 #include "Socket.h"
 #include <string>
 
 namespace SL {
 namespace NET {
 
-    Acceptor::Acceptor(ListenContext &context, PortNumber port, NetworkProtocol protocol) : Context_(context), Protocol(protocol)
+    Acceptor::Acceptor(HANDLE *iocphandle, PortNumber port, NetworkProtocol protocol) : IOCPHandle(iocphandle), Protocol(protocol)
     {
         AcceptSocket = Socket::Create(Protocol);
         if (Protocol == NetworkProtocol::IPV4) {
@@ -43,11 +42,8 @@ namespace NET {
             nRet == SOCKET_ERROR) {
             closesocket(AcceptSocket);
         }
-        if (auto ctx = CreateIoCompletionPort((HANDLE)AcceptSocket, Context_.iocp.handle, NULL, 0); ctx == NULL) {
+        if (!updateIOCP(AcceptSocket, IOCPHandle)) {
             closesocket(AcceptSocket);
-        }
-        else {
-            Context_.iocp.handle = ctx;
         }
     }
     Acceptor::~Acceptor()
@@ -64,7 +60,6 @@ namespace NET {
     void Acceptor::async_accept()
     {
         DWORD recvbytes = 0;
-        freecontext(&LastContext);
         auto sockcontext = createcontext(Protocol);
         auto nRet = AcceptEx_(AcceptSocket, sockcontext->Socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
                               sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (sockcontext->Overlapped));

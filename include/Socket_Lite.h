@@ -55,10 +55,6 @@ namespace NET {
     class SOCKET_LITE_EXTERN IContext {
       public:
         virtual ~IContext() {}
-        // the maximum payload size
-        virtual void set_MaxPayload(size_t bytes) = 0;
-        // the maximum payload size
-        virtual size_t get_MaxPayload() = 0;
         // maximum time in seconds before a client is considered disconnected -- for reads
         virtual void set_ReadTimeout(std::chrono::seconds seconds) = 0;
         // get the current read timeout in seconds

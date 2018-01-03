@@ -4,7 +4,7 @@
 namespace SL {
 namespace NET {
 
-    ListenContext::ListenContext(PortNumber port, NetworkProtocol protocol) : Acceptor(*this, port, protocol) {}
+    ListenContext::ListenContext(PortNumber port, NetworkProtocol protocol) : Acceptor_(&iocp.handle, port, protocol) {}
     ListenContext::~ListenContext()
     {
         KeepRunning = false;
@@ -46,19 +46,48 @@ namespace NET {
                     }
                     if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept && (bSuccess == FALSE || (bSuccess == TRUE && 0 == dwIoSize))) {
                         // dropped connection
-                        auto ptr = lpOverlapped->Socket;
-                        onDisconnection(ptr);
+                        onDisconnection(lpOverlapped->Socket);
                         freecontext(&lpOverlapped);
                         continue;
+                    }
+                    DWORD flag(0), recvbyte(0);
+                    switch (lpOverlapped->IOOperation) {
+                    case IO_OPERATION::IoAccept:
+                        if (auto ret = setsockopt(lpOverlapped->Socket->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&Acceptor_.AcceptSocket,
+                                                  sizeof(Acceptor_.AcceptSocket));
+                            ret == SOCKET_ERROR) {
+                            // big error here...
+                            return;
+                        }
+                        if (!updateIOCP(lpOverlapped->Socket->handle, &iocp.handle)) {
+                            // big error here...
+                            return;
+                        }
+                        Acceptor_.async_accept(); // this will start another accept
+
+                        // i chose to use the read zero bytes cheat here. google it...   zero byte WSARecv
+                        if (auto ret =
+                                WSARecv(lpOverlapped->Socket->handle, &lpOverlapped->wsabuf, 1, &recvbyte, &flag, &lpOverlapped->Overlapped, NULL);
+                            ret == SOCKET_ERROR && WSA_IO_PENDING != WSAGetLastError()) {
+                            // not good close down socket
+                            onDisconnection(lpOverlapped->Socket);
+                            freecontext(&lpOverlapped);
+                        }
+
+                        break;
+                    case IO_OPERATION::IoRead:
+
+                        break;
+                    case IO_OPERATION::IoWrite:
+
+                        break;
+                    default:
+                        break;
                     }
                 }
             }));
         }
     }
-
-    void ListenContext::set_MaxPayload(size_t bytes) {}
-
-    size_t ListenContext::get_MaxPayload() { return size_t(); }
 
     void ListenContext::set_ReadTimeout(std::chrono::seconds seconds) {}
 
