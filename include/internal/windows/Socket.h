@@ -13,8 +13,7 @@ namespace NET {
         virtual SocketStatus is_open() const;
         virtual std::string get_address() const;
         virtual unsigned short get_port() const;
-        virtual bool is_v4() const;
-        virtual bool is_v6() const;
+        virtual NetworkProtocol get_protocol() const;
         virtual bool is_loopback() const;
         virtual size_t BufferedBytes() const;
         virtual void send(const Message &msg);

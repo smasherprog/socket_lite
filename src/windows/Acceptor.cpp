@@ -5,6 +5,7 @@
 
 namespace SL {
 namespace NET {
+
     Acceptor::Acceptor(ListenContext &context, PortNumber port, NetworkProtocol protocol) : Context_(context), Protocol(protocol)
     {
         AcceptSocket = Socket::Create(Protocol);
@@ -42,7 +43,7 @@ namespace NET {
             nRet == SOCKET_ERROR) {
             closesocket(AcceptSocket);
         }
-        if (auto ctx = CreateIoCompletionPort((HANDLE)AcceptSocket, Context_.iocp.handle, (DWORD_PTR)&AcceptSocket, 0); ctx == NULL) {
+        if (auto ctx = CreateIoCompletionPort((HANDLE)AcceptSocket, Context_.iocp.handle, NULL, 0); ctx == NULL) {
             closesocket(AcceptSocket);
         }
         else {
@@ -52,16 +53,21 @@ namespace NET {
     Acceptor::~Acceptor()
     {
         closesocket(AcceptSocket);
-        while (!HasOverlappedIoCompleted((LPOVERLAPPED)&AcceptContext.Overlapped))
-            Sleep(0);
+        if (LastContext) {
+            while (!HasOverlappedIoCompleted((LPOVERLAPPED)&LastContext->Overlapped)) {
+                Sleep(0);
+            }
+            freecontext(&LastContext);
+        }
     }
 
     void Acceptor::async_accept()
     {
         DWORD recvbytes = 0;
-        AcceptContext.SocketAccept = Socket::Create(Protocol);
-        auto nRet = AcceptEx_(AcceptSocket, AcceptContext.SocketAccept, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
-                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (AcceptContext.Overlapped));
+        freecontext(&LastContext);
+        auto sockcontext = createcontext(Protocol);
+        auto nRet = AcceptEx_(AcceptSocket, sockcontext->Socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (sockcontext->Overlapped));
         if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
         }
     }

@@ -23,7 +23,10 @@ if(WIN32)
 		src/windows/Socket.cpp
 		include/internal/windows/ListenContext.h
 		src/windows/ListenContext.cpp
-		include/internal/windows/Structures.h
+		include/internal/windows/ClientContext.h
+		src/windows/ClientContext.cpp
+		include/internal/windows/Structures.h	
+		src/windows/Structures.cpp
     )
     set(SOCKET_LITE_PLATFORM_INC     
 		include/internal/windows
@@ -63,6 +66,7 @@ if(${BUILD_SHARED_LIBS})
 	set_target_properties(${PROJECT_NAME} PROPERTIES DEFINE_SYMBOL SOCKET_LITE_DLL)
 	if(WIN32) 
 		install (FILES $<TARGET_PDB_FILE:${PROJECT_NAME}> DESTINATION bin OPTIONAL)
+		target_link_libraries(${PROJECT_NAME} Ws2_32 )
 	elseif(APPLE) 
 		find_package(Threads REQUIRED)
 		target_link_libraries(${PROJECT_NAME} ${ZLIB_LIBRARIES} ${OPENSSL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )

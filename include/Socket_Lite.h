@@ -39,14 +39,13 @@ namespace NET {
         // lifetime of the data
         std::shared_ptr<unsigned char> Buffer;
     };
-    class ISocket : public std::enable_shared_from_this<ISocket> {
+    class SOCKET_LITE_EXTERN ISocket {
       public:
         virtual ~ISocket() {}
         virtual SocketStatus is_open() const = 0;
         virtual std::string get_address() const = 0;
         virtual unsigned short get_port() const = 0;
-        virtual bool is_v4() const = 0;
-        virtual bool is_v6() const = 0;
+        virtual NetworkProtocol get_protocol() const = 0;
         virtual bool is_loopback() const = 0;
         virtual size_t BufferedBytes() const = 0;
         virtual void send(const Message &msg) = 0;

@@ -6,11 +6,10 @@
 namespace SL {
 namespace NET {
     class ListenContext;
-    class ISocket;
     class Acceptor {
         LPFN_ACCEPTEX AcceptEx_ = nullptr;
         ListenContext &Context_;
-        PER_IO_CONTEXT AcceptContext = {0};
+        PER_IO_CONTEXT *LastContext = nullptr;
         SOCKET AcceptSocket = INVALID_SOCKET;
         NetworkProtocol Protocol;
         unsigned char AcceptBuffer[2 * (sizeof(SOCKADDR_STORAGE) + 16)];

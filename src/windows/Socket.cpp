@@ -1,3 +1,4 @@
+#include "..\..\include\internal\windows\Socket.h"
 #include "Socket.h"
 
 namespace SL {
@@ -22,6 +23,13 @@ namespace NET {
     }
     Socket::Socket(NetworkProtocol protocol) { handle = Create(protocol); }
     Socket::~Socket() { close(); }
+    SocketStatus Socket::is_open() const { return SocketStatus(); }
+    std::string Socket::get_address() const { return std::string(); }
+    unsigned short Socket::get_port() const { return 0; }
+    NetworkProtocol Socket::get_protocol() const { return NetworkProtocol(); }
+    bool Socket::is_loopback() const { return false; }
+    size_t Socket::BufferedBytes() const { return size_t(); }
+    void Socket::send(const Message &msg) {}
     void Socket::close()
     {
         if (handle != INVALID_SOCKET) {

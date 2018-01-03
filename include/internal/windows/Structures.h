@@ -64,19 +64,18 @@ namespace NET {
         }
         operator bool() const { return handle != NULL; }
     };
-    enum IO_OPERATION { ClientIoAccept, ClientIoRead, ClientIoWrite };
+    enum IO_OPERATION { IoAccept, IoRead, IoWrite };
 
-    //
-    // data to be associated for every I/O operation on a socket
-    //
+    class Socket;
     struct PER_IO_CONTEXT {
-        WSAOVERLAPPED Overlapped;
-        WSABUF wsabuf;
-        int nTotalBytes;
-        int nSentBytes;
-        IO_OPERATION IOOperation;
-        SOCKET SocketAccept;
+        WSAOVERLAPPED Overlapped = {0};
+        WSABUF wsabuf = {0};
+        int nTotalBytes = 0;
+        int nSentBytes = 0;
+        IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
+        std::shared_ptr<Socket> Socket;
     };
-
+    PER_IO_CONTEXT *createcontext(NetworkProtocol protocol);
+    void freecontext(PER_IO_CONTEXT **context);
 } // namespace NET
 } // namespace SL

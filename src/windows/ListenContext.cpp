@@ -1,4 +1,6 @@
+#include "Acceptor.h"
 #include "ListenContext.h"
+#include "Socket.h"
 namespace SL {
 namespace NET {
 
@@ -7,7 +9,7 @@ namespace NET {
     {
         KeepRunning = false;
 
-        for (auto &t : Threads) {
+        for (size_t i = 0; i < Threads.size(); i++) {
             // Help threads get out of blocking - GetQueuedCompletionStatus()
             PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
         }
@@ -33,14 +35,21 @@ namespace NET {
                     DWORD dwIoSize = 0;
                     PER_IO_CONTEXT *lpOverlapped = nullptr;
                     void *lpPerSocketContext = nullptr;
-                    auto gotevents =
+                    auto bSuccess =
                         GetQueuedCompletionStatus(iocp.handle, &dwIoSize, (PDWORD_PTR)&lpPerSocketContext, (LPOVERLAPPED *)&lpOverlapped, 100);
                     if (!KeepRunning) {
                         // get out this thread is done meow!
                         return;
                     }
-                    if (gotevents == FALSE && lpOverlapped == NULL) {
+                    if (bSuccess == FALSE && lpOverlapped == NULL) {
                         continue; // timer ran out go back to top and try again
+                    }
+                    if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept && (bSuccess == FALSE || (bSuccess == TRUE && 0 == dwIoSize))) {
+                        // dropped connection
+                        auto ptr = lpOverlapped->Socket;
+                        onDisconnection(ptr);
+                        freecontext(&lpOverlapped);
+                        continue;
                     }
                 }
             }));

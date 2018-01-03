@@ -1,3 +1,4 @@
+#include "ClientContext.h"
 #include "ListenContext.h"
 #include "Socket_Lite.h"
 #include <assert.h>
@@ -12,17 +13,31 @@ namespace NET {
     class Client_Configuration : public IClient_Configuration {
       public:
         std::shared_ptr<ContextInfo> ContextInfo_;
+        std::shared_ptr<ClientContext> ClientContext_;
         Client_Configuration(const std::shared_ptr<ContextInfo> &context) : ContextInfo_(context) {}
         virtual ~Client_Configuration() {}
 
-        virtual std::shared_ptr<IClient_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) {}
+        virtual std::shared_ptr<IClient_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)
+        {
+            assert(!ClientContext_->onConnection);
+            ClientContext_->onConnection = handle;
+            return std::make_shared<Client_Configuration>(ContextInfo_);
+        }
 
         virtual std::shared_ptr<IClient_Configuration> onMessage(const std::function<void(const std::shared_ptr<ISocket> &, const Message &)> &handle)
         {
+            assert(!ClientContext_->onMessage);
+            ClientContext_->onMessage = handle;
+            return std::make_shared<Client_Configuration>(ContextInfo_);
         }
-        virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) {}
+        virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)
+        {
+            assert(!ClientContext_->onDisconnection);
+            ClientContext_->onDisconnection = handle;
+            return std::make_shared<Client_Configuration>(ContextInfo_);
+        }
 
-        virtual std::shared_ptr<IContext> connect(const std::string &host, PortNumber port) {}
+        virtual std::shared_ptr<IContext> connect(const std::string &host, PortNumber port) { return ClientContext_; }
     };
     class Listener_Configuration : public IListener_Configuration {
       public:
@@ -35,17 +50,20 @@ namespace NET {
         {
             assert(!ListenContext_->onConnection);
             ListenContext_->onConnection = handle;
+            return std::make_shared<Listener_Configuration>(ListenContext_);
         }
         virtual std::shared_ptr<IListener_Configuration>
         onMessage(const std::function<void(const std::shared_ptr<ISocket> &, const Message &)> &handle)
         {
             assert(!ListenContext_->onMessage);
             ListenContext_->onMessage = handle;
+            return std::make_shared<Listener_Configuration>(ListenContext_);
         }
         virtual std::shared_ptr<IListener_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)
         {
             assert(!ListenContext_->onDisconnection);
             ListenContext_->onDisconnection = handle;
+            return std::make_shared<Listener_Configuration>(ListenContext_);
         }
         virtual std::shared_ptr<IContext> listen()
         {
