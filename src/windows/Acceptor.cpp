@@ -57,10 +57,9 @@ namespace NET {
         }
     }
 
-    void Acceptor::async_accept()
+    void Acceptor::async_accept(PER_IO_CONTEXT *sockcontext)
     {
         DWORD recvbytes = 0;
-        auto sockcontext = createcontext(Protocol);
         auto nRet = AcceptEx_(AcceptSocket, sockcontext->Socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
                               sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (sockcontext->Overlapped));
         if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {

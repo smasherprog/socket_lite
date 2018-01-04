@@ -35,13 +35,5 @@ namespace NET {
         }
     }
 
-    void ClientContext::set_ReadTimeout(std::chrono::seconds seconds) {}
-
-    std::chrono::seconds ClientContext::get_ReadTimeout() { return std::chrono::seconds(); }
-
-    void ClientContext::set_WriteTimeout(std::chrono::seconds seconds) {}
-
-    std::chrono::seconds ClientContext::get_WriteTimeout() { return std::chrono::seconds(); }
-
 } // namespace NET
 } // namespace SL

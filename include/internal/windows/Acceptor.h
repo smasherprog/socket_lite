@@ -16,7 +16,7 @@ namespace NET {
         Acceptor(HANDLE *iocphandle, PortNumber port, NetworkProtocol protocol);
         ~Acceptor();
 
-        void async_accept();
+        void async_accept(PER_IO_CONTEXT *sockcontext);
     };
 } // namespace NET
 } // namespace SL
