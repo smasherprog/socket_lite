@@ -12,25 +12,24 @@ namespace NET {
     };
     class Client_Configuration : public IClient_Configuration {
       public:
-        std::shared_ptr<ContextInfo> ContextInfo_;
         std::shared_ptr<ClientContext> ClientContext_;
-        Client_Configuration(const std::shared_ptr<ContextInfo> &context) : ContextInfo_(context) {}
+        Client_Configuration(const std::shared_ptr<ClientContext> &context) : ClientContext_(context) {}
         virtual ~Client_Configuration() {}
 
         virtual std::shared_ptr<IClient_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)
         {
             assert(!ClientContext_->onConnection);
             ClientContext_->onConnection = handle;
-            return std::make_shared<Client_Configuration>(ContextInfo_);
+            return std::make_shared<Client_Configuration>(ClientContext_);
         }
         virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)
         {
             assert(!ClientContext_->onDisconnection);
             ClientContext_->onDisconnection = handle;
-            return std::make_shared<Client_Configuration>(ContextInfo_);
+            return std::make_shared<Client_Configuration>(ClientContext_);
         }
 
-        virtual std::shared_ptr<IContext> connect(const std::string &host, PortNumber port) { return ClientContext_; }
+        virtual std::shared_ptr<IContext> connect(const std::string &host, PortNumber port) { return ClientContext_->async_connect(host, port) }
     };
     class Listener_Configuration : public IListener_Configuration {
       public:

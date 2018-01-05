@@ -56,7 +56,6 @@ namespace NET {
                         lpOverlapped->Socket_->close();
                         continue;
                     }
-
                     switch (lpOverlapped->IOOperation) {
                     case IO_OPERATION::IoAccept:
                         if (auto ret = setsockopt(lpOverlapped->Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,

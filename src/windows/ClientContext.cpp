@@ -1,9 +1,9 @@
-#include "Acceptor.h"
 #include "ClientContext.h"
+#include "Socket.h"
 namespace SL {
 namespace NET {
 
-    ClientContext::ClientContext(std::string host, PortNumber port, NetworkProtocol protocol) : Protocol(protocol) {}
+    ClientContext::ClientContext(NetworkProtocol protocol) : Protocol(protocol) {}
     ClientContext::~ClientContext()
     {
         KeepRunning = false;
@@ -24,9 +24,33 @@ namespace NET {
             }
         }
     }
+    bool ClientContext::async_connect(std::string host, PortNumber port)
+    {
+        auto socket = std::make_shared<Socket>(Protocol);
+        if (Protocol == NetworkProtocol::IPV4) {
+            SOCKADDR_IN SockAddr = {0};
+            SockAddr.sin_family = AF_INET;
+            SockAddr.sin_addr.s_addr = inet_addr(host.c_str());
+            SockAddr.sin_port = htons(port);
 
+            if (WSAConnect(socket->handle, (SOCKADDR *)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
+            }
+        }
+        else {
+            sockaddr_in6 SockAddr = {0};
+            SockAddr.sin6_family = AF_INET6;
+            inet_pton(AF_INET6, host.c_str(), &(SockAddr.sin6_addr));
+            SockAddr.sin6_port = htons(port);
+
+            if (WSAConnect(socket->handle, (SOCKADDR *)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
+            }
+        }
+        if (auto ret = setsockopt(socket->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0); ret != SOCKET_ERROR) {
+        }
+    }
     void ClientContext::run(ThreadCount threadcount)
     {
+
         Threads.reserve(threadcount.value);
         for (auto i = 0; i < threadcount.value; i++) {
             Threads.push_back(std::thread([&] {

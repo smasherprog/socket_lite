@@ -9,8 +9,7 @@ namespace NET {
     {
         AcceptSocket = Socket::Create(Protocol);
         if (Protocol == NetworkProtocol::IPV4) {
-            sockaddr_in serveraddr;
-            memset(&serveraddr, 0, sizeof(serveraddr));
+            sockaddr_in serveraddr = {0};
             serveraddr.sin_family = AF_INET;
             serveraddr.sin_port = htons(port.value);
             serveraddr.sin_addr.s_addr = INADDR_ANY;
@@ -20,8 +19,7 @@ namespace NET {
             }
         }
         else {
-            sockaddr_in6 serveraddr;
-            memset(&serveraddr, 0, sizeof(serveraddr));
+            sockaddr_in6 serveraddr = {0};
             serveraddr.sin6_family = AF_INET6;
             serveraddr.sin6_port = htons(port.value);
             serveraddr.sin6_addr = in6addr_any;

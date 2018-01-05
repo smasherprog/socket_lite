@@ -17,9 +17,12 @@ namespace NET {
         std::vector<std::thread> Threads;
         NetworkProtocol Protocol;
 
-        ClientContext(std::string host, PortNumber port, NetworkProtocol protocol);
+        std::shared_ptr<Socket> Socket_;
+
+        ClientContext(NetworkProtocol protocol);
         virtual ~ClientContext();
         void run(ThreadCount threadcount);
+        bool async_connect(std::string host, PortNumber port);
     };
 
 } // namespace NET
