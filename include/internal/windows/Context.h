@@ -13,7 +13,6 @@ namespace NET {
         virtual ~Context();
 
         std::function<void(const std::shared_ptr<ISocket> &)> onConnection;
-        std::function<void(const std::shared_ptr<ISocket> &, const unsigned char *data, size_t len)> onData;
         std::function<void(const std::shared_ptr<ISocket> &)> onDisconnection;
     };
 

@@ -29,7 +29,7 @@ namespace NET {
 
     void ListenContext::run(ThreadCount threadcount)
     {
-        Acceptor_.async_accept(createcontext(Protocol, this)); // start waiting for a new connection
+        Acceptor_.async_accept(); // start waiting for a new connection
         Threads.reserve(threadcount.value);
         for (auto i = 0; i < threadcount.value; i++) {
             Threads.push_back(std::thread([&] {
@@ -54,39 +54,34 @@ namespace NET {
                     if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept &&
                         (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
                         // dropped connection
-                        onDisconnection(lpOverlapped->Socket);
-                        freecontext(&lpOverlapped);
+                        lpOverlapped->Socket_->close();
                         continue;
                     }
 
                     switch (lpOverlapped->IOOperation) {
                     case IO_OPERATION::IoAccept:
-                        if (auto ret = setsockopt(lpOverlapped->Socket->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&Acceptor_.AcceptSocket,
-                                                  sizeof(Acceptor_.AcceptSocket));
+                        if (auto ret = setsockopt(lpOverlapped->Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
+                                                  (char *)&Acceptor_.AcceptSocket, sizeof(Acceptor_.AcceptSocket));
                             ret == SOCKET_ERROR) {
                             // big error here...
                             return;
                         }
-                        if (!updateIOCP(lpOverlapped->Socket->handle, &iocp.handle)) {
+                        if (!updateIOCP(lpOverlapped->Socket_->handle, &iocp.handle)) {
                             // big error here...
                             return;
                         }
-                        Acceptor_.async_accept(createcontext(Protocol, this)); // this will start another accept
-                        async_read(lpOverlapped, onDisconnection);
+                        Acceptor_.async_accept(); // start waiting for a new connection
 
+                        lpOverlapped->Socket_->SocketStatus_ = SocketStatus::CONNECTED;
+                        onConnection(lpOverlapped->Socket_);
                         break;
                     case IO_OPERATION::IoRead:
-                        lpOverlapped->Socket->read(allocator);
-                        onData(lpOverlapped->Socket, allocator.data(), allocator.size());
-                        async_read(lpOverlapped, onDisconnection);
+                        lpOverlapped->transfered_bytes += numberofbytestransfered;
+                        lpOverlapped->Socket->continue_read(lpOverlapped);
                         break;
                     case IO_OPERATION::IoWrite:
-                        lpOverlapped->CurrentBuffer.totalsent += numberofbytestransfered;
-                        dwFlags = 0;
-                        if (!lpOverlapped->Socket->send()) {
-                            onDisconnection(lpOverlapped->Socket);
-                            freecontext(&lpOverlapped);
-                        }
+                        lpOverlapped->transfered_bytes += numberofbytestransfered;
+                        lpOverlapped->Socket->continue_write(lpOverlapped);
                         break;
                     default:
                         break;

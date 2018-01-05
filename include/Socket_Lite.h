@@ -29,25 +29,23 @@ namespace NET {
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
     typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
 
-    enum class SocketStatus : unsigned char { CONNECTING, CONNECTED, CLOSING, CLOSED };
+    enum class SocketStatus : unsigned char { CONNECTED, CLOSED };
     enum class NetworkProtocol { IPV4, IPV6 };
-    struct Message {
-        size_t len;
-        std::shared_ptr<unsigned char> Buffer;
-    };
-    class SOCKET_LITE_EXTERN ISocket {
+
+    class SOCKET_LITE_EXTERN ISocket : public std::enable_shared_from_this<ISocket> {
       public:
         virtual ~ISocket() {}
-        virtual SocketStatus is_open() const = 0;
+        virtual SocketStatus get_status() const = 0;
         virtual std::string get_address() const = 0;
         virtual unsigned short get_port() const = 0;
         virtual NetworkProtocol get_protocol() const = 0;
         virtual bool is_loopback() const = 0;
-        virtual size_t BufferedBytes() const = 0;
-        virtual void send(const Message &msg) = 0;
+        virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler) = 0;
+        virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler) = 0;
         // send a close message and close the socket
         virtual void close() = 0;
     };
+
     class SOCKET_LITE_EXTERN IContext {
       public:
         virtual ~IContext() {}
@@ -58,9 +56,6 @@ namespace NET {
 
         // when a connection is fully established.  If onconnect is called, then a matching onDisconnection is guaranteed
         virtual std::shared_ptr<IListener_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
-        // when a message has been received
-        virtual std::shared_ptr<IListener_Configuration>
-        onData(const std::function<void(const std::shared_ptr<ISocket> &, const unsigned char *data, size_t len)> &handle) = 0;
         // when a socket is closed down for ANY reason. If onconnect is called, then a matching onDisconnection is guaranteed
         virtual std::shared_ptr<IListener_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
         // start the process to listen for clients. This is non-blocking and will return immediatly
@@ -72,9 +67,6 @@ namespace NET {
         virtual ~IClient_Configuration() {}
         // when a connection is fully established.  If onconnect is called, then a matching onDisconnection is guaranteed
         virtual std::shared_ptr<IClient_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
-        // when a message has been received
-        virtual std::shared_ptr<IClient_Configuration>
-        onData(const std::function<void(const std::shared_ptr<ISocket> &, const unsigned char *data, size_t len)> &handle) = 0;
         // when a socket is closed down for ANY reason. If onconnect is called, then a matching onDisconnection is guaranteed
         virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
         // connect to an endpoint. This is non-blocking and will return immediatly. If the library is unable to establish a connection,

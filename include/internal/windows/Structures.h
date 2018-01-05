@@ -65,11 +65,6 @@ namespace NET {
         }
         operator bool() const { return handle != NULL; }
     };
-    struct SendBuffer {
-        size_t totalsent = 0;
-        size_t total = 0;
-        std::shared_ptr<unsigned char> Buffer;
-    };
     enum IO_OPERATION { IoAccept, IoRead, IoWrite };
 
     class Socket;
@@ -77,18 +72,16 @@ namespace NET {
     class Context;
     struct PER_IO_CONTEXT {
         WSAOVERLAPPED Overlapped = {0};
-        WSABUF wsabuf = {0};
-        std::mutex SendBuffersLock;
-        SendBuffer CurrentBuffer;
-        std::vector<SendBuffer> SendBuffers;
         IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
-        std::shared_ptr<Socket> Socket;
+        WSABUF wsabuf = {0};
+        size_t transfered_bytes = 0;
+        size_t bufferlen = 0;
+        unsigned char *buffer = nullptr;
+        std::function<void(size_t)> completionhandler;
+        std::shared_ptr<Socket> Socket_;
     };
 
-    PER_IO_CONTEXT *createcontext(NetworkProtocol protocol, Context *context);
-    void freecontext(PER_IO_CONTEXT **context);
     bool updateIOCP(SOCKET socket, HANDLE *iocphandle);
-    void async_read(PER_IO_CONTEXT *lpOverlapped, std::function<void(const std::shared_ptr<ISocket> &)> &onDisconnection);
 
 } // namespace NET
 } // namespace SL

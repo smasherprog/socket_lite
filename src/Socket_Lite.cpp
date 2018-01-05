@@ -23,13 +23,6 @@ namespace NET {
             ClientContext_->onConnection = handle;
             return std::make_shared<Client_Configuration>(ContextInfo_);
         }
-
-        virtual std::shared_ptr<IClient_Configuration> onMessage(const std::function<void(const std::shared_ptr<ISocket> &, const Message &)> &handle)
-        {
-            assert(!ClientContext_->onMessage);
-            ClientContext_->onMessage = handle;
-            return std::make_shared<Client_Configuration>(ContextInfo_);
-        }
         virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)
         {
             assert(!ClientContext_->onDisconnection);
@@ -50,13 +43,6 @@ namespace NET {
         {
             assert(!ListenContext_->onConnection);
             ListenContext_->onConnection = handle;
-            return std::make_shared<Listener_Configuration>(ListenContext_);
-        }
-        virtual std::shared_ptr<IListener_Configuration>
-        onMessage(const std::function<void(const std::shared_ptr<ISocket> &, const Message &)> &handle)
-        {
-            assert(!ListenContext_->onMessage);
-            ListenContext_->onMessage = handle;
             return std::make_shared<Listener_Configuration>(ListenContext_);
         }
         virtual std::shared_ptr<IListener_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle)

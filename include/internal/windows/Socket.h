@@ -1,7 +1,7 @@
 #pragma once
 #include "Socket_Lite.h"
 #include "Structures.h"
-#include <vector>
+#include <list>
 
 namespace SL {
 namespace NET {
@@ -11,22 +11,26 @@ namespace NET {
       public:
         static SOCKET Create(NetworkProtocol protocol);
         SOCKET handle = INVALID_SOCKET;
-        Context *Context_ = nullptr;
-        PER_IO_CONTEXT *PER_IO_CONTEXT_ = nullptr;
+        Context *Parent = nullptr;
+        SocketStatus SocketStatus_ = SocketStatus::CLOSED;
+
+        std::mutex SendBuffersLock;
+        std::list<PER_IO_CONTEXT> SendBuffers;
+        std::unique_ptr<PER_IO_CONTEXT> ReadContext;
 
         Socket(NetworkProtocol protocol);
         virtual ~Socket();
-        virtual SocketStatus is_open() const;
+        virtual SocketStatus get_status() const;
         virtual std::string get_address() const;
         virtual unsigned short get_port() const;
         virtual NetworkProtocol get_protocol() const;
         virtual bool is_loopback() const;
-        virtual size_t BufferedBytes() const;
-        virtual void send(const Message &msg);
+        virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler);
+        virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler);
         virtual void close();
 
-        bool read(FastAllocator &allocator);
-        bool send();
+        SocketStatus continue_read(PER_IO_CONTEXT *sockcontext);
+        SocketStatus continue_write(PER_IO_CONTEXT *sockcontext);
     };
 } // namespace NET
 } // namespace SL

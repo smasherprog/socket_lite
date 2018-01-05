@@ -46,22 +46,17 @@ namespace NET {
             closesocket(AcceptSocket);
         }
     }
-    Acceptor::~Acceptor()
-    {
-        closesocket(AcceptSocket);
-        if (LastContext) {
-            while (!HasOverlappedIoCompleted((LPOVERLAPPED)&LastContext->Overlapped)) {
-                Sleep(0);
-            }
-            freecontext(&LastContext);
-        }
-    }
+    Acceptor::~Acceptor() { closesocket(AcceptSocket); }
 
-    void Acceptor::async_accept(PER_IO_CONTEXT *sockcontext)
+    void Acceptor::async_accept()
     {
+        auto socket = std::make_shared<Socket>(Protocol);
+        socket->SendBuffers.push_back(PER_IO_CONTEXT());
+        auto val = &socket->SendBuffers.front();
+        val->Socket_ = socket;
         DWORD recvbytes = 0;
-        auto nRet = AcceptEx_(AcceptSocket, sockcontext->Socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
-                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (sockcontext->Overlapped));
+        auto nRet = AcceptEx_(AcceptSocket, socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
+                              &recvbytes, (LPOVERLAPPED) & (val->Overlapped));
         if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
         }
     }

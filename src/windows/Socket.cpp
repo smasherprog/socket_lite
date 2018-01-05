@@ -1,6 +1,7 @@
 #include "Context.h"
 #include "Socket.h"
 #include "internal/FastAllocator.h"
+#include <assert.h>
 
 namespace SL {
 namespace NET {
@@ -24,105 +25,111 @@ namespace NET {
     }
     Socket::Socket(NetworkProtocol protocol) { handle = Create(protocol); }
     Socket::~Socket() { close(); }
-    SocketStatus Socket::is_open() const { return SocketStatus(); }
+    SocketStatus Socket::get_status() const { return SocketStatus_; }
     std::string Socket::get_address() const { return std::string(); }
     unsigned short Socket::get_port() const { return 0; }
     NetworkProtocol Socket::get_protocol() const { return NetworkProtocol(); }
     bool Socket::is_loopback() const { return false; }
-    size_t Socket::BufferedBytes() const { return size_t(); }
-    void Socket::send(const Message &msg)
-    {
-        bool dosend = false;
-        {
-            std::lock_guard<std::mutex> lock(PER_IO_CONTEXT_->SendBuffersLock);
-            // still sennding other messages, just push
-            if (!PER_IO_CONTEXT_->SendBuffers.empty() || !PER_IO_CONTEXT_->CurrentBuffer.Buffer) {
-                PER_IO_CONTEXT_->SendBuffers.emplace_back(0, msg.len, msg.Buffer);
-            }
-            else {
-                dosend = true;
-                PER_IO_CONTEXT_->CurrentBuffer.Buffer = msg.Buffer;
-                PER_IO_CONTEXT_->CurrentBuffer.total = msg.len;
-                PER_IO_CONTEXT_->CurrentBuffer.totalsent = 0;
-            }
-        }
-        if (dosend) {
-            if (!send()) {
-                Context_->onDisconnection(PER_IO_CONTEXT_->Socket);
-                freecontext(&PER_IO_CONTEXT_); // will this work??? Who knows lets try, it should!
-            }
-        }
-    }
+
     void Socket::close()
     {
+        if (SocketStatus_ == SocketStatus::CLOSED) {
+            return; // nothing more to do here!
+        }
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
         }
+
         handle = INVALID_SOCKET;
-    }
-
-    bool Socket::read(FastAllocator &allocator)
-    {
-        auto bytes_read = 0;
-        do {
-            auto remainingbytes = allocator.capacity() - allocator.size();
-            if (remainingbytes < allocator.size()) {
-                allocator.grow();
-                remainingbytes = allocator.capacity() - allocator.size();
-            }
-            bytes_read = recv(handle, (char *)allocator.data() + allocator.size(), remainingbytes, 0);
-            if (bytes_read > 0) {
-                allocator.size(allocator.size() + bytes_read);
-            }
-            else if (bytes_read == 0 || (bytes_read == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK)) {
-                return false; // either disconnect or error has occured
-            }
-        } while (bytes_read > 0);
-        return true;
-    }
-
-    bool Socket::send()
-    {
-        bool dosend = true;
-        if (!PER_IO_CONTEXT_->CurrentBuffer.Buffer) {
-            std::lock_guard<std::mutex> lock(PER_IO_CONTEXT_->SendBuffersLock);
-            if (!PER_IO_CONTEXT_->CurrentBuffer.Buffer && !PER_IO_CONTEXT_->SendBuffers.empty()) {
-                PER_IO_CONTEXT_->CurrentBuffer.Buffer = msg.Buffer;
-                PER_IO_CONTEXT_->CurrentBuffer.total = msg.len;
-                PER_IO_CONTEXT_->CurrentBuffer.totalsent = 0;
-            }
-            else {
-                dosend = false;
-            }
+        SocketStatus_ = SocketStatus::CLOSED;
+        // let all handlers know
+        std::list<PER_IO_CONTEXT> tmp;
+        {
+            std::lock_guard<std::mutex> lock(SendBuffersLock);
+            tmp = SendBuffers;
         }
+        for (auto &a : tmp) {
+            // wait for the events to finish
+            /*
+            while (!HasOverlappedIoCompleted((LPOVERLAPPED)&a.Overlapped)) {
+                Sleep(0);
+            }*/
+            a.completionhandler(-1); // complete all handlers leting them know of the disconnect
+        }
+        if (ReadContext) {
+            ReadContext->completionhandler(-1);
+        }
+        Parent->onDisconnection(shared_from_this());
+    }
+    void Socket::async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler)
+    {
+        assert(!ReadContext);
+        ReadContext = std::make_unique<PER_IO_CONTEXT>();
+        ReadContext->Socket_ = shared_from_this();
+        ReadContext->buffer = buffer;
+        ReadContext->bufferlen = buffer_size;
+        ReadContext->completionhandler = handler;
+        ReadContext->IOOperation =
 
-        PER_IO_CONTEXT_->wsabuf.buf = (char *)PER_IO_CONTEXT_->CurrentBuffer.Buffer.get() + PER_IO_CONTEXT_->CurrentBuffer.totalsent;
-        PER_IO_CONTEXT_->wsabuf.len = PER_IO_CONTEXT_->CurrentBuffer.total - PER_IO_CONTEXT_->CurrentBuffer.totalsent;
-
-        DWORD dwSendNumBytes(0), dwFlags(0);
-        if (auto nRet =
-                WSASend(PER_IO_CONTEXT_->Socket->handle, &PER_IO_CONTEXT_->wsabuf, 1, &dwSendNumBytes, dwFlags, &(PER_IO_CONTEXT_->Overlapped), NULL);
+            DWORD dwSendNumBytes(0),
+        dwFlags(0);
+        if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-            Context_->onDisconnection(PER_IO_CONTEXT_->Socket);
-            freecontext(&PER_IO_CONTEXT_); // will this work??? Who knows lets try, it should!
+            close();
         }
-
+        return get_status();
+    }
+    SocketStatus Socket::continue_read(PER_IO_CONTEXT *sockcontext)
+    {
         DWORD dwSendNumBytes(0), dwFlags(0);
-        if (PER_IO_CONTEXT_->nSentBytes < PER_IO_CONTEXT_->nTotalBytes) {
-            PER_IO_CONTEXT_->wsabuf.buf = (char *)PER_IO_CONTEXT_->Buffer.get() + PER_IO_CONTEXT_->nSentBytes;
-            PER_IO_CONTEXT_->wsabuf.len = PER_IO_CONTEXT_->nTotalBytes - PER_IO_CONTEXT_->nSentBytes;
-            if (auto nRet = WSASend(PER_IO_CONTEXT_->Socket->handle, &PER_IO_CONTEXT_->wsabuf, 1, &dwSendNumBytes, dwFlags,
-                                    &(PER_IO_CONTEXT_->Overlapped), NULL);
-                nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-                return false;
+        if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
+            nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+            close();
+        }
+        return get_status();
+    }
+    void Socket::async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler)
+    {
+        if (SocketStatus_ != SocketStatus::CONNECTED) {
+            handler(-1);
+        }
+        size_t size = 0;
+        {
+            std::lock_guard<std::mutex> lock(SendBuffersLock);
+            auto val = SendBuffers.emplace_back(PER_IO_CONTEXT());
+            val.buffer = buffer;
+            val.bufferlen = buffer_size;
+            val.IOOperation = IO_OPERATION::IoWrite;
+            size = SendBuffers.size();
+        }
+        if (size == 1) { // initiate a send
+            continue_write(&SendBuffers.front());
+        }
+    }
+    SocketStatus Socket::continue_write(PER_IO_CONTEXT *sockcontext)
+    {
+        // check if the send is done, if so callback, remove from the send buffer, etc
+        if (sockcontext->transfered_bytes == sockcontext->bufferlen) {
+            {
+                std::lock_guard<std::mutex> lock(SendBuffersLock);
+                SendBuffers.pop_front();
+                if (SendBuffers.begin() != SendBuffers.end()) { // dont use empty as it traverses the list
+                    sockcontext = &SendBuffers.front();
+                }
             }
+            sockcontext->completionhandler(sockcontext->transfered_bytes);
         }
-        else {
-            PER_IO_CONTEXT_->Buffer.reset(); // release memory
-            PER_IO_CONTEXT_->wsabuf.len = PER_IO_CONTEXT_->nTotalBytes = PER_IO_CONTEXT_->nSentBytes = 0;
-            PER_IO_CONTEXT_->wsabuf.buf = nullptr;
+        if (sockcontext == nullptr) {
+            return get_status();
         }
-        return true;
+        sockcontext->wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
+        sockcontext->wsabuf.len = sockcontext->bufferlen - sockcontext->transfered_bytes;
+        DWORD dwSendNumBytes(0), dwFlags(0);
+        if (auto nRet = WSASend(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
+            nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+            close();
+        }
+        return get_status();
     }
 
 } // namespace NET
