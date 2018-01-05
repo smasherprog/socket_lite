@@ -1,6 +1,5 @@
 #include "Context.h"
 #include "Socket.h"
-#include "internal/FastAllocator.h"
 #include <assert.h>
 
 namespace SL {
@@ -46,18 +45,15 @@ namespace NET {
         std::list<PER_IO_CONTEXT> tmp;
         {
             std::lock_guard<std::mutex> lock(SendBuffersLock);
-            tmp = SendBuffers;
+            std::swap(tmp, SendBuffers);
         }
         for (auto &a : tmp) {
-            // wait for the events to finish
-            /*
-            while (!HasOverlappedIoCompleted((LPOVERLAPPED)&a.Overlapped)) {
-                Sleep(0);
-            }*/
-            a.completionhandler(-1); // complete all handlers leting them know of the disconnect
+            a.completionhandler(SOCKETCLOSED); // complete all handlers leting them know of the disconnect
         }
+        tmp.clear();
         if (ReadContext) {
-            ReadContext->completionhandler(-1);
+            ReadContext->completionhandler(SOCKETCLOSED);
+            ReadContext.reset();
         }
         Parent->onDisconnection(shared_from_this());
     }
@@ -65,33 +61,60 @@ namespace NET {
     {
         assert(!ReadContext);
         ReadContext = std::make_unique<PER_IO_CONTEXT>();
-        ReadContext->Socket_ = shared_from_this();
+        ReadContext->Socket_ = std::static_pointer_cast<Socket>(shared_from_this());
         ReadContext->buffer = buffer;
         ReadContext->bufferlen = buffer_size;
         ReadContext->completionhandler = handler;
-        ReadContext->IOOperation =
+        ReadContext->IOOperation = IO_OPERATION::IoRead;
 
-            DWORD dwSendNumBytes(0),
-        dwFlags(0);
-        if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
+        ReadContext->wsabuf.buf = nullptr;
+        ReadContext->wsabuf.len = 0;
+        DWORD dwSendNumBytes(0), dwFlags(0);
+        // do read with zero bytes to prevent memory from being mapped
+        if (auto nRet = WSARecv(handle, &ReadContext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext->Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
             close();
         }
-        return get_status();
     }
     SocketStatus Socket::continue_read(PER_IO_CONTEXT *sockcontext)
     {
-        DWORD dwSendNumBytes(0), dwFlags(0);
-        if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
-            nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-            close();
+        // read any data available
+        if (sockcontext->bufferlen < sockcontext->transfered_bytes) {
+            auto bytes_read = 0;
+            do {
+                auto remainingbytes = ReadContext->bufferlen - ReadContext->transfered_bytes;
+                bytes_read = recv(handle, (char *)ReadContext->buffer + ReadContext->transfered_bytes, remainingbytes, 0);
+                if (bytes_read > 0) {
+                    ReadContext->transfered_bytes += bytes_read;
+                }
+                else if (bytes_read == 0 || (bytes_read == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK)) {
+                    close();
+                    return get_status();
+                }
+            } while (bytes_read > 0);
+        }
+
+        if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
+            sockcontext->completionhandler(sockcontext->transfered_bytes);
+            ReadContext.reset();
+        }
+        else {
+            // still more data to read.. keep going!
+            ReadContext->wsabuf.buf = nullptr;
+            ReadContext->wsabuf.len = 0;
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            // do read with zero bytes to prevent memory from being mapped
+            if (auto nRet = WSARecv(handle, &ReadContext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext->Overlapped), NULL);
+                nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+                close();
+            }
         }
         return get_status();
     }
     void Socket::async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(size_t)> &handler)
     {
         if (SocketStatus_ != SocketStatus::CONNECTED) {
-            handler(-1);
+            handler(SOCKETCLOSED);
         }
         size_t size = 0;
         {

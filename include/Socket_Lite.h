@@ -28,7 +28,7 @@ namespace NET {
     } // namespace INTERNAL
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
     typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
-
+    const size_t SOCKETCLOSED = std::numeric_limits<size_t>::max();
     enum class SocketStatus : unsigned char { CONNECTED, CLOSED };
     enum class NetworkProtocol { IPV4, IPV6 };
 

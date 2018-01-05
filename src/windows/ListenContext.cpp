@@ -1,7 +1,7 @@
 #include "Acceptor.h"
 #include "ListenContext.h"
 #include "Socket.h"
-#include "internal/FastAllocator.h"
+
 namespace SL {
 namespace NET {
 
@@ -33,8 +33,7 @@ namespace NET {
         Threads.reserve(threadcount.value);
         for (auto i = 0; i < threadcount.value; i++) {
             Threads.push_back(std::thread([&] {
-                FastAllocator allocator;
-                allocator.capacity(1024 * 1024); // 1 MB
+
                 DWORD dwSendNumBytes(0);
                 DWORD dwFlags(0);
                 while (KeepRunning) {
@@ -77,11 +76,11 @@ namespace NET {
                         break;
                     case IO_OPERATION::IoRead:
                         lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        lpOverlapped->Socket->continue_read(lpOverlapped);
+                        lpOverlapped->Socket_->continue_read(lpOverlapped);
                         break;
                     case IO_OPERATION::IoWrite:
                         lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        lpOverlapped->Socket->continue_write(lpOverlapped);
+                        lpOverlapped->Socket_->continue_write(lpOverlapped);
                         break;
                     default:
                         break;
