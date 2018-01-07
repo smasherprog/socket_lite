@@ -31,13 +31,6 @@ namespace NET {
             ClientContext_->onConnection = handle;
             return std::make_shared<Client_Configuration>(ClientContext_, ThreadCount_);
         }
-        virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) override
-        {
-            assert(!ClientContext_->onDisconnection);
-            ClientContext_->onDisconnection = handle;
-            return std::make_shared<Client_Configuration>(ClientContext_, ThreadCount_);
-        }
-
         virtual std::shared_ptr<IContext> async_connect(const std::string &host, PortNumber port) override
         {
             if (!ClientContext_->async_connect(host, port)) {
@@ -86,12 +79,6 @@ namespace NET {
             ListenContext_->onConnection = handle;
             return std::make_shared<Listener_Configuration>(ListenContext_, ThreadCount_);
         }
-        virtual std::shared_ptr<IListener_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) override
-        {
-            assert(!ListenContext_->onDisconnection);
-            ListenContext_->onDisconnection = handle;
-            return std::make_shared<Listener_Configuration>(ListenContext_, ThreadCount_);
-        }
         virtual std::shared_ptr<IListenerBind_Configuration> bind(PortNumber port) override
         {
             if (!ListenContext_->bind(port)) {
@@ -134,20 +121,51 @@ namespace NET {
 #endif
     }
 
-    std::optional<Platform_Socket> create_and_bind(PortNumber port)
+    std::optional<SocketInfo> get_PeerInfo(Platform_Socket s)
+    {
+        sockaddr_storage addr;
+        socklen_t len = sizeof(addr);
+        if (getpeername(s, (sockaddr *)&addr, &len) == 0) {
+            // deal with both IPv4 and IPv6:
+            if (addr.ss_family == AF_INET) {
+                auto so = (sockaddr_in *)&addr;
+                SocketInfo tmp;
+                inet_ntop(AF_INET, &so->sin_addr, tmp.Address, sizeof(tmp.Address));
+                tmp.Port = ntohs(so->sin_port);
+                tmp.Family = Address_Family::IPV4;
+                return std::optional<SocketInfo>(tmp);
+            }
+            else { // AF_INET6
+                auto so = (sockaddr_in6 *)&addr;
+                SocketInfo tmp;
+                inet_ntop(AF_INET6, &so->sin6_addr, tmp.Address, sizeof(tmp.Address));
+                tmp.Port = ntohs(so->sin6_port);
+                tmp.Family = Address_Family::IPV6;
+                return std::optional<SocketInfo>(tmp);
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Platform_Socket> create_and_bind(PortNumber port
+#ifdef WIN32
+                                                   ,
+                                                   void **iocphandle, void *contextdata
+#endif
+    )
     {
 
-        struct addrinfo hints = {0};
-        struct addrinfo *result(nullptr), *rp(nullptr);
-        int s = 0;
+        addrinfo hints = {0};
+        addrinfo *result(nullptr), *rp(nullptr);
+
         Platform_Socket sfd;
 
-        memset(&hints, 0, sizeof(struct addrinfo));
+        memset(&hints, 0, sizeof(addrinfo));
         hints.ai_family = AF_UNSPEC;     /* Return IPv4 and IPv6 choices */
         hints.ai_socktype = SOCK_STREAM; /* We want a TCP socket */
         hints.ai_flags = AI_PASSIVE;     /* All interfaces */
         auto portstr = std::to_string(port.value);
-        s = getaddrinfo(NULL, portstr.c_str(), &hints, &result);
+        auto s = getaddrinfo(NULL, portstr.c_str(), &hints, &result);
         if (s != 0) {
             std::cerr << "getaddrinfo" << gai_strerror(s) << std::endl;
             return std::nullopt;
@@ -163,34 +181,44 @@ namespace NET {
             if (sfd == INVALID_SOCKET)
                 continue;
             if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0) {
+#ifdef WIN32
+
+                *iocphandle = CreateIoCompletionPort((HANDLE)sfd, *iocphandle, (DWORD_PTR)contextdata, 0);
+                if (*iocphandle == NULL) {
+                    std::cerr << "CreateIoCompletionPort failed" << GetLastError() << std::endl;
+                    continue;
+                }
+#endif
                 /* We managed to bind successfully! */
                 break;
             }
             closesocket(sfd);
         }
-
+        freeaddrinfo(result);
         if (rp == NULL) {
             std::cerr << "Could not bind" << std::endl;
             return std::nullopt;
         }
-
-        freeaddrinfo(result);
         return std::optional<Platform_Socket>{sfd};
     }
-    std::optional<Platform_Socket> create_and_connect(std::string host, PortNumber port)
+    std::optional<Platform_Socket> create_and_connect(std::string host, PortNumber port
+#ifdef WIN32
+                                                      ,
+                                                      void **iocphandle, void *contextdata
+#endif
+    )
     {
 
-        struct addrinfo hints = {0};
-        struct addrinfo *result(nullptr), *rp(nullptr);
-        int s = 0;
+        addrinfo hints = {0};
+        addrinfo *result(nullptr), *rp(nullptr);
         Platform_Socket sfd;
 
-        memset(&hints, 0, sizeof(struct addrinfo));
+        memset(&hints, 0, sizeof(addrinfo));
         hints.ai_family = AF_UNSPEC;     /* Return IPv4 and IPv6 choices */
         hints.ai_socktype = SOCK_STREAM; /* We want a TCP socket */
         hints.ai_flags = AI_PASSIVE;     /* All interfaces */
         auto portstr = std::to_string(port.value);
-        s = getaddrinfo(NULL, portstr.c_str(), &hints, &result);
+        auto s = getaddrinfo(NULL, portstr.c_str(), &hints, &result);
         if (s != 0) {
             std::cerr << "getaddrinfo" << gai_strerror(s) << std::endl;
             return std::nullopt;
@@ -218,18 +246,25 @@ namespace NET {
 #endif
 
             ) {
+#ifdef WIN32
+
+                *iocphandle = CreateIoCompletionPort((HANDLE)sfd, *iocphandle, (DWORD_PTR)contextdata, 0);
+                if (*iocphandle == NULL) {
+                    std::cerr << "CreateIoCompletionPort failed" << GetLastError() << std::endl;
+                    continue;
+                }
+#endif
+
                 /* We managed to connect successfully! */
                 break;
             }
             closesocket(sfd);
         }
-
+        freeaddrinfo(result);
         if (rp == NULL) {
-            std::cerr << "Could not bind" << std::endl;
+            std::cerr << "Could not connect" << std::endl;
             return std::nullopt;
         }
-
-        freeaddrinfo(result);
         return std::optional<Platform_Socket>{sfd};
     }
 
@@ -308,7 +343,7 @@ namespace NET {
 
     std::optional<Linger_Option> getsockopt_O_LINGER(Platform_Socket s)
     {
-        struct linger value;
+        linger value;
         int valuelen = sizeof(value);
         if (getsockopt(s, SOL_SOCKET, SO_LINGER, (char *)&value, &valuelen) == 0) {
             return std::optional<Linger_Option>(
@@ -366,7 +401,7 @@ namespace NET {
             return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
         }
 #else
-        struct timeval value = {0};
+        timeval value = {0};
         int valuelen = sizeof(value);
         if (getsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
             return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
@@ -384,7 +419,7 @@ namespace NET {
             return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
         }
 #else
-        struct timeval value = {0};
+        timeval value = {0};
         int valuelen = sizeof(value);
         if (getsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {
             return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
@@ -443,7 +478,7 @@ namespace NET {
 
     bool setsockopt_O_LINGER(Platform_Socket s, Linger_Option o)
     {
-        struct linger value;
+        linger value;
         value.l_onoff = o.l_onoff == Linger_Options::LINGER_OFF ? 0 : 1;
         value.l_linger = static_cast<unsigned short>(o.l_linger.count());
         int valuelen = sizeof(value);
@@ -485,9 +520,9 @@ namespace NET {
         int valuelen = sizeof(value);
         return setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, valuelen) == 0;
 #else
-        struct timeval tv = {0};
+        timeval tv = {0};
         tv.tv_sec = static_cast<long>(sec.count());
-        return setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (struct timeval *)&tv, sizeof(tv)) == 0;
+        return setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (timeval *)&tv, sizeof(tv)) == 0;
 #endif
     }
 
@@ -498,9 +533,9 @@ namespace NET {
         int valuelen = sizeof(value);
         return setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, valuelen) == 0;
 #else
-        struct timeval tv = {0};
+        timeval tv = {0};
         tv.tv_sec = static_cast<long>(sec.count());
-        return setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (struct timeval *)&tv, sizeof(tv)) == 0;
+        return setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (timeval *)&tv, sizeof(tv)) == 0;
 #endif
     }
 

@@ -61,46 +61,62 @@ namespace NET {
 #else
     typedef int Platform_Socket;
 #endif
+
+    typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
     enum class Linger_Options { LINGER_OFF, LINGER_ON };
     struct Linger_Option {
         Linger_Options l_onoff;        /* option on/off */
         std::chrono::seconds l_linger; /* linger time */
     };
-    std::optional<Platform_Socket> create_and_bind(PortNumber port);
-    bool make_socket_non_blocking(Platform_Socket socket);
-    std::optional<Platform_Socket> create_and_connect(std::string host, PortNumber port);
+    enum class Address_Family { IPV4, IPV6 };
+    struct SocketInfo {
+        char Address[65];
+        unsigned short Port;
+        Address_Family Family;
+    };
+    std::optional<SocketInfo> SOCKET_LITE_EXTERN get_PeerInfo(Platform_Socket s);
+    std::optional<Platform_Socket> SOCKET_LITE_EXTERN create_and_bind(PortNumber port
+#ifdef WIN32
+                                                                      ,
+                                                                      void **iocphandle, void *contextdata
+#endif
+    );
+    bool SOCKET_LITE_EXTERN make_socket_non_blocking(Platform_Socket socket);
+    std::optional<Platform_Socket> SOCKET_LITE_EXTERN create_and_connect(std::string host, PortNumber port
+#ifdef WIN32
+                                                                         ,
+                                                                         void **iocphandle, void *contextdata
+#endif
+    );
 
-    std::optional<bool> getsockopt_O_DEBUG(Platform_Socket s);
-    std::optional<bool> getsockopt_O_ACCEPTCONN(Platform_Socket s);
-    std::optional<bool> getsockopt_O_BROADCAST(Platform_Socket s);
-    std::optional<bool> getsockopt_O_REUSEADDR(Platform_Socket s);
-    std::optional<bool> getsockopt_O_KEEPALIVE(Platform_Socket s);
-    std::optional<Linger_Option> getsockopt_O_LINGER(Platform_Socket s);
-    std::optional<bool> getsockopt_O_OOBINLINE(Platform_Socket s);
-    std::optional<bool> getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket s);
-    std::optional<int> getsockopt_O_SNDBUF(Platform_Socket s);
-    std::optional<int> getsockopt_O_RCVBUF(Platform_Socket s);
-    std::optional<std::chrono::seconds> getsockopt_O_SNDTIMEO(Platform_Socket s);
-    std::optional<std::chrono::seconds> getsockopt_O_RCVTIMEO(Platform_Socket s);
-    std::optional<int> getsockopt_O_ERROR(Platform_Socket s);
-    std::optional<bool> getsockopt_O_NODELAY(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_DEBUG(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_ACCEPTCONN(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_BROADCAST(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_REUSEADDR(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_KEEPALIVE(Platform_Socket s);
+    std::optional<Linger_Option> SOCKET_LITE_EXTERN getsockopt_O_LINGER(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_OOBINLINE(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket s);
+    std::optional<int> SOCKET_LITE_EXTERN getsockopt_O_SNDBUF(Platform_Socket s);
+    std::optional<int> SOCKET_LITE_EXTERN getsockopt_O_RCVBUF(Platform_Socket s);
+    std::optional<std::chrono::seconds> SOCKET_LITE_EXTERN getsockopt_O_SNDTIMEO(Platform_Socket s);
+    std::optional<std::chrono::seconds> SOCKET_LITE_EXTERN getsockopt_O_RCVTIMEO(Platform_Socket s);
+    std::optional<int> SOCKET_LITE_EXTERN getsockopt_O_ERROR(Platform_Socket s);
+    std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_NODELAY(Platform_Socket s);
 
-    bool setsockopt_O_DEBUG(Platform_Socket s, bool b);
-    bool setsockopt_O_BROADCAST(Platform_Socket s, bool b);
-    bool setsockopt_O_REUSEADDR(Platform_Socket s, bool b);
-    bool setsockopt_O_KEEPALIVE(Platform_Socket s, bool b);
-    bool setsockopt_O_LINGER(Platform_Socket s, Linger_Option o);
-    bool setsockopt_O_OOBINLINE(Platform_Socket s, bool b);
-    bool setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket s, bool b);
-    bool setsockopt_O_SNDBUF(Platform_Socket s, int b);
-    bool setsockopt_O_RCVBUF(Platform_Socket s, int b);
-    bool setsockopt_O_SNDTIMEO(Platform_Socket s, std::chrono::seconds sec);
-    bool setsockopt_O_RCVTIMEO(Platform_Socket s, std::chrono::seconds sec);
-    bool setsockopt_O_NODELAY(Platform_Socket s, bool b);
-
-    typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
-    const size_t SOCKETCLOSED = std::numeric_limits<size_t>::max();
+    bool SOCKET_LITE_EXTERN setsockopt_O_DEBUG(Platform_Socket s, bool b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_BROADCAST(Platform_Socket s, bool b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_REUSEADDR(Platform_Socket s, bool b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_KEEPALIVE(Platform_Socket s, bool b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_LINGER(Platform_Socket s, Linger_Option o);
+    bool SOCKET_LITE_EXTERN setsockopt_O_OOBINLINE(Platform_Socket s, bool b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket s, bool b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_SNDBUF(Platform_Socket s, int b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_RCVBUF(Platform_Socket s, int b);
+    bool SOCKET_LITE_EXTERN setsockopt_O_SNDTIMEO(Platform_Socket s, std::chrono::seconds sec);
+    bool SOCKET_LITE_EXTERN setsockopt_O_RCVTIMEO(Platform_Socket s, std::chrono::seconds sec);
+    bool SOCKET_LITE_EXTERN setsockopt_O_NODELAY(Platform_Socket s, bool b);
 
     class SOCKET_LITE_EXTERN ISocket : public std::enable_shared_from_this<ISocket> {
 
@@ -190,13 +206,14 @@ namespace NET {
         Platform_Socket handle;
         ISocket();
         virtual ~ISocket();
-        template <Socket_Options SO> auto getsockopt() { return getsockopt_factory_impl<SO>::getsockopt_(this); }
+        template <Socket_Options SO> auto getsockopt() const { return getsockopt_factory_impl<SO>::getsockopt_(this); }
         template <Socket_Options SO, typename... Args> auto setsockopt(Args &&... args)
         {
             return getsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
         }
-        virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &handler) = 0;
-        virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &handler) = 0;
+        std::optional<SocketInfo> get_PeerInfo() const { return SL::NET::get_PeerInfo(handle); }
+        virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
+        virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         // send a close message and close the socket
         virtual void close() = 0;
     };
@@ -208,16 +225,14 @@ namespace NET {
     class SOCKET_LITE_EXTERN IClientContext : public IContext {
       public:
         virtual ~IClientContext() {}
-        virtual void setonConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
-        virtual void setonDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
+        std::function<void(const std::shared_ptr<ISocket> &)> onConnection;
         virtual bool async_connect(std::string host, PortNumber port) = 0;
         virtual void run(ThreadCount threadcount) = 0;
     };
     class SOCKET_LITE_EXTERN IListenContext : public IContext {
       public:
         virtual ~IListenContext() {}
-        virtual void setonConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
-        virtual void setonDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
+        std::function<void(const std::shared_ptr<ISocket> &)> onConnection;
         virtual bool bind(PortNumber port) = 0;
         virtual bool listen() = 0;
         virtual void run(ThreadCount threadcount) = 0;
@@ -232,10 +247,8 @@ namespace NET {
       public:
         virtual ~IListener_Configuration() {}
 
-        // when a connection is fully established.  If onconnect is called, then a matching onDisconnection is guaranteed
+        // when a connection is fully established.
         virtual std::shared_ptr<IListener_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
-        // when a socket is closed down for ANY reason. If onconnect is called, then a matching onDisconnection is guaranteed
-        virtual std::shared_ptr<IListener_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
         // start the process to listen for clients. This is non-blocking and will return immediatly
         virtual std::shared_ptr<IListenerBind_Configuration> bind(PortNumber port) = 0;
     };
@@ -245,8 +258,6 @@ namespace NET {
         virtual ~IClient_Configuration() {}
         // when a connection is fully established.  If onconnect is called, then a matching onDisconnection is guaranteed
         virtual std::shared_ptr<IClient_Configuration> onConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
-        // when a socket is closed down for ANY reason. If onconnect is called, then a matching onDisconnection is guaranteed
-        virtual std::shared_ptr<IClient_Configuration> onDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) = 0;
         // connect to an endpoint. This is non-blocking and will return immediatly. If the library is unable to establish a connection,
         // ondisconnection will be called.
         virtual std::shared_ptr<IContext> async_connect(const std::string &host, PortNumber port) = 0;

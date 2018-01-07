@@ -1,5 +1,6 @@
 #include "ClientContext.h"
 #include "Socket.h"
+
 namespace SL {
 namespace NET {
 
@@ -8,7 +9,7 @@ namespace NET {
     {
         KeepRunning = false;
 
-        for (auto &t : Threads) {
+        for (size_t i = 0; i < Threads.size(); i++) {
             // Help threads get out of blocking - GetQueuedCompletionStatus()
             PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
         }
@@ -23,36 +24,20 @@ namespace NET {
                 }
             }
         }
-    }
+    } // namespace NET
     bool ClientContext::async_connect(std::string host, PortNumber port)
     {
         Socket_.reset();
-        auto socket = std::make_shared<Socket>(protocol);
-        if (protocol == NetworkProtocol::IPV4) {
-            SOCKADDR_IN SockAddr = {0};
-            SockAddr.sin_family = AF_INET;
-            SockAddr.sin_addr.s_addr = inet_addr(host.c_str());
-            SockAddr.sin_port = htons(port);
+        if (auto socket = create_and_connect(host, port, &iocp.handle); socket.has_value()) {
+            auto tempsocket = std::make_shared<Socket>();
+            tempsocket->handle = *socket;
+            if (setsockopt(*socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) != SOCKET_ERROR) {
 
-            if (WSAConnect(socket->handle, (SOCKADDR *)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
-                return onDisconnection(socket);
+                return true;
             }
-        }
-        else {
-            sockaddr_in6 SockAddr = {0};
-            SockAddr.sin6_family = AF_INET6;
-            inet_pton(AF_INET6, host.c_str(), &(SockAddr.sin6_addr));
-            SockAddr.sin6_port = htons(port);
-
-            if (WSAConnect(socket->handle, (SOCKADDR *)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
-                return onDisconnection(socket);
+            else {
+                Socket_ = socket;
             }
-        }
-        if (auto ret = setsockopt(socket->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0); ret == SOCKET_ERROR) {
-            onDisconnection(socket);
-        }
-        else {
-            Socket_ = socket;
         }
     }
     void ClientContext::run(ThreadCount threadcount)

@@ -1,6 +1,7 @@
 
 #include "ListenContext.h"
 #include "Socket.h"
+#include <iostream>
 namespace SL {
 namespace NET {
 
@@ -8,14 +9,19 @@ namespace NET {
     ListenContext::~ListenContext()
     {
         KeepRunning = false;
-        if (ListenSocket != INVALID_SOCKET) {
-            closesocket(ListenSocket);
-        }
-
         for (size_t i = 0; i < Threads.size(); i++) {
             // Help threads get out of blocking - GetQueuedCompletionStatus()
             PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
         }
+        if (ListenIOContext.Socket_) {
+            ListenIOContext.Socket_.reset();
+        }
+        if (ListenSocket != INVALID_SOCKET) {
+            closesocket(ListenSocket);
+        }
+
+        while (!HasOverlappedIoCompleted((LPOVERLAPPED)&ListenIOContext.Overlapped))
+            Sleep(0);
         for (auto &t : Threads) {
             if (t.joinable()) {
                 // destroying myself
@@ -30,8 +36,13 @@ namespace NET {
     }
     bool ListenContext::bind(PortNumber port)
     {
-        if (auto sock = create_and_bind(port); sock.has_value()) {
+        if (auto sock = create_and_bind(port, &iocp.handle, this); sock.has_value()) {
             ListenSocket = *sock;
+            sockaddr_storage addr;
+            socklen_t len = sizeof(addr);
+            if (getpeername(ListenSocket, (sockaddr *)&addr, &len) == 0) {
+                AddressFamily = addr.ss_family;
+            }
             return make_socket_non_blocking(*sock);
         }
         return false;
@@ -50,16 +61,33 @@ namespace NET {
         }
         return false;
     }
+    void ListenContext::closeclient(Socket *socket, IO_OPERATION op, PER_IO_CONTEXT *context)
+    {
+        if (socket) {
+            closeclient(std::static_pointer_cast<Socket>(socket->shared_from_this()), op, context);
+        }
+    }
+    void ListenContext::closeclient(const std::shared_ptr<Socket> &socket, IO_OPERATION op, PER_IO_CONTEXT *context)
+    {
+        if (op == IO_OPERATION::IoRead) {
+            socket->read_complete(-1, context);
+        }
+        else if (op == IO_OPERATION::IoWrite) {
+            socket->write_complete(-1, context);
+        }
+        std::lock_guard<SpinLock> lock(ClientLock);
+        Clients.erase(socket);
+    }
     void ListenContext::async_accept()
     {
-        auto socket = std::make_shared<Socket>();
-        socket->SendBuffers.push_back(PER_IO_CONTEXT());
-        auto val = &socket->SendBuffers.front();
-        val->Socket_ = socket;
+        ListenIOContext.Socket_ = std::shared_ptr<Socket>();
+        ListenIOContext.Socket_->handle = WSASocketW(AddressFamily, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
         DWORD recvbytes = 0;
-        auto nRet = AcceptEx_(ListenSocket, socket->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
-                              &recvbytes, (LPOVERLAPPED) & (val->Overlapped));
-        if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+        auto nRet = AcceptEx_(ListenSocket, ListenIOContext.Socket_->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (ListenIOContext.Overlapped));
+
+        if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
+            std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
         }
     }
     void ListenContext::run(ThreadCount threadcount)
@@ -69,39 +97,39 @@ namespace NET {
         for (auto i = 0; i < threadcount.value; i++) {
             Threads.push_back(std::thread([&] {
 
-                DWORD dwSendNumBytes(0);
-                DWORD dwFlags(0);
                 while (KeepRunning) {
                     DWORD numberofbytestransfered = 0;
                     PER_IO_CONTEXT *lpOverlapped = nullptr;
-                    void *lpPerSocketContext = nullptr;
+                    Socket *completionkey = nullptr;
 
-                    auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&lpPerSocketContext,
+                    auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&lpOverlapped, 100);
                     if (!KeepRunning) {
-                        // get out this thread is done meow!
                         return;
                     }
                     if (bSuccess == FALSE && lpOverlapped == NULL) {
+                        if (GetLastError() == ERROR_ABANDONED_WAIT_0) {
+                            return; // the iocp handle was closed!
+                        }
                         continue; // timer ran out go back to top and try again
                     }
+
                     if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept &&
                         (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
                         // dropped connection
-                        lpOverlapped->Socket_->close();
-                        onDisconnection(lpOverlapped->Socket_);
+                        closeclient(completionkey, lpOverlapped->IOOperation, lpOverlapped);
                         continue;
                     }
                     switch (lpOverlapped->IOOperation) {
                     case IO_OPERATION::IoAccept:
-                        if (auto ret = setsockopt(lpOverlapped->Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&ListenSocket,
-                                                  sizeof(ListenSocket));
-                            ret == SOCKET_ERROR) {
-                            // big error here...
+
+                        if (setsockopt(lpOverlapped->Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&ListenSocket,
+                                       sizeof(ListenSocket)) == SOCKET_ERROR) {
+                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
                         if (!updateIOCP(lpOverlapped->Socket_->handle, &iocp.handle)) {
-                            // big error here...
+                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
                         async_accept(); // start waiting for a new connection
@@ -109,11 +137,17 @@ namespace NET {
                         break;
                     case IO_OPERATION::IoRead:
                         lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        lpOverlapped->Socket_->continue_read(lpOverlapped);
+                        completionkey->continue_read(lpOverlapped);
+                        if (completionkey->handle == INVALID_SOCKET) {
+                            closeclient(completionkey, lpOverlapped->IOOperation, lpOverlapped);
+                        }
                         break;
                     case IO_OPERATION::IoWrite:
                         lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        lpOverlapped->Socket_->continue_write(lpOverlapped);
+                        completionkey->continue_write(lpOverlapped);
+                        if (completionkey->handle == INVALID_SOCKET) {
+                            closeclient(completionkey, lpOverlapped->IOOperation, lpOverlapped);
+                        }
                         break;
                     default:
                         break;

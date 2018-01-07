@@ -15,9 +15,6 @@ namespace NET {
         WSARAII wsa;
         IOCP iocp;
 
-        std::function<void(const std::shared_ptr<ISocket> &)> onConnection;
-        std::function<void(const std::shared_ptr<ISocket> &)> onDisconnection;
-
         bool KeepRunning = true;
         std::vector<std::thread> Threads;
         std::shared_ptr<Socket> Socket_;
@@ -26,9 +23,6 @@ namespace NET {
         virtual ~ClientContext();
         virtual void run(ThreadCount threadcount) override;
         virtual bool async_connect(std::string host, PortNumber port) override;
-
-        virtual void setonConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) override { onConnection = handle; }
-        virtual void setonDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) override { onDisconnection = handle; }
     };
 
 } // namespace NET

@@ -66,7 +66,7 @@ namespace NET {
         }
         operator bool() const { return handle != NULL; }
     };
-    enum IO_OPERATION { IoAccept, IoRead, IoWrite };
+    enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite };
 
     class Socket;
     struct PER_IO_CONTEXT {
@@ -77,7 +77,7 @@ namespace NET {
         size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
         std::function<void(Bytes_Transfered)> completionhandler;
-        std::shared_ptr<Socket> Socket_;
+        std::shared_ptr<ISocket> Socket_;
     };
 
     inline bool updateIOCP(SOCKET socket, HANDLE *iocphandle)
