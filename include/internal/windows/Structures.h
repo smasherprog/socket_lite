@@ -3,6 +3,7 @@
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
+#include <functional>
 #include <memory>
 #include <mswsock.h>
 #include <mutex>
@@ -68,8 +69,6 @@ namespace NET {
     enum IO_OPERATION { IoAccept, IoRead, IoWrite };
 
     class Socket;
-    class ISocket;
-    class Context;
     struct PER_IO_CONTEXT {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
@@ -77,11 +76,23 @@ namespace NET {
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
-        std::function<void(size_t)> completionhandler;
+        std::function<void(Bytes_Transfered)> completionhandler;
         std::shared_ptr<Socket> Socket_;
     };
 
-    bool updateIOCP(SOCKET socket, HANDLE *iocphandle);
+    inline bool updateIOCP(SOCKET socket, HANDLE *iocphandle)
+    {
+        if (iocphandle && *iocphandle != NULL) {
+            if (auto ctx = CreateIoCompletionPort((HANDLE)socket, *iocphandle, NULL, 0); ctx == NULL) {
+                return false;
+            }
+            else {
+                *iocphandle = ctx;
+                return true;
+            }
+        }
+        return false;
+    }
 
 } // namespace NET
 } // namespace SL

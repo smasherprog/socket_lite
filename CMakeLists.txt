@@ -16,17 +16,14 @@ else()
 endif()
 
 if(WIN32)
-    set(SOCKET_LITE_PLATFORM_SRC     
-		include/internal/windows/Acceptor.h
-		src/windows/Acceptor.cpp 
+    set(SOCKET_LITE_PLATFORM_SRC      
 		include/internal/windows/Socket.h
 		src/windows/Socket.cpp
 		include/internal/windows/ListenContext.h
 		src/windows/ListenContext.cpp
 		include/internal/windows/ClientContext.h
 		src/windows/ClientContext.cpp
-		include/internal/windows/Structures.h	
-		src/windows/Structures.cpp
+		include/internal/windows/Structures.h	 
     )
     set(SOCKET_LITE_PLATFORM_INC     
 		include/internal/windows
@@ -54,7 +51,7 @@ include_directories(
 )
 add_library(${PROJECT_NAME} 
 	include/Socket_Lite.h
-	src/Socket_Lite.cpp
+	src/Socket_Lite.cpp  
 	${SOCKET_LITE_PLATFORM_SRC}
 )
 

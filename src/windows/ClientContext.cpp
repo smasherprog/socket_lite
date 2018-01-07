@@ -3,7 +3,7 @@
 namespace SL {
 namespace NET {
 
-    ClientContext::ClientContext(NetworkProtocol protocol) : Protocol(protocol) {}
+    ClientContext::ClientContext() {}
     ClientContext::~ClientContext()
     {
         KeepRunning = false;
@@ -26,14 +26,16 @@ namespace NET {
     }
     bool ClientContext::async_connect(std::string host, PortNumber port)
     {
-        auto socket = std::make_shared<Socket>(Protocol);
-        if (Protocol == NetworkProtocol::IPV4) {
+        Socket_.reset();
+        auto socket = std::make_shared<Socket>(protocol);
+        if (protocol == NetworkProtocol::IPV4) {
             SOCKADDR_IN SockAddr = {0};
             SockAddr.sin_family = AF_INET;
             SockAddr.sin_addr.s_addr = inet_addr(host.c_str());
             SockAddr.sin_port = htons(port);
 
             if (WSAConnect(socket->handle, (SOCKADDR *)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
+                return onDisconnection(socket);
             }
         }
         else {
@@ -43,9 +45,14 @@ namespace NET {
             SockAddr.sin6_port = htons(port);
 
             if (WSAConnect(socket->handle, (SOCKADDR *)(&SockAddr), sizeof(SockAddr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
+                return onDisconnection(socket);
             }
         }
-        if (auto ret = setsockopt(socket->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0); ret != SOCKET_ERROR) {
+        if (auto ret = setsockopt(socket->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0); ret == SOCKET_ERROR) {
+            onDisconnection(socket);
+        }
+        else {
+            Socket_ = socket;
         }
     }
     void ClientContext::run(ThreadCount threadcount)
@@ -90,9 +97,6 @@ namespace NET {
                             // big error here...
                             return;
                         }
-                        Acceptor_.async_accept(); // start waiting for a new connection
-
-                        lpOverlapped->Socket_->SocketStatus_ = SocketStatus::CONNECTED;
                         onConnection(lpOverlapped->Socket_);
                         break;
                     case IO_OPERATION::IoRead:
@@ -112,5 +116,4 @@ namespace NET {
     }
 } // namespace NET
 
-} // namespace SL
 } // namespace SL

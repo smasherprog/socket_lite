@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Context.h"
 #include "Socket_Lite.h"
 #include "Structures.h"
 #include <atomic>
@@ -11,18 +10,25 @@
 namespace SL {
 namespace NET {
 
-    class ClientContext : public Context {
+    class ClientContext : public IClientContext {
       public:
+        WSARAII wsa;
+        IOCP iocp;
+
+        std::function<void(const std::shared_ptr<ISocket> &)> onConnection;
+        std::function<void(const std::shared_ptr<ISocket> &)> onDisconnection;
+
         bool KeepRunning = true;
         std::vector<std::thread> Threads;
-        NetworkProtocol Protocol;
-
         std::shared_ptr<Socket> Socket_;
 
-        ClientContext(NetworkProtocol protocol);
+        ClientContext();
         virtual ~ClientContext();
-        void run(ThreadCount threadcount);
-        bool async_connect(std::string host, PortNumber port);
+        virtual void run(ThreadCount threadcount) override;
+        virtual bool async_connect(std::string host, PortNumber port) override;
+
+        virtual void setonConnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) override { onConnection = handle; }
+        virtual void setonDisconnection(const std::function<void(const std::shared_ptr<ISocket> &)> &handle) override { onDisconnection = handle; }
     };
 
 } // namespace NET

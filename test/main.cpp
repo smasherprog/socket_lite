@@ -5,34 +5,71 @@
 #include <string>
 #include <thread>
 using namespace std::chrono_literals;
-auto echo = "echo test";
+auto writeecho = "echo test";
+auto readecho = "echo test";
+auto readechos = 0.0;
+auto writeechos = 0.0;
+void echolistenread(const std::shared_ptr<SL::NET::ISocket> &socket)
+{
+    socket->async_read(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
+        if (bytesread >= 0) {
+            socket->async_write(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
+                if (bytesread >= 0) {
+                    readechos += 1.0;
+                    echolistenread(socket);
+                }
+                else {
+                    // disconnected
+                }
+            });
+        }
+        else {
+            // disconnected
+        }
+    });
+}
+
+void echolistenwrite(const std::shared_ptr<SL::NET::ISocket> &socket)
+{
+    socket->async_write(sizeof(writeecho), (unsigned char *)writeecho, [socket](long long bytesread) {
+        if (bytesread >= 0) {
+            socket->async_read(sizeof(writeecho), (unsigned char *)writeecho, [socket](long long bytesread) {
+                if (bytesread >= 0) {
+                    writeechos += 1.0;
+                    echolistenwrite(socket);
+                }
+                else {
+                    // disconnected
+                }
+            });
+        }
+        else {
+            // disconnected
+        }
+    });
+}
+
 void echolistenertest()
 {
-    double echos = 0.0;
-    auto context = SL::NET::CreateContext(SL::NET::ThreadCount(1))
-                       ->CreateListener(SL::NET::PortNumber(3000))
-                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {
-                           socket->async_read(sizeof(echo), (unsigned char *)echo, [&](size_t bytesread) { echos += 1.0; });
-                       })
+
+    auto context = SL::NET::CreateListener(SL::NET::ThreadCount(1))
+                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) { echolistenread(socket); })
                        ->onDisconnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {});
     auto start = std::chrono::high_resolution_clock::now();
-    auto listener = context->listen();
+    auto listener = context->bind(SL::NET::PortNumber(3000))->listen();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "Echos per Second " << echos / 10 << std::endl;
+    std::cout << "Echos per Second " << readechos / 10 << std::endl;
 }
 void echoclienttest()
 {
-    double echos = 0.0;
-    auto context = SL::NET::CreateContext(SL::NET::ThreadCount(1))
-                       ->CreateClient()
-                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {
-                           socket->async_write(sizeof(echo), (unsigned char *)echo, [&](size_t bytessent) { echos += 1.0; });
-                       })
+
+    auto context = SL::NET::CreateClient(SL::NET::ThreadCount(1))
+                       ->onConnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) { echolistenwrite(socket); })
                        ->onDisconnection([&](const std::shared_ptr<SL::NET::ISocket> &socket) {});
     auto start = std::chrono::high_resolution_clock::now();
-    auto client = context->connect("localhost", SL::NET::PortNumber(3000));
+    auto client = context->async_connect("localhost", SL::NET::PortNumber(3000));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "Echo per Second " << echos / 10 << std::endl;
+    std::cout << "Echo per Second " << writeechos / 10 << std::endl;
 }
 int main(int argc, char *argv[])
 {
