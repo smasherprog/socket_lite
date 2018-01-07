@@ -1,5 +1,6 @@
 #include "ClientContext.h"
 #include "Socket.h"
+#include <iostream>
 
 namespace SL {
 namespace NET {
@@ -27,17 +28,24 @@ namespace NET {
     } // namespace NET
     bool ClientContext::async_connect(std::string host, PortNumber port)
     {
-        Socket_.reset();
-        if (auto socket = create_and_connect(host, port, &iocp.handle); socket.has_value()) {
+        Socket_ = std::shared_ptr<Socket>();
+        if (auto socket = create_and_connect(host, port, &iocp.handle, Socket_.get()); socket.has_value()) {
             auto tempsocket = std::make_shared<Socket>();
             tempsocket->handle = *socket;
             if (setsockopt(*socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) != SOCKET_ERROR) {
 
                 return true;
             }
-            else {
-                Socket_ = socket;
-            }
+        }
+        return false;
+    }
+    void ClientContext::closeclient(IO_OPERATION op, PER_IO_CONTEXT *context)
+    {
+        if (op == IO_OPERATION::IoRead) {
+            Socket_->read_complete(-1, context);
+        }
+        else if (op == IO_OPERATION::IoWrite) {
+            Socket_->write_complete(-1, context);
         }
     }
     void ClientContext::run(ThreadCount threadcount)
@@ -47,50 +55,56 @@ namespace NET {
         for (auto i = 0; i < threadcount.value; i++) {
             Threads.push_back(std::thread([&] {
 
-                DWORD dwSendNumBytes(0);
-                DWORD dwFlags(0);
                 while (KeepRunning) {
                     DWORD numberofbytestransfered = 0;
                     PER_IO_CONTEXT *lpOverlapped = nullptr;
-                    void *lpPerSocketContext = nullptr;
+                    Socket *completionkey = nullptr;
 
-                    auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&lpPerSocketContext,
+                    auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&lpOverlapped, 100);
                     if (!KeepRunning) {
-                        // get out this thread is done meow!
                         return;
                     }
                     if (bSuccess == FALSE && lpOverlapped == NULL) {
+                        if (GetLastError() == ERROR_ABANDONED_WAIT_0) {
+                            return; // the iocp handle was closed!
+                        }
                         continue; // timer ran out go back to top and try again
                     }
-                    if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept &&
+
+                    if (lpOverlapped->IOOperation != IO_OPERATION::IoConnect &&
                         (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
                         // dropped connection
-                        lpOverlapped->Socket_->close();
+                        closeclient(lpOverlapped->IOOperation, lpOverlapped);
                         continue;
                     }
-
                     switch (lpOverlapped->IOOperation) {
-                    case IO_OPERATION::IoAccept:
-                        if (auto ret = setsockopt(lpOverlapped->Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
-                                                  (char *)&Acceptor_.AcceptSocket, sizeof(Acceptor_.AcceptSocket));
-                            ret == SOCKET_ERROR) {
-                            // big error here...
+                    case IO_OPERATION::IoConnect:
+
+                        if (setsockopt(Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&Socket_->handle, sizeof(Socket_->handle)) ==
+                            SOCKET_ERROR) {
+                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
                         if (!updateIOCP(lpOverlapped->Socket_->handle, &iocp.handle)) {
-                            // big error here...
+                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
                         onConnection(lpOverlapped->Socket_);
                         break;
                     case IO_OPERATION::IoRead:
                         lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        lpOverlapped->Socket_->continue_read(lpOverlapped);
+                        completionkey->continue_read(lpOverlapped);
+                        if (completionkey->handle == INVALID_SOCKET) {
+                            closeclient(lpOverlapped->IOOperation, lpOverlapped);
+                        }
                         break;
                     case IO_OPERATION::IoWrite:
                         lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        lpOverlapped->Socket_->continue_write(lpOverlapped);
+                        completionkey->continue_write(lpOverlapped);
+                        if (completionkey->handle == INVALID_SOCKET) {
+                            closeclient(lpOverlapped->IOOperation, lpOverlapped);
+                        }
                         break;
                     default:
                         break;

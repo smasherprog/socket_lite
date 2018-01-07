@@ -23,6 +23,7 @@ namespace NET {
         virtual ~ClientContext();
         virtual void run(ThreadCount threadcount) override;
         virtual bool async_connect(std::string host, PortNumber port) override;
+        void closeclient(IO_OPERATION op, PER_IO_CONTEXT *context);
     };
 
 } // namespace NET
