@@ -86,7 +86,7 @@ void echolistenertest()
     listencontext->run(SL::NET::ThreadCount(1));
 
     auto clientcontext = SL::NET::CreateClient();
-    if (!clientcontext->async_connect("localhost", SL::NET::PortNumber(3000))) {
+    if (!clientcontext->async_connect("::1", SL::NET::PortNumber(3000))) {
         std::cout << "async_connect failed " << std::endl;
     }
     else {

@@ -198,12 +198,12 @@ namespace NET {
 
         addrinfo hints = {0};
         addrinfo *result(nullptr), *rp(nullptr);
-        Platform_Socket sfd;
+        Platform_Socket sfd = INVALID_SOCKET;
 
         memset(&hints, 0, sizeof(addrinfo));
         hints.ai_family = AF_UNSPEC;     /* Return IPv4 and IPv6 choices */
         hints.ai_socktype = SOCK_STREAM; /* We want a TCP socket */
-        hints.ai_flags = AI_PASSIVE;     /* All interfaces */
+
         auto portstr = std::to_string(port.value);
         auto s = getaddrinfo(host.c_str(), portstr.c_str(), &hints, &result);
         if (s != 0) {
@@ -213,9 +213,8 @@ namespace NET {
 
         for (rp = result; rp != NULL; rp = rp->ai_next) {
 #ifdef WIN32
-            sfd = WSASocket(rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
-            if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == SOCKET_ERROR) {
-                continue;
+            if (auto possiblesock = create_and_bind(port); possiblesock.has_value()) {
+                sfd = *possiblesock;
             }
 #else
             sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -223,9 +222,7 @@ namespace NET {
 #endif
             if (sfd == INVALID_SOCKET)
                 continue;
-            if (!make_socket_non_blocking(sfd)) {
-                continue;
-            }
+            make_socket_non_blocking(sfd);
 #ifdef WIN32
 
             GUID guid = WSAID_CONNECTEX;
@@ -235,7 +232,6 @@ namespace NET {
                 SOCKET_ERROR) {
                 if (*iocphandle = CreateIoCompletionPort((HANDLE)sfd, *iocphandle, (DWORD_PTR)completionkey, 0); *iocphandle == NULL) {
                     std::cerr << "CreateIoCompletionPort() failed: " << GetLastError() << std::endl;
-                    continue;
                 }
             }
             else {

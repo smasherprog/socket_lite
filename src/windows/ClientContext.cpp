@@ -1,6 +1,7 @@
 #include "ClientContext.h"
 #include "Socket.h"
 #include <iostream>
+#include <optional>
 
 namespace SL {
 namespace NET {
@@ -72,10 +73,11 @@ namespace NET {
                         closeclient(lpOverlapped->IOOperation, lpOverlapped);
                         continue;
                     }
+                    auto retsome = WSAGetLastError();
                     switch (lpOverlapped->IOOperation) {
                     case IO_OPERATION::IoConnect:
-                        if (setsockopt(Socket_->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, (char *)&Socket_->handle, sizeof(Socket_->handle)) ==
-                            SOCKET_ERROR) {
+
+                        if (setsockopt(Socket_->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) == SOCKET_ERROR) {
                             std::cerr << "Error setsockopt SO_UPDATE_CONNECT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }

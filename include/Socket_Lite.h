@@ -201,7 +201,7 @@ namespace NET {
         Platform_Socket handle;
         ISocket();
         virtual ~ISocket();
-        template <Socket_Options SO> auto getsockopt() const { return getsockopt_factory_impl<SO>::getsockopt_(this); }
+        template <Socket_Options SO> auto getsockopt() const { return getsockopt_factory_impl<SO>::getsockopt_(handle); }
         template <Socket_Options SO, typename... Args> auto setsockopt(Args &&... args)
         {
             return getsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
