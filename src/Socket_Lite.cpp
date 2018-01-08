@@ -168,7 +168,7 @@ namespace NET {
 
         for (rp = result; rp != NULL; rp = rp->ai_next) {
 #ifdef WIN32
-            sfd = WSASocketW(rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
+            sfd = WSASocket(rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
 
 #else
             sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -213,7 +213,7 @@ namespace NET {
 
         for (rp = result; rp != NULL; rp = rp->ai_next) {
 #ifdef WIN32
-            sfd = WSASocketW(rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
+            sfd = WSASocket(rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
             if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == SOCKET_ERROR) {
                 continue;
             }
@@ -242,11 +242,9 @@ namespace NET {
                 std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
             }
             DWORD bytessend = 0;
-            if (auto connectres = connectex(sfd, rp->ai_addr, rp->ai_addrlen, NULL, 0, &bytessend, (LPOVERLAPPED)overlappeddata); true) {
-                auto lerr = WSAGetLastError();
-                if (connectres == TRUE || (connectres == FALSE && lerr == ERROR_IO_PENDING)) {
-                    break;
-                }
+            if (auto connectres = connectex(sfd, rp->ai_addr, rp->ai_addrlen, NULL, 0, &bytessend, (LPOVERLAPPED)overlappeddata);
+                connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING)) {
+                break;
 
 #else
             if (auto connectresult = connect(sfd, rp->ai_addr, rp->ai_addrlen); connectresult == 0 || errno == EINPROGRESS) {
@@ -261,7 +259,7 @@ namespace NET {
             return std::nullopt;
         }
         return std::optional<Platform_Socket>{sfd};
-    }
+    } // namespace NET
 
     bool make_socket_non_blocking(Platform_Socket socket)
     {

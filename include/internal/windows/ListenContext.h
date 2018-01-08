@@ -9,7 +9,7 @@
 #include <unordered_set>
 namespace SL {
 namespace NET {
-
+#define MAX_BUFF_SIZE 8192
     class Socket;
     class ListenContext final : public IListenContext {
       public:
@@ -19,7 +19,7 @@ namespace NET {
         bool KeepRunning = true;
         std::vector<std::thread> Threads;
         LPFN_ACCEPTEX AcceptEx_ = nullptr;
-        unsigned char AcceptBuffer[2 * (sizeof(SOCKADDR_STORAGE) + 16)];
+        char Buffer[MAX_BUFF_SIZE];
         SOCKET ListenSocket = INVALID_SOCKET;
         Win_IO_Context ListenIOContext;
         int AddressFamily = AF_INET;

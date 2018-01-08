@@ -62,17 +62,10 @@ namespace NET {
                     Socket *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
-                                                              (LPOVERLAPPED *)&lpOverlapped, 100);
+                                                              (LPOVERLAPPED *)&lpOverlapped, INFINITE);
                     if (!KeepRunning) {
                         return;
                     }
-                    if (bSuccess == FALSE && lpOverlapped == NULL) {
-                        if (GetLastError() == ERROR_ABANDONED_WAIT_0) {
-                            return; // the iocp handle was closed!
-                        }
-                        continue; // timer ran out go back to top and try again
-                    }
-
                     if (lpOverlapped->IOOperation != IO_OPERATION::IoConnect &&
                         (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
                         // dropped connection

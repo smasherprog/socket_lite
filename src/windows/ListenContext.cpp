@@ -21,8 +21,6 @@ namespace NET {
             closesocket(ListenSocket);
         }
 
-        while (!HasOverlappedIoCompleted((LPOVERLAPPED)&ListenIOContext.Overlapped))
-            Sleep(0);
         for (auto &t : Threads) {
             if (t.joinable()) {
                 // destroying myself
@@ -50,7 +48,7 @@ namespace NET {
             ListenSocket = *sock;
             sockaddr_storage addr;
             socklen_t len = sizeof(addr);
-            if (getpeername(ListenSocket, (sockaddr *)&addr, &len) == 0) {
+            if (getsockname(ListenSocket, (sockaddr *)&addr, &len) == 0) {
                 AddressFamily = addr.ss_family;
             }
             return make_socket_non_blocking(*sock);
@@ -96,10 +94,11 @@ namespace NET {
     void ListenContext::async_accept()
     {
         ListenIOContext.IO_Context.Socket_ = std::make_shared<Socket>();
-        ListenIOContext.IO_Context.Socket_->handle = WSASocketW(AddressFamily, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        ListenIOContext.IO_Context.Socket_->handle = WSASocket(AddressFamily, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         DWORD recvbytes = 0;
-        auto nRet = AcceptEx_(ListenSocket, ListenIOContext.IO_Context.Socket_->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
-                              sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (ListenIOContext.Overlapped));
+        auto nRet = AcceptEx_(ListenSocket, ListenIOContext.IO_Context.Socket_->handle, (LPVOID)(Buffer),
+                              MAX_BUFF_SIZE - (2 * (sizeof(SOCKADDR_STORAGE) + 16)), sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
+                              &recvbytes, (LPOVERLAPPED) & (ListenIOContext.Overlapped));
 
         if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
             std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
@@ -118,17 +117,10 @@ namespace NET {
                     Socket *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
-                                                              (LPOVERLAPPED *)&lpOverlapped, 100);
+                                                              (LPOVERLAPPED *)&lpOverlapped, INFINITE);
                     if (!KeepRunning) {
                         return;
                     }
-                    if (bSuccess == FALSE && lpOverlapped == NULL) {
-                        if (GetLastError() == ERROR_ABANDONED_WAIT_0) {
-                            return; // the iocp handle was closed!
-                        }
-                        continue; // timer ran out go back to top and try again
-                    }
-
                     if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept &&
                         (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
                         // dropped connection
