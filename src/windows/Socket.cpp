@@ -1,40 +1,36 @@
 
 #include "Socket.h"
+#include "internal/List.h"
 #include <assert.h>
-
 namespace SL {
 namespace NET {
 
     Socket::Socket() {}
-    Socket::~Socket() { close(); }
+    Socket::~Socket()
+    { // make sure the links are all cleaned up
+        assert(next == nullptr);
+        assert(prev == nullptr);
+        close();
+    }
 
     void Socket::close()
     {
-        if (handle == INVALID_SOCKET) {
-            return; // nothing more to do here!
-        }
-        auto tmphandle = INVALID_SOCKET;
-        {
-            std::lock_guard<SpinLock> lock(Lock);
-            if (handle == INVALID_SOCKET) {
-                return; // nothing more to do here!
-            }
-            tmphandle = handle;
+        if (handle != INVALID_SOCKET) {
+            closesocket(handle);
             handle = INVALID_SOCKET;
         }
-        closesocket(handle);
     }
     void Socket::async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
     {
-        assert(!ReadContext);
         if (handle == INVALID_SOCKET) {
             handler(-1);
         }
-        ReadContext = new PER_IO_CONTEXT();
-        ReadContext->Socket_ = shared_from_this();
-        ReadContext->buffer = buffer;
-        ReadContext->bufferlen = buffer_size;
-        ReadContext->completionhandler = std::move(handler);
+        assert(!ReadContext);
+        ReadContext = std::make_unique<Win_IO_Context>();
+        ReadContext->IO_Context.Socket_ = shared_from_this();
+        ReadContext->IO_Context.buffer = buffer;
+        ReadContext->IO_Context.bufferlen = buffer_size;
+        ReadContext->IO_Context.completionhandler = std::move(handler);
         ReadContext->IOOperation = IO_OPERATION::IoRead;
         ReadContext->wsabuf.buf = nullptr;
         ReadContext->wsabuf.len = 0;
@@ -42,61 +38,61 @@ namespace NET {
         // do read with zero bytes to prevent memory from being mapped
         if (auto nRet = WSARecv(handle, &ReadContext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext->Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-            return read_complete(-1, ReadContext);
+            return read_complete(-1, ReadContext.get());
         }
     }
-    void Socket::read_complete(Bytes_Transfered b, PER_IO_CONTEXT *sockcontext)
+    void Socket::read_complete(Bytes_Transfered b, Win_IO_Context *sockcontext)
     {
         if (b == -1) {
             close();
         }
-        assert(sockcontext == ReadContext);
-        if (ReadContext) {
-            ReadContext->completionhandler(-1); // let the caller know
-            delete ReadContext;
-            ReadContext = nullptr;
-        }
+        assert(sockcontext == ReadContext.get());
+        auto tmpreadcontext = std::move(ReadContext);
+        sockcontext->IO_Context.completionhandler(b); // let the caller know
     }
-    PER_IO_CONTEXT *Socket::write_complete(Bytes_Transfered b, PER_IO_CONTEXT *sockcontext)
+    Win_IO_Context_List *Socket::write_complete(Bytes_Transfered b, Win_IO_Context_List *sockcontext)
     {
         if (b == -1) {
             close();
-            std::list<PER_IO_CONTEXT *> tmpbuf;
+            Win_IO_Context_List *head;
             {
-                std::lock_guard<SpinLock> lock(Lock);
-                tmpbuf = std::move(SendBuffers);
+                std::lock_guard<SpinLock> lock(WriteContextsLock);
+                head = WriteContexts;
+                WriteContexts = nullptr;
             }
-            assert(sockcontext == tmpbuf.front());
-            while (!tmpbuf.empty()) {
-                tmpbuf.front()->completionhandler(-1);
-                delete tmpbuf.front();
-                tmpbuf.pop_front();
+            while (head) { // delete all writes and let callers know of the cancelation
+                head->IO_Context.completionhandler(-1);
+                auto nextcontext = head->next;
+                delete head;
+                head = nextcontext;
             }
+            return nullptr;
         }
         else {
-            sockcontext->completionhandler(b);
-            delete sockcontext;
-            std::lock_guard<SpinLock> lock(Lock);
-            assert(sockcontext == SendBuffers.front());
-            SendBuffers.pop_front();
-            if (SendBuffers.begin() != SendBuffers.end()) { // dont use empty as it traverses the list
-                return SendBuffers.front();
+            sockcontext->IO_Context.completionhandler(b);
+            assert(sockcontext == WriteContexts);
+            Win_IO_Context_List *ret = nullptr;
+            {
+                std::lock_guard<SpinLock> lock(WriteContextsLock);
+                pop_front(&WriteContexts);
+                ret = WriteContexts;
             }
+            delete sockcontext;
+            return ret;
         }
-        return nullptr;
     }
 
-    void Socket::continue_read(PER_IO_CONTEXT *sockcontext)
+    void Socket::continue_read(Win_IO_Context *sockcontext)
     {
-        assert(ReadContext == sockcontext);
+        assert(ReadContext.get() == sockcontext);
         // read any data available
-        if (sockcontext->bufferlen < sockcontext->transfered_bytes) {
+        if (sockcontext->IO_Context.bufferlen < sockcontext->IO_Context.transfered_bytes) {
             auto bytes_read = 0;
             do {
-                auto remainingbytes = ReadContext->bufferlen - ReadContext->transfered_bytes;
-                bytes_read = recv(handle, (char *)ReadContext->buffer + ReadContext->transfered_bytes, remainingbytes, 0);
+                auto remainingbytes = ReadContext->IO_Context.bufferlen - ReadContext->IO_Context.transfered_bytes;
+                bytes_read = recv(handle, (char *)ReadContext->IO_Context.buffer + ReadContext->IO_Context.transfered_bytes, remainingbytes, 0);
                 if (bytes_read > 0) {
-                    ReadContext->transfered_bytes += bytes_read;
+                    ReadContext->IO_Context.transfered_bytes += bytes_read;
                 }
                 else if (bytes_read == 0 || (bytes_read == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK)) {
                     return read_complete(-1, sockcontext);
@@ -104,8 +100,8 @@ namespace NET {
             } while (bytes_read > 0);
         }
 
-        if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
-            return read_complete(sockcontext->transfered_bytes, sockcontext);
+        if (sockcontext->IO_Context.bufferlen == sockcontext->IO_Context.transfered_bytes) {
+            return read_complete(sockcontext->IO_Context.transfered_bytes, sockcontext);
         }
         else {
             // still more data to read.. keep going!
@@ -122,29 +118,30 @@ namespace NET {
     void Socket::async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
     {
         bool sendbufferempty = false;
+        auto val = new Win_IO_Context_List();
+        val->IO_Context.Socket_ = shared_from_this();
+        val->IO_Context.buffer = buffer;
+        val->IO_Context.bufferlen = buffer_size;
+        val->IO_Context.completionhandler = handler;
+        val->IOOperation = IO_OPERATION::IoWrite;
         {
-            std::lock_guard<SpinLock> lock(Lock);
-            auto val = SendBuffers.emplace_back(new PER_IO_CONTEXT());
-            val->Socket_ = shared_from_this();
-            val->buffer = buffer;
-            val->bufferlen = buffer_size;
-            val->completionhandler = handler;
-            val->IOOperation = IO_OPERATION::IoWrite;
-            sendbufferempty = SendBuffers.begin() == SendBuffers.end();
+            std::lock_guard<SpinLock> lock(WriteContextsLock);
+            sendbufferempty = WriteContexts == nullptr;
+            append(&WriteContexts, val);
         }
         if (sendbufferempty) { // initiate a send
-            continue_write(SendBuffers.front());
+            continue_write(val);
         }
     }
-    void Socket::continue_write(PER_IO_CONTEXT *sockcontext)
+    void Socket::continue_write(Win_IO_Context_List *sockcontext)
     {
         // check if the send is done, if so callback, remove from the send buffer, etc
-        if (sockcontext->transfered_bytes == sockcontext->bufferlen) {
-            sockcontext = write_complete(sockcontext->transfered_bytes, sockcontext);
+        if (sockcontext->IO_Context.transfered_bytes == sockcontext->IO_Context.bufferlen) {
+            sockcontext = write_complete(sockcontext->IO_Context.transfered_bytes, sockcontext);
         }
         if (sockcontext != nullptr) {
-            sockcontext->wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
-            sockcontext->wsabuf.len = sockcontext->bufferlen - sockcontext->transfered_bytes;
+            sockcontext->wsabuf.buf = (char *)sockcontext->IO_Context.buffer + sockcontext->IO_Context.transfered_bytes;
+            sockcontext->wsabuf.len = sockcontext->IO_Context.bufferlen - sockcontext->IO_Context.transfered_bytes;
             DWORD dwSendNumBytes(0), dwFlags(0);
             if (auto nRet = WSASend(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {

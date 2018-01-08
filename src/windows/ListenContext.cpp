@@ -1,6 +1,7 @@
 
 #include "ListenContext.h"
 #include "Socket.h"
+#include "internal/List.h"
 #include <iostream>
 namespace SL {
 namespace NET {
@@ -13,8 +14,8 @@ namespace NET {
             // Help threads get out of blocking - GetQueuedCompletionStatus()
             PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
         }
-        if (ListenIOContext.Socket_) {
-            ListenIOContext.Socket_.reset();
+        if (ListenIOContext.IO_Context.Socket_) {
+            ListenIOContext.IO_Context.Socket_.reset();
         }
         if (ListenSocket != INVALID_SOCKET) {
             closesocket(ListenSocket);
@@ -33,10 +34,19 @@ namespace NET {
                 }
             }
         }
+        auto head = Clients;
+        while (head) {
+            auto tmp = head;
+            if (tmp->ReadContext) {
+                tmp->read_complete(-1, tmp->ReadContext.get());
+            }
+            tmp->write_complete(-1, nullptr);
+            head = pop_front(&Clients);
+        }
     }
     bool ListenContext::bind(PortNumber port)
     {
-        if (auto sock = create_and_bind(port, &iocp.handle, this); sock.has_value()) {
+        if (auto sock = create_and_bind(port); sock.has_value()) {
             ListenSocket = *sock;
             sockaddr_storage addr;
             socklen_t len = sizeof(addr);
@@ -55,35 +65,40 @@ namespace NET {
                 DWORD bytes = 0;
                 if (WSAIoctl(ListenSocket, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_, sizeof(AcceptEx_),
                              &bytes, NULL, NULL) != SOCKET_ERROR) {
-                    return updateIOCP(ListenSocket, &iocp.handle);
+                    if (iocp.handle = CreateIoCompletionPort((HANDLE)ListenSocket, iocp.handle, (DWORD_PTR)&ListenIOContext.IO_Context, 0);
+                        iocp.handle != NULL) {
+                        return true;
+                    }
+                    else {
+                        std::cerr << "CreateIoCompletionPort() failed: " << GetLastError() << std::endl;
+                    }
+                }
+                else {
+                    std::cerr << "failed to load AcceptEx: " << WSAGetLastError() << std::endl;
                 }
             }
         }
         return false;
     }
-    void ListenContext::closeclient(Socket *socket, IO_OPERATION op, PER_IO_CONTEXT *context)
+    void ListenContext::closeclient(Socket *socket, Win_IO_Context *context)
     {
-        if (socket) {
-            closeclient(std::static_pointer_cast<Socket>(socket->shared_from_this()), op, context);
+        if (socket->next || socket->prev) { // it could have already been removed.. check to prevent a lock
+            std::lock_guard<SpinLock> lock(ClientLock);
+            remove(&Clients, socket);
         }
-    }
-    void ListenContext::closeclient(const std::shared_ptr<Socket> &socket, IO_OPERATION op, PER_IO_CONTEXT *context)
-    {
-        if (op == IO_OPERATION::IoRead) {
+        if (context->IOOperation == IO_OPERATION::IoRead) {
             socket->read_complete(-1, context);
         }
-        else if (op == IO_OPERATION::IoWrite) {
-            socket->write_complete(-1, context);
+        else if (context->IOOperation == IO_OPERATION::IoWrite) {
+            socket->write_complete(-1, static_cast<Win_IO_Context_List *>(context));
         }
-        std::lock_guard<SpinLock> lock(ClientLock);
-        Clients.erase(socket);
     }
     void ListenContext::async_accept()
     {
-        ListenIOContext.Socket_ = std::shared_ptr<Socket>();
-        ListenIOContext.Socket_->handle = WSASocketW(AddressFamily, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        ListenIOContext.IO_Context.Socket_ = std::make_shared<Socket>();
+        ListenIOContext.IO_Context.Socket_->handle = WSASocketW(AddressFamily, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
         DWORD recvbytes = 0;
-        auto nRet = AcceptEx_(ListenSocket, ListenIOContext.Socket_->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+        auto nRet = AcceptEx_(ListenSocket, ListenIOContext.IO_Context.Socket_->handle, (LPVOID)(AcceptBuffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
                               sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (ListenIOContext.Overlapped));
 
         if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
@@ -99,7 +114,7 @@ namespace NET {
 
                 while (KeepRunning) {
                     DWORD numberofbytestransfered = 0;
-                    PER_IO_CONTEXT *lpOverlapped = nullptr;
+                    Win_IO_Context *lpOverlapped = nullptr;
                     Socket *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
@@ -117,36 +132,39 @@ namespace NET {
                     if (lpOverlapped->IOOperation != IO_OPERATION::IoAccept &&
                         (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
                         // dropped connection
-                        closeclient(completionkey, lpOverlapped->IOOperation, lpOverlapped);
+                        closeclient(completionkey, lpOverlapped);
+                        async_accept(); // start waiting for a new connection
                         continue;
                     }
                     switch (lpOverlapped->IOOperation) {
                     case IO_OPERATION::IoAccept:
 
-                        if (setsockopt(lpOverlapped->Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&ListenSocket,
+                        if (setsockopt(lpOverlapped->IO_Context.Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&ListenSocket,
                                        sizeof(ListenSocket)) == SOCKET_ERROR) {
-                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
+                            std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
-                        if (!updateIOCP(lpOverlapped->Socket_->handle, &iocp.handle)) {
-                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
+                        if (auto ctx =
+                                CreateIoCompletionPort((HANDLE)lpOverlapped->IO_Context.Socket_->handle, iocp.handle, (DWORD_PTR)completionkey, 0);
+                            ctx == NULL) {
+                            std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
+                        onConnection(std::move(lpOverlapped->IO_Context.Socket_));
                         async_accept(); // start waiting for a new connection
-                        onConnection(lpOverlapped->Socket_);
                         break;
                     case IO_OPERATION::IoRead:
-                        lpOverlapped->transfered_bytes += numberofbytestransfered;
+                        lpOverlapped->IO_Context.transfered_bytes += numberofbytestransfered;
                         completionkey->continue_read(lpOverlapped);
                         if (completionkey->handle == INVALID_SOCKET) {
-                            closeclient(completionkey, lpOverlapped->IOOperation, lpOverlapped);
+                            closeclient(completionkey, lpOverlapped);
                         }
                         break;
                     case IO_OPERATION::IoWrite:
-                        lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        completionkey->continue_write(lpOverlapped);
+                        lpOverlapped->IO_Context.transfered_bytes += numberofbytestransfered;
+                        completionkey->continue_write(static_cast<Win_IO_Context_List *>(lpOverlapped));
                         if (completionkey->handle == INVALID_SOCKET) {
-                            closeclient(completionkey, lpOverlapped->IOOperation, lpOverlapped);
+                            closeclient(completionkey, lpOverlapped);
                         }
                         break;
                     default:

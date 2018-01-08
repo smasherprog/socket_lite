@@ -25,27 +25,28 @@ namespace NET {
                 }
             }
         }
-    } // namespace NET
+        Socket_.reset();
+    }
     bool ClientContext::async_connect(std::string host, PortNumber port)
     {
-        Socket_ = std::shared_ptr<Socket>();
-        if (auto socket = create_and_connect(host, port, &iocp.handle, Socket_.get()); socket.has_value()) {
-            auto tempsocket = std::make_shared<Socket>();
-            tempsocket->handle = *socket;
-            if (setsockopt(*socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) != SOCKET_ERROR) {
-
-                return true;
-            }
+        Socket_ = std::make_shared<Socket>();
+        ConnectIOContext.IOOperation = IO_OPERATION::IoConnect;
+        if (auto socket = create_and_connect(host, port, &iocp.handle, Socket_.get(), (void *)&ConnectIOContext.Overlapped); socket.has_value()) {
+            Socket_->handle = *socket;
+            return true;
         }
+        Socket_.reset();
+        if (onConnection)
+            onConnection(Socket_);
         return false;
     }
-    void ClientContext::closeclient(IO_OPERATION op, PER_IO_CONTEXT *context)
+    void ClientContext::closeclient(IO_OPERATION op, Win_IO_Context *context)
     {
         if (op == IO_OPERATION::IoRead) {
             Socket_->read_complete(-1, context);
         }
         else if (op == IO_OPERATION::IoWrite) {
-            Socket_->write_complete(-1, context);
+            Socket_->write_complete(-1, static_cast<Win_IO_Context_List *>(context));
         }
     }
     void ClientContext::run(ThreadCount threadcount)
@@ -57,7 +58,7 @@ namespace NET {
 
                 while (KeepRunning) {
                     DWORD numberofbytestransfered = 0;
-                    PER_IO_CONTEXT *lpOverlapped = nullptr;
+                    Win_IO_Context *lpOverlapped = nullptr;
                     Socket *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
@@ -80,28 +81,23 @@ namespace NET {
                     }
                     switch (lpOverlapped->IOOperation) {
                     case IO_OPERATION::IoConnect:
-
-                        if (setsockopt(Socket_->handle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&Socket_->handle, sizeof(Socket_->handle)) ==
+                        if (setsockopt(Socket_->handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, (char *)&Socket_->handle, sizeof(Socket_->handle)) ==
                             SOCKET_ERROR) {
-                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
+                            std::cerr << "Error setsockopt SO_UPDATE_CONNECT_CONTEXT Code: " << WSAGetLastError() << std::endl;
                             return;
                         }
-                        if (!updateIOCP(lpOverlapped->Socket_->handle, &iocp.handle)) {
-                            std::cerr << "Error setsockoptSO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-                            return;
-                        }
-                        onConnection(lpOverlapped->Socket_);
+                        onConnection(Socket_);
                         break;
                     case IO_OPERATION::IoRead:
-                        lpOverlapped->transfered_bytes += numberofbytestransfered;
+                        lpOverlapped->IO_Context.transfered_bytes += numberofbytestransfered;
                         completionkey->continue_read(lpOverlapped);
                         if (completionkey->handle == INVALID_SOCKET) {
                             closeclient(lpOverlapped->IOOperation, lpOverlapped);
                         }
                         break;
                     case IO_OPERATION::IoWrite:
-                        lpOverlapped->transfered_bytes += numberofbytestransfered;
-                        completionkey->continue_write(lpOverlapped);
+                        lpOverlapped->IO_Context.transfered_bytes += numberofbytestransfered;
+                        completionkey->continue_write(static_cast<Win_IO_Context_List *>(lpOverlapped));
                         if (completionkey->handle == INVALID_SOCKET) {
                             closeclient(lpOverlapped->IOOperation, lpOverlapped);
                         }

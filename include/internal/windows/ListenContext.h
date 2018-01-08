@@ -10,6 +10,7 @@
 namespace SL {
 namespace NET {
 
+    class Socket;
     class ListenContext final : public IListenContext {
       public:
         WSARAII wsa;
@@ -20,11 +21,11 @@ namespace NET {
         LPFN_ACCEPTEX AcceptEx_ = nullptr;
         unsigned char AcceptBuffer[2 * (sizeof(SOCKADDR_STORAGE) + 16)];
         SOCKET ListenSocket = INVALID_SOCKET;
-        PER_IO_CONTEXT ListenIOContext;
+        Win_IO_Context ListenIOContext;
         int AddressFamily = AF_INET;
 
         SpinLock ClientLock;
-        std::unordered_set<std::shared_ptr<Socket>> Clients;
+        Socket *Clients = nullptr;
 
         ListenContext();
         virtual ~ListenContext();
@@ -32,8 +33,7 @@ namespace NET {
         virtual bool listen() override;
         virtual void run(ThreadCount threadcount) override;
 
-        void closeclient(Socket *socket, IO_OPERATION op, PER_IO_CONTEXT *context);
-        void closeclient(const std::shared_ptr<Socket> &socket, IO_OPERATION op, PER_IO_CONTEXT *context);
+        void closeclient(Socket *socket, Win_IO_Context *context);
         void async_accept();
     };
 

@@ -147,12 +147,7 @@ namespace NET {
         return std::nullopt;
     }
 
-    std::optional<Platform_Socket> create_and_bind(PortNumber port
-#ifdef WIN32
-                                                   ,
-                                                   void **iocphandle, void *contextdata
-#endif
-    )
+    std::optional<Platform_Socket> create_and_bind(PortNumber port)
     {
 
         addrinfo hints = {0};
@@ -181,14 +176,6 @@ namespace NET {
             if (sfd == INVALID_SOCKET)
                 continue;
             if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == 0) {
-#ifdef WIN32
-
-                *iocphandle = CreateIoCompletionPort((HANDLE)sfd, *iocphandle, (DWORD_PTR)contextdata, 0);
-                if (*iocphandle == NULL) {
-                    std::cerr << "CreateIoCompletionPort failed" << GetLastError() << std::endl;
-                    continue;
-                }
-#endif
                 /* We managed to bind successfully! */
                 break;
             }
@@ -204,7 +191,7 @@ namespace NET {
     std::optional<Platform_Socket> create_and_connect(std::string host, PortNumber port
 #ifdef WIN32
                                                       ,
-                                                      void **iocphandle, void *contextdata
+                                                      void **iocphandle, void *completionkey, void *overlappeddata
 #endif
     )
     {
@@ -218,7 +205,7 @@ namespace NET {
         hints.ai_socktype = SOCK_STREAM; /* We want a TCP socket */
         hints.ai_flags = AI_PASSIVE;     /* All interfaces */
         auto portstr = std::to_string(port.value);
-        auto s = getaddrinfo(NULL, portstr.c_str(), &hints, &result);
+        auto s = getaddrinfo(host.c_str(), portstr.c_str(), &hints, &result);
         if (s != 0) {
             std::cerr << "getaddrinfo" << gai_strerror(s) << std::endl;
             return std::nullopt;
@@ -227,7 +214,9 @@ namespace NET {
         for (rp = result; rp != NULL; rp = rp->ai_next) {
 #ifdef WIN32
             sfd = WSASocketW(rp->ai_family, rp->ai_socktype, rp->ai_protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
-
+            if (bind(sfd, rp->ai_addr, rp->ai_addrlen) == SOCKET_ERROR) {
+                continue;
+            }
 #else
             sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 
@@ -237,26 +226,32 @@ namespace NET {
             if (!make_socket_non_blocking(sfd)) {
                 continue;
             }
-            if (auto connectresult = connect(sfd, rp->ai_addr, rp->ai_addrlen); connectresult == 0 ||
-#ifdef WIN32
-                                                                                connectresult == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK
-#else
-                                                                                errno == EINPROGRESS
-
-#endif
-
-            ) {
 #ifdef WIN32
 
-                *iocphandle = CreateIoCompletionPort((HANDLE)sfd, *iocphandle, (DWORD_PTR)contextdata, 0);
-                if (*iocphandle == NULL) {
-                    std::cerr << "CreateIoCompletionPort failed" << GetLastError() << std::endl;
+            GUID guid = WSAID_CONNECTEX;
+            DWORD bytes = 0;
+            LPFN_CONNECTEX connectex;
+            if (WSAIoctl(sfd, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &connectex, sizeof(connectex), &bytes, NULL, NULL) !=
+                SOCKET_ERROR) {
+                if (*iocphandle = CreateIoCompletionPort((HANDLE)sfd, *iocphandle, (DWORD_PTR)completionkey, 0); *iocphandle == NULL) {
+                    std::cerr << "CreateIoCompletionPort() failed: " << GetLastError() << std::endl;
                     continue;
                 }
-#endif
+            }
+            else {
+                std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
+            }
+            DWORD bytessend = 0;
+            if (auto connectres = connectex(sfd, rp->ai_addr, rp->ai_addrlen, NULL, 0, &bytessend, (LPOVERLAPPED)overlappeddata); true) {
+                auto lerr = WSAGetLastError();
+                if (connectres == TRUE || (connectres == FALSE && lerr == ERROR_IO_PENDING)) {
+                    break;
+                }
 
-                /* We managed to connect successfully! */
+#else
+            if (auto connectresult = connect(sfd, rp->ai_addr, rp->ai_addrlen); connectresult == 0 || errno == EINPROGRESS) {
                 break;
+#endif
             }
             closesocket(sfd);
         }
@@ -272,7 +267,7 @@ namespace NET {
     {
 #ifdef WIN32
         u_long iMode = 1; // set socket for non blocking
-        if (auto nRet = ioctlsocket(socket, FIONBIO, &iMode); nRet == NO_ERROR) {
+        if (auto nRet = ioctlsocket(socket, FIONBIO, &iMode); nRet != NO_ERROR) {
             return false;
         }
 #else

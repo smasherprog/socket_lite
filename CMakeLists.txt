@@ -52,6 +52,7 @@ include_directories(
 add_library(${PROJECT_NAME} 
 	include/Socket_Lite.h
 	include/internal/SpinLock.h
+	include/internal/CommonStructures.h 
 	src/Socket_Lite.cpp  
 	${SOCKET_LITE_PLATFORM_SRC}
 )

@@ -76,17 +76,12 @@ namespace NET {
         Address_Family Family;
     };
     std::optional<SocketInfo> SOCKET_LITE_EXTERN get_PeerInfo(Platform_Socket s);
-    std::optional<Platform_Socket> SOCKET_LITE_EXTERN create_and_bind(PortNumber port
-#ifdef WIN32
-                                                                      ,
-                                                                      void **iocphandle, void *contextdata
-#endif
-    );
+    std::optional<Platform_Socket> SOCKET_LITE_EXTERN create_and_bind(PortNumber port);
     bool SOCKET_LITE_EXTERN make_socket_non_blocking(Platform_Socket socket);
     std::optional<Platform_Socket> SOCKET_LITE_EXTERN create_and_connect(std::string host, PortNumber port
 #ifdef WIN32
                                                                          ,
-                                                                         void **iocphandle, void *contextdata
+                                                                         void **iocphandle, void *completionkey, void *overlappeddata
 #endif
     );
 
