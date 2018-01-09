@@ -16,17 +16,18 @@ else()
 endif()
 
 if(WIN32)
-    set(SOCKET_LITE_PLATFORM_SRC      
-		include/internal/windows/Socket.h
+    set(SOCKET_LITE_PLATFORM_SRC     
+		include/windows/IO_Context.h 
+		src/windows/IO_Context.cpp
+		include/windows/Socket.h
 		src/windows/Socket.cpp
-		include/internal/windows/ListenContext.h
+		include/windows/ListenContext.h
 		src/windows/ListenContext.cpp
-		include/internal/windows/ClientContext.h
-		src/windows/ClientContext.cpp
-		include/internal/windows/Structures.h	 
+		include/windows/ClientContext.h
+		src/windows/ClientContext.cpp  
     )
-    set(SOCKET_LITE_PLATFORM_INC     
-		include/internal/windows
+    set(SOCKET_LITE_PLATFORM_INC  
+	include/windows 
     )
 
 elseif(APPLE)
@@ -34,13 +35,13 @@ elseif(APPLE)
     set(SOCKET_LITE_PLATFORM_SRC 
     )
     set(SOCKET_LITE_PLATFORM_INC
-		include/internal/ios 
+		include/ios 
     )
 else()
 	set(SOCKET_LITE_PLATFORM_SRC 
     )
 	set(SOCKET_LITE_PLATFORM_INC
-		include/internal/linux 
+		include/linux 
     )	
 endif()
 
@@ -49,10 +50,10 @@ include_directories(
 	include
 	${SOCKET_LITE_PLATFORM_INC}
 )
-add_library(${PROJECT_NAME} 
+add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h
-	include/internal/SpinLock.h
-	include/internal/CommonStructures.h 
+	include/common/SpinLock.h
+	include/common/List.h
 	src/Socket_Lite.cpp  
 	${SOCKET_LITE_PLATFORM_SRC}
 )

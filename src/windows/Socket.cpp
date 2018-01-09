@@ -1,15 +1,17 @@
 
+#include "IO_Context.h"
 #include "Socket.h"
-#include "internal/List.h"
+#include "common/List.h"
 #include <assert.h>
+
 namespace SL {
 namespace NET {
 
-    Socket::Socket() {}
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket() { return std::make_shared<Socket>(); }
+
+    Socket::Socket() { handle = INVALID_SOCKET; }
     Socket::~Socket()
     { // make sure the links are all cleaned up
-        assert(next == nullptr);
-        assert(prev == nullptr);
         close();
     }
 
@@ -17,8 +19,65 @@ namespace NET {
     {
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
-            handle = INVALID_SOCKET;
         }
+        handle = INVALID_SOCKET;
+    }
+    void Socket::async_connect(const std::shared_ptr<IIO_Context> &io_context, sockaddr addr, const std::function<void(Bytes_Transfered)> &&handler)
+    {
+        auto iocontext = static_cast<IO_Context *>(io_context.get());
+        GUID guid = WSAID_CONNECTEX;
+        DWORD bytes = 0;
+        LPFN_CONNECTEX connectex;
+        if (addr.Family == Address_Family::IPV4) {
+            handle = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        }
+        else {
+            handle = WSASocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        }
+        if (!bind(addr)) {
+            handler(-1);
+            return;
+        }
+        if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &connectex, sizeof(connectex), &bytes, NULL, NULL) !=
+            SOCKET_ERROR) {
+            if (iocontext->iocp.handle = CreateIoCompletionPort((HANDLE)handle, iocontext->iocp.handle, (DWORD_PTR)this, 0);
+                iocontext->iocp.handle == NULL) {
+                std::cerr << "CreateIoCompletionPort() failed: " << GetLastError() << std::endl;
+                handler(-1);
+                return;
+            }
+        }
+        else {
+            std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
+            handler(-1);
+            return;
+        }
+        ReadContext.clear();
+        ReadContext.IO_Context.completionhandler = std::move(handler);
+        ReadContext.IOOperation = IO_OPERATION::IoConnect;
+
+        if (addr.Family == Address_Family::IPV4) {
+            ::sockaddr_in sockaddr = {0};
+            int sockaddrlen = sizeof(sockaddr);
+            inet_pton(AF_INET, addr.Address, &sockaddr.sin_addr);
+            DWORD bytessend = 0;
+            if (auto connectres = connectex(handle, (::sockaddr *)&sockaddr, sockaddrlen, NULL, 0, &bytessend, (LPOVERLAPPED)&ReadContext);
+                connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING)) {
+                return;
+            }
+        }
+        else {
+            sockaddr_in6 sockaddr = {0};
+            int sockaddrlen = sizeof(sockaddr);
+            inet_pton(AF_INET6, addr.Address, &sockaddr.sin6_addr);
+            DWORD bytessend = 0;
+            if (auto connectres = connectex(handle, (::sockaddr *)&sockaddr, sockaddrlen, NULL, 0, &bytessend, (LPOVERLAPPED)&ReadContext);
+                connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING)) {
+                return;
+            }
+        }
+        handler(-1);
+        ReadContext.clear();
     }
     void Socket::async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
     {

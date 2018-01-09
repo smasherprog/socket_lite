@@ -64,7 +64,7 @@ void WriteConnectionInfo(const std::shared_ptr<SL::NET::ISocket> &socket)
 void echolistenertest()
 {
     auto listencontext = SL::NET::CreateListener();
-    if (!listencontext->bind(SL::NET::PortNumber(3000))) {
+    if (!listencontext->bind(SL::NET::PortNumber(10000))) {
         std::cout << "Listen bind failed " << std::endl;
     }
     else {
@@ -86,7 +86,7 @@ void echolistenertest()
     listencontext->run(SL::NET::ThreadCount(1));
 
     auto clientcontext = SL::NET::CreateClient();
-    if (!clientcontext->async_connect("::1", SL::NET::PortNumber(3000))) {
+    if (!clientcontext->async_connect("::1", SL::NET::PortNumber(10000))) {
         std::cout << "async_connect failed " << std::endl;
     }
     else {

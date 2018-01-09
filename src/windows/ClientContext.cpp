@@ -67,9 +67,8 @@ namespace NET {
                     if (!KeepRunning) {
                         return;
                     }
-                    if (lpOverlapped->IOOperation != IO_OPERATION::IoConnect &&
-                        (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered))) {
-                        // dropped connection
+                    if (bSuccess == FALSE || (bSuccess == TRUE && 0 == numberofbytestransfered)) {
+                        std::cout << "Client disconnected " << WSAGetLastError() << std::endl;
                         closeclient(lpOverlapped->IOOperation, lpOverlapped);
                         continue;
                     }

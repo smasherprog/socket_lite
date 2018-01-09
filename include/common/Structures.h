@@ -1,18 +1,28 @@
 #pragma once
-
-#include "internal/CommonStructures.h"
+#include "Socket_Lite.h"
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <mswsock.h>
-#include <mutex>
-#include <vector>
 
 namespace SL {
 namespace NET {
+
+    enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite };
+
+    struct Socket_IO_Context {
+        Bytes_Transfered transfered_bytes = 0;
+        Bytes_Transfered bufferlen = 0;
+        unsigned char *buffer = nullptr;
+        std::function<void(Bytes_Transfered)> completionhandler;
+    };
+    template <typename T> struct Node {
+        T *next = nullptr;
+        T *prev = nullptr;
+    };
+
     struct WSARAII {
 
         WSADATA wsaData;
@@ -57,9 +67,18 @@ namespace NET {
         IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
         WSABUF wsabuf = {0};
         Socket_IO_Context IO_Context;
+        void clear()
+        {
+            Overlapped = {0};
+            IOOperation = IO_OPERATION::IoAccept;
+            wsabuf = {0};
+            IO_Context.transfered_bytes = 0;
+            IO_Context.bufferlen = 0;
+            IO_Context.buffer = nullptr;
+            IO_Context.completionhandler = nullptr;
+        }
     };
     struct Win_IO_Context_List : Win_IO_Context, Node<Win_IO_Context_List> {
     };
-
 } // namespace NET
 } // namespace SL

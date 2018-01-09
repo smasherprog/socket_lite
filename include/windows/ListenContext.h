@@ -1,7 +1,7 @@
 #pragma once
 #include "Socket_Lite.h"
 #include "Structures.h"
-#include "internal/SpinLock.h"
+#include "common/SpinLock.h"
 #include <atomic>
 #include <chrono>
 #include <memory>
