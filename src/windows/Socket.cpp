@@ -15,6 +15,17 @@ namespace NET {
         close();
     }
 
+    bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
+    {
+        if (*iocp = CreateIoCompletionPort((HANDLE)socket, *iocp, (DWORD_PTR)completionkey, 0); *iocp != NULL) {
+            return true;
+        }
+        else {
+            std::cerr << "CreateIoCompletionPort() failed: " << GetLastError() << std::endl;
+            return false;
+        }
+    }
+
     void Socket::close()
     {
         if (handle != INVALID_SOCKET) {

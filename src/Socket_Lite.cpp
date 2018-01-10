@@ -59,6 +59,14 @@ namespace NET {
         return ret;
     } // namespace NET
 
+    bool ISocket::listen_(Platform_Socket s, int backlog) const
+    {
+        if (s != INVALID_SOCKET) {
+            return ::listen(s, backlog) != SOCKET_ERROR;
+        }
+        return false;
+    }
+
     bool ISocket::bind_(Platform_Socket s, sockaddr addr) const
     {
         if (addr.Family == Address_Family::IPV4) {

@@ -21,10 +21,8 @@ if(WIN32)
 		src/windows/IO_Context.cpp
 		include/windows/Socket.h
 		src/windows/Socket.cpp
-		include/windows/ListenContext.h
-		src/windows/ListenContext.cpp
-		include/windows/ClientContext.h
-		src/windows/ClientContext.cpp  
+		include/windows/Listener.h
+		src/windows/Listener.cpp
     )
     set(SOCKET_LITE_PLATFORM_INC  
 	include/windows 

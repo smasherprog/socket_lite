@@ -16,6 +16,8 @@ namespace NET {
         IO_Context();
         ~IO_Context();
         void run(ThreadCount threadcount);
+
+        std::shared_ptr<Socket> Listener_;
     };
 
 } // namespace NET

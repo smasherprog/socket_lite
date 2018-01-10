@@ -68,15 +68,22 @@ namespace NET {
     };
     enum class Address_Family { IPV4, IPV6 };
     struct SOCKET_LITE_EXTERN sockaddr {
-        char Address[65];
-        unsigned short Port;
-        Address_Family Family;
+        char Address[65] = {0};
+        unsigned short Port = 0;
+        Address_Family Family = Address_Family::IPV4;
     };
 
     std::vector<sockaddr> SOCKET_LITE_EXTERN getaddrinfo(char *nodename, PortNumber pServiceName, Address_Family family);
+    class SOCKET_LITE_EXTERN IIO_Context {
+      public:
+        virtual ~IIO_Context() {}
+        virtual void run(ThreadCount threadcount) = 0;
+    };
+    std::shared_ptr<IIO_Context> SOCKET_LITE_EXTERN CreateIO_Context();
 
     class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
 
+        bool listen_(Platform_Socket s, int backlog) const;
         bool bind_(Platform_Socket s, sockaddr addr) const;
         std::optional<sockaddr> getpeername_(Platform_Socket s) const;
         std::optional<sockaddr> getsockname_(Platform_Socket s) const;
@@ -212,6 +219,8 @@ namespace NET {
         auto getpeername() const { return getpeername_(handle); }
         auto getsockname() const { return getsockname_(handle); }
         auto bind(sockaddr addr) const { return bind_(handle, addr); }
+        auto listen(int backlog) const { return listen_(handle, backlog); }
+
         virtual void async_connect(const std::shared_ptr<IIO_Context> &io_context, sockaddr addr,
                                    const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
@@ -220,13 +229,15 @@ namespace NET {
         virtual void close() = 0;
     };
 
-    class SOCKET_LITE_EXTERN IIO_Context {
-      public:
-        virtual ~IIO_Context() {}
-        virtual void run(ThreadCount threadcount) = 0;
-    };
-    std::shared_ptr<IIO_Context> SOCKET_LITE_EXTERN CreateIO_Context(Address_Family fam);
     std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket();
+
+    class SOCKET_LITE_EXTERN IListener {
+      public:
+        virtual ~IListener() {}
+        virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(Bytes_Transfered)> &&handler) = 0;
+    };
+    std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IIO_Context> &iocontext,
+                                                                 std::shared_ptr<ISocket> &&listensocket); // listener steals the socket
 
 } // namespace NET
 } // namespace SL

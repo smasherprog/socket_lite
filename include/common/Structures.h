@@ -13,6 +13,7 @@ namespace NET {
     enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite };
 
     struct Socket_IO_Context {
+        SOCKET socket = INVALID_SOCKET;
         Bytes_Transfered transfered_bytes = 0;
         Bytes_Transfered bufferlen = 0;
         unsigned char *buffer = nullptr;
@@ -63,6 +64,7 @@ namespace NET {
     };
 
     struct Win_IO_Context {
+
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
         WSABUF wsabuf = {0};

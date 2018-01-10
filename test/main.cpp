@@ -12,6 +12,7 @@ auto writeechos = 0.0;
 
 void echolistenread(const std::shared_ptr<SL::NET::ISocket> &socket)
 {
+
     socket->async_read(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
         if (bytesread >= 0) {
             std::cout << "Listen echo received " << std::endl;
@@ -54,32 +55,31 @@ void echolistenwrite(const std::shared_ptr<SL::NET::ISocket> &socket)
     });
 }
 
-void WriteConnectionInfo(const std::shared_ptr<SL::NET::ISocket> &socket)
-{
-    if (auto peerinfo = socket->get_PeerInfo(); peerinfo.has_value()) {
-        std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
-                  << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
-    }
-}
 void echolistenertest()
 {
-    auto listencontext = SL::NET::CreateListener();
-    if (!listencontext->bind(SL::NET::PortNumber(10000))) {
-        std::cout << "Listen bind failed " << std::endl;
+
+    auto listensocket = SL::NET::CreateSocket();
+    for (auto &address : SL::NET::getaddrinfo(nullptr, SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6)) {
+        if (listensocket->bind(address)) {
+            std::cout << "Listener bind success 3000" << std::endl;
+            if (listensocket->listen(5)) {
+                std::cout << "listen success " << std::endl;
+            }
+            else {
+                std::cout << "Listen failed " << std::endl;
+            }
+        }
     }
-    else {
-        std::cout << "Listen bind success 3000" << std::endl;
-    }
-    if (!listencontext->listen()) {
-        std::cout << "Listen listen failed " << std::endl;
-    }
-    else {
-        std::cout << "Listen listen success " << std::endl;
-    }
+
+    auto iocontext = SL::NET::CreateIO_Context();
+    auto listener = SL::NET::CreateListener(iocontext, std::move(listensocket));
 
     listencontext->onConnection = [](const std::shared_ptr<SL::NET::ISocket> &socket) {
         std::cout << "Listen Socket Connected " << std::endl;
-        WriteConnectionInfo(socket);
+        if (auto peerinfo = socket->getsockname(); peerinfo.has_value()) {
+            std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
+                      << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
+        }
         echolistenread(socket);
     };
 
@@ -98,7 +98,10 @@ void echolistenertest()
         }
         else {
             std::cout << "Client Socket Connected " << std::endl;
-            WriteConnectionInfo(socket);
+            if (auto peerinfo = socket->getpeername(); peerinfo.has_value()) {
+                std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
+                          << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
+            }
             echolistenwrite(socket);
         }
     };
