@@ -12,10 +12,11 @@ namespace NET {
         char Buffer[MAX_BUFF_SIZE];
         std::shared_ptr<Socket> ListenSocket;
 
-        Listener(std::shared_ptr<Socket> &socket);
+        std::atomic<size_t> &PendingIO;
+        Listener(std::shared_ptr<ISocket> &&socket, std::atomic<size_t> &counter);
         virtual ~Listener();
 
-        virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(Bytes_Transfered)> &&handler);
+        virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler);
     };
 
 } // namespace NET

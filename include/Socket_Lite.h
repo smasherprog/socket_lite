@@ -5,7 +5,7 @@
 #include <optional>
 #include <stdint.h>
 #include <variant>
-
+#include <vector>
 #if defined(WINDOWS) || defined(WIN32)
 #if defined(WS_LITE_DLL)
 #define SOCKET_LITE_EXTERN __declspec(dllexport)
@@ -221,20 +221,20 @@ namespace NET {
         auto bind(sockaddr addr) const { return bind_(handle, addr); }
         auto listen(int backlog) const { return listen_(handle, backlog); }
 
-        virtual void async_connect(const std::shared_ptr<IIO_Context> &io_context, sockaddr addr,
-                                   const std::function<void(Bytes_Transfered)> &&handler) = 0;
+        virtual void async_connect(const std::shared_ptr<IIO_Context> &io_context, std::vector<SL::NET::sockaddr> &addresses,
+                                   const std::function<bool(bool, SL::NET::sockaddr &)> &&) = 0;
         virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         // send a close message and close the socket
         virtual void close() = 0;
     };
 
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket();
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(const std::shared_ptr<IIO_Context> &iocontext);
 
     class SOCKET_LITE_EXTERN IListener {
       public:
         virtual ~IListener() {}
-        virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(Bytes_Transfered)> &&handler) = 0;
+        virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler) = 0;
     };
     std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IIO_Context> &iocontext,
                                                                  std::shared_ptr<ISocket> &&listensocket); // listener steals the socket

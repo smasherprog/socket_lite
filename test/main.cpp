@@ -57,8 +57,8 @@ void echolistenwrite(const std::shared_ptr<SL::NET::ISocket> &socket)
 
 void echolistenertest()
 {
-
-    auto listensocket = SL::NET::CreateSocket();
+    auto iocontext = SL::NET::CreateIO_Context();
+    auto listensocket = SL::NET::CreateSocket(iocontext);
     for (auto &address : SL::NET::getaddrinfo(nullptr, SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6)) {
         if (listensocket->bind(address)) {
             std::cout << "Listener bind success 3000" << std::endl;
@@ -70,82 +70,47 @@ void echolistenertest()
             }
         }
     }
-
-    auto iocontext = SL::NET::CreateIO_Context();
+    auto newsocket = SL::NET::CreateSocket(iocontext);
     auto listener = SL::NET::CreateListener(iocontext, std::move(listensocket));
 
-    listencontext->onConnection = [](const std::shared_ptr<SL::NET::ISocket> &socket) {
-        std::cout << "Listen Socket Connected " << std::endl;
-        if (auto peerinfo = socket->getsockname(); peerinfo.has_value()) {
-            std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
-                      << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
-        }
-        echolistenread(socket);
-    };
-
-    listencontext->run(SL::NET::ThreadCount(1));
-
-    auto clientcontext = SL::NET::CreateClient();
-    if (!clientcontext->async_connect("::1", SL::NET::PortNumber(10000))) {
-        std::cout << "async_connect failed " << std::endl;
-    }
-    else {
-        std::cout << "async_connect success 3000" << std::endl;
-    }
-    clientcontext->onConnection = [](const std::shared_ptr<SL::NET::ISocket> &socket) {
-        if (!socket) {
-            std::cout << "Client Connect Failed! " << std::endl;
-        }
-        else {
-            std::cout << "Client Socket Connected " << std::endl;
-            if (auto peerinfo = socket->getpeername(); peerinfo.has_value()) {
+    listener->async_accept(newsocket, [newsocket](bool connectsuccess) {
+        if (connectsuccess) {
+            std::cout << "Listen Socket Acceot Success " << std::endl;
+            if (auto peerinfo = newsocket->getsockname(); peerinfo.has_value()) {
                 std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
                           << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
             }
-            echolistenwrite(socket);
+            echolistenread(newsocket);
         }
-    };
-    auto start = std::chrono::high_resolution_clock::now();
-    clientcontext->run(SL::NET::ThreadCount(1));
+        else {
+            std::cout << "Listen Socket Acceot Failed " << std::endl;
+        }
+    });
+
+    auto clientsocket = SL::NET::CreateSocket(iocontext);
+    clientsocket->async_connect(iocontext, SL::NET::getaddrinfo("::1", SL::NET::PortNumber(10000), SL::NET::Address_Family::IPV6),
+                                [clientsocket](SL::NET::sockaddr &addr) {
+
+                                    std::cout << "Client Socket Connected " << std::endl;
+                                    if (auto peerinfo = clientsocket->getpeername(); peerinfo.has_value()) {
+                                        std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
+                                                  << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
+                                    }
+                                    echolistenwrite(clientsocket);
+
+                                });
+
+    iocontext->run(SL::NET::ThreadCount(1));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "Echo per Second " << writeechos / 10 << std::endl;
 }
 void echoclienttest() {}
-void builderecholistenertest()
-{
-    auto context = SL::NET::CreateListener(SL::NET::ThreadCount(1))
-                       ->onConnection([](const std::shared_ptr<SL::NET::ISocket> &socket) {
-                           std::cout << "Listen Socket Connected " << std::endl;
-                           WriteConnectionInfo(socket);
-                           echolistenread(socket);
-                       })
-                       ->bind(SL::NET::PortNumber(3001));
 
-    auto start = std::chrono::high_resolution_clock::now();
-    context->listen();
-    std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "Echos per Second " << readechos / 10 << std::endl;
-}
-void builderechoclienttest()
-{
-    auto context = SL::NET::CreateClient(SL::NET::ThreadCount(1))->onConnection([](const std::shared_ptr<SL::NET::ISocket> &socket) {
-        std::cout << "Client Socket Connected " << std::endl;
-        WriteConnectionInfo(socket);
-        echolistenwrite(socket);
-    });
-
-    auto start = std::chrono::high_resolution_clock::now();
-    context->async_connect("localhost", SL::NET::PortNumber(3001));
-    std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "Echo per Second " << writeechos / 10 << std::endl;
-}
 int main(int argc, char *argv[])
 {
     // the verbode ways to use this library
     echolistenertest();
     echoclienttest();
-    // same code as sbove except using the builders. This should be the preferred way to use this library.......
-    //   builderecholistenertest();
-    //    builderechoclienttest();
+
     return 0;
 }

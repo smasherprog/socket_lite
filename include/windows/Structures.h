@@ -1,5 +1,6 @@
 #pragma once
 #include "Socket_Lite.h"
+#include "common/Structures.h"
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
@@ -9,19 +10,6 @@
 
 namespace SL {
 namespace NET {
-
-    enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite };
-
-    struct Socket_IO_Context {
-        Bytes_Transfered transfered_bytes = 0;
-        Bytes_Transfered bufferlen = 0;
-        unsigned char *buffer = nullptr;
-        std::function<void(Bytes_Transfered)> completionhandler;
-    };
-    template <typename T> struct Node {
-        T *next = nullptr;
-        T *prev = nullptr;
-    };
 
     struct WSARAII {
 
@@ -61,14 +49,28 @@ namespace NET {
         }
         operator bool() const { return handle != NULL; }
     };
-
-    struct Win_IO_Context {
+    class Socket;
+    struct WinIOContext {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
-        WSABUF wsabuf = {0};
-        Socket_IO_Context IO_Context;
     };
-    struct Win_IO_Context_List : Win_IO_Context, Node<Win_IO_Context_List> {
+    struct Win_IO_Accept_Context : WinIOContext {
+        std::shared_ptr<Socket> Socket_;
+        SOCKET ListenSocket = INVALID_SOCKET;
+        std::function<void(bool)> completionhandler;
+    };
+    struct Win_IO_Connect_Context : WinIOContext {
+        SOCKET ConnectSocket = INVALID_SOCKET;
+        HANDLE iocp = NULL;
+        std::vector<SL::NET::sockaddr> RemainingAddresses;
+        std::function<bool(bool, SL::NET::sockaddr)> completionhandler;
+    };
+    struct Win_IO_RW_Context : WinIOContext {
+        WSABUF wsabuf = {0};
+        Bytes_Transfered transfered_bytes = 0;
+        Bytes_Transfered bufferlen = 0;
+        unsigned char *buffer = nullptr;
+        std::function<void(Bytes_Transfered)> completionhandler;
     };
 } // namespace NET
 } // namespace SL
