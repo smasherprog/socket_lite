@@ -47,19 +47,7 @@ void SL::NET::IO_Context::handleaccept(WinIOContext *overlapped)
 void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, WinIOContext *overlapped)
 {
     auto context = static_cast<Win_IO_Connect_Context *>(overlapped);
-    if (success) {
-        if (setsockopt(completionkey->get_handle(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
-            std::cerr << "Error setsockopt SO_UPDATE_CONNECT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-            context->completionhandler(false);
-        }
-        else {
-            context->completionhandler(success);
-        }
-    }
-    else {
-        context->completionhandler(false);
-    }
-    delete context;
+    completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, context);
 }
 void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, WinIOContext *overlapped, DWORD trasnferedbytes)
 {
@@ -96,7 +84,7 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
                     handleconnect(bSuccess, completionkey, overlapped);
                     break;
                 case IO_OPERATION::IoAccept:
-                    handleaccept(completionkey, overlapped);
+                    handleaccept(overlapped);
                     break;
                 case IO_OPERATION::IoRead:
                     handlerecv(bSuccess, completionkey, overlapped, numberofbytestransfered);

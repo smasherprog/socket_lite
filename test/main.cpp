@@ -61,7 +61,7 @@ void echolistenertest()
     auto listensocket = SL::NET::CreateSocket(iocontext);
     for (auto &address : SL::NET::getaddrinfo(nullptr, SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6)) {
         if (listensocket->bind(address)) {
-            std::cout << "Listener bind success 3000" << std::endl;
+            std::cout << "Listener bind success " << std::endl;
             if (listensocket->listen(5)) {
                 std::cout << "listen success " << std::endl;
             }
@@ -70,9 +70,8 @@ void echolistenertest()
             }
         }
     }
-    auto newsocket = SL::NET::CreateSocket(iocontext);
     auto listener = SL::NET::CreateListener(iocontext, std::move(listensocket));
-
+    auto newsocket = SL::NET::CreateSocket(iocontext);
     listener->async_accept(newsocket, [newsocket](bool connectsuccess) {
         if (connectsuccess) {
             std::cout << "Listen Socket Acceot Success " << std::endl;
@@ -86,19 +85,20 @@ void echolistenertest()
             std::cout << "Listen Socket Acceot Failed " << std::endl;
         }
     });
-
     auto clientsocket = SL::NET::CreateSocket(iocontext);
-    clientsocket->async_connect(iocontext, SL::NET::getaddrinfo("::1", SL::NET::PortNumber(10000), SL::NET::Address_Family::IPV6),
-                                [clientsocket](SL::NET::sockaddr &addr) {
-
-                                    std::cout << "Client Socket Connected " << std::endl;
-                                    if (auto peerinfo = clientsocket->getpeername(); peerinfo.has_value()) {
-                                        std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
-                                                  << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
-                                    }
-                                    echolistenwrite(clientsocket);
-
-                                });
+    auto addresses = SL::NET::getaddrinfo("::1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6);
+    clientsocket->async_connect(iocontext, addresses, [clientsocket](SL::NET::ConnectionAttemptStatus connectstatus, SL::NET::sockaddr &addr) {
+        if (connectstatus == SL::NET::ConnectionAttemptStatus::SuccessfullConnect) {
+            std::cout << "Client Socket Connected " << std::endl;
+            if (auto peerinfo = clientsocket->getpeername(); peerinfo.has_value()) {
+                std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
+                          << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
+            }
+            echolistenwrite(clientsocket);
+            return SL::NET::ConnectSelection::Selected;
+        }
+        return SL::NET::ConnectSelection::NotSelected;
+    });
 
     iocontext->run(SL::NET::ThreadCount(1));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds

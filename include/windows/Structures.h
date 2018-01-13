@@ -52,7 +52,7 @@ namespace NET {
     class Socket;
     struct WinIOContext {
         WSAOVERLAPPED Overlapped = {0};
-        IO_OPERATION IOOperation = IO_OPERATION::IoAccept;
+        IO_OPERATION IOOperation = IO_OPERATION::IoNone;
     };
     struct Win_IO_Accept_Context : WinIOContext {
         std::shared_ptr<Socket> Socket_;
@@ -60,10 +60,10 @@ namespace NET {
         std::function<void(bool)> completionhandler;
     };
     struct Win_IO_Connect_Context : WinIOContext {
-        SOCKET ConnectSocket = INVALID_SOCKET;
         HANDLE iocp = NULL;
-        std::vector<SL::NET::sockaddr> RemainingAddresses;
-        std::function<bool(bool, SL::NET::sockaddr)> completionhandler;
+        LPFN_CONNECTEX ConnectEx_;
+        std::vector<sockaddr> RemainingAddresses;
+        std::function<ConnectSelection(ConnectionAttemptStatus, sockaddr &)> completionhandler;
     };
     struct Win_IO_RW_Context : WinIOContext {
         WSABUF wsabuf = {0};
@@ -71,6 +71,17 @@ namespace NET {
         Bytes_Transfered bufferlen = 0;
         unsigned char *buffer = nullptr;
         std::function<void(Bytes_Transfered)> completionhandler;
+        void clear()
+        {
+            Overlapped = {0};
+            IOOperation = IO_OPERATION::IoNone;
+            wsabuf = {0};
+            transfered_bytes = 0;
+            bufferlen = 0;
+            delete buffer;
+            buffer = nullptr;
+            completionhandler = nullptr;
+        }
     };
 } // namespace NET
 } // namespace SL

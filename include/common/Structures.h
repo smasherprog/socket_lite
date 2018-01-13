@@ -3,7 +3,7 @@
 namespace SL {
 namespace NET {
 
-    enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite };
+    enum IO_OPERATION { IoNone, IoConnect, IoAccept, IoRead, IoWrite };
 
 } // namespace NET
 } // namespace SL

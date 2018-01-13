@@ -15,6 +15,9 @@ namespace NET {
       public:
         WSARAII wsa;
         IOCP iocp;
+
+        LPFN_CONNECTEX ConnectEx_ = nullptr;
+
         std::shared_ptr<Listener> Listener_;
         std::atomic<size_t> PendingIO;
         IO_Context();

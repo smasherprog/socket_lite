@@ -61,6 +61,8 @@ namespace NET {
 
     typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
+    enum class ConnectSelection { Selected, NotSelected };
+    enum class ConnectionAttemptStatus { SuccessfullConnect, FailedConnect };
     enum class Linger_Options { LINGER_OFF, LINGER_ON };
     struct Linger_Option {
         Linger_Options l_onoff;        /* option on/off */
@@ -83,126 +85,126 @@ namespace NET {
 
     class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
 
-        bool listen_(Platform_Socket s, int backlog) const;
-        bool bind_(Platform_Socket s, sockaddr addr) const;
-        std::optional<sockaddr> getpeername_(Platform_Socket s) const;
-        std::optional<sockaddr> getsockname_(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_DEBUG(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_ACCEPTCONN(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_BROADCAST(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_REUSEADDR(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_KEEPALIVE(Platform_Socket s) const;
-        std::optional<Linger_Option> getsockopt_O_LINGER(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_OOBINLINE(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket s) const;
-        std::optional<int> getsockopt_O_SNDBUF(Platform_Socket s) const;
-        std::optional<int> getsockopt_O_RCVBUF(Platform_Socket s) const;
-        std::optional<std::chrono::seconds> getsockopt_O_SNDTIMEO(Platform_Socket s) const;
-        std::optional<std::chrono::seconds> getsockopt_O_RCVTIMEO(Platform_Socket s) const;
-        std::optional<int> getsockopt_O_ERROR(Platform_Socket s) const;
-        std::optional<bool> getsockopt_O_NODELAY(Platform_Socket s) const;
-        std::optional<Blocking_Options> getsockopt_O_BLOCKING(Platform_Socket s) const;
+        bool listen_(int backlog) const;
+        bool bind_(sockaddr addr);
+        std::optional<sockaddr> getpeername_() const;
+        std::optional<sockaddr> getsockname_() const;
+        std::optional<bool> getsockopt_O_DEBUG() const;
+        std::optional<bool> getsockopt_O_ACCEPTCONN() const;
+        std::optional<bool> getsockopt_O_BROADCAST() const;
+        std::optional<bool> getsockopt_O_REUSEADDR() const;
+        std::optional<bool> getsockopt_O_KEEPALIVE() const;
+        std::optional<Linger_Option> getsockopt_O_LINGER() const;
+        std::optional<bool> getsockopt_O_OOBINLINE() const;
+        std::optional<bool> getsockopt_O_EXCLUSIVEADDRUSE() const;
+        std::optional<int> getsockopt_O_SNDBUF() const;
+        std::optional<int> getsockopt_O_RCVBUF() const;
+        std::optional<std::chrono::seconds> getsockopt_O_SNDTIMEO() const;
+        std::optional<std::chrono::seconds> getsockopt_O_RCVTIMEO() const;
+        std::optional<int> getsockopt_O_ERROR() const;
+        std::optional<bool> getsockopt_O_NODELAY() const;
+        std::optional<Blocking_Options> getsockopt_O_BLOCKING() const;
 
-        bool setsockopt_O_DEBUG(Platform_Socket s, bool b) const;
-        bool setsockopt_O_BROADCAST(Platform_Socket s, bool b) const;
-        bool setsockopt_O_REUSEADDR(Platform_Socket s, bool b) const;
-        bool setsockopt_O_KEEPALIVE(Platform_Socket s, bool b) const;
-        bool setsockopt_O_LINGER(Platform_Socket s, Linger_Option o) const;
-        bool setsockopt_O_OOBINLINE(Platform_Socket s, bool b) const;
-        bool setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket s, bool b) const;
-        bool setsockopt_O_SNDBUF(Platform_Socket s, int b) const;
-        bool setsockopt_O_RCVBUF(Platform_Socket s, int b) const;
-        bool setsockopt_O_SNDTIMEO(Platform_Socket s, std::chrono::seconds sec) const;
-        bool setsockopt_O_RCVTIMEO(Platform_Socket s, std::chrono::seconds sec) const;
-        bool setsockopt_O_NODELAY(Platform_Socket s, bool b) const;
-        bool setsockopt_O_BLOCKING(Platform_Socket s, Blocking_Options b) const;
+        bool setsockopt_O_DEBUG(bool b) const;
+        bool setsockopt_O_BROADCAST(bool b) const;
+        bool setsockopt_O_REUSEADDR(bool b) const;
+        bool setsockopt_O_KEEPALIVE(bool b) const;
+        bool setsockopt_O_LINGER(Linger_Option o) const;
+        bool setsockopt_O_OOBINLINE(bool b) const;
+        bool setsockopt_O_EXCLUSIVEADDRUSE(bool b) const;
+        bool setsockopt_O_SNDBUF(int b) const;
+        bool setsockopt_O_RCVBUF(int b) const;
+        bool setsockopt_O_SNDTIMEO(std::chrono::seconds sec) const;
+        bool setsockopt_O_RCVTIMEO(std::chrono::seconds sec) const;
+        bool setsockopt_O_NODELAY(bool b) const;
+        bool setsockopt_O_BLOCKING(Blocking_Options b) const;
 
         template <Socket_Options SO> struct getsockopt_factory_impl;
         template <> struct getsockopt_factory_impl<Socket_Options::O_DEBUG> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_DEBUG(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_DEBUG(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_ACCEPTCONN> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_ACCEPTCONN(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_ACCEPTCONN(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_BROADCAST> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_BROADCAST(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_BROADCAST(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_REUSEADDR> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_REUSEADDR(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_REUSEADDR(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_KEEPALIVE> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_KEEPALIVE(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_KEEPALIVE(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_LINGER> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_LINGER(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_LINGER(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_OOBINLINE> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_OOBINLINE(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_OOBINLINE(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_EXCLUSIVEADDRUSE> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_EXCLUSIVEADDRUSE(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_EXCLUSIVEADDRUSE(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_SNDBUF> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_SNDBUF(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDBUF(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_RCVBUF> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_RCVBUF(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVBUF(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_RCVTIMEO> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_RCVTIMEO(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVTIMEO(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_SNDTIMEO> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_SNDTIMEO(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDTIMEO(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_ERROR> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_ERROR(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_ERROR(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_NODELAY> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_NODELAY(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_NODELAY(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_BLOCKING> {
-            auto getsockopt_(Platform_Socket handle, ISocket *s) { return s->getsockopt_O_BLOCKING(handle); }
+            auto getsockopt_(ISocket *s) { return s->getsockopt_O_BLOCKING(); }
         };
 
         template <Socket_Options SO> struct setsockopt_factory_impl;
         template <> struct setsockopt_factory_impl<Socket_Options::O_DEBUG> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_DEBUG(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_DEBUG(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_BROADCAST> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_BROADCAST(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_BROADCAST(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_REUSEADDR> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_REUSEADDR(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_REUSEADDR(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_KEEPALIVE> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_KEEPALIVE(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_KEEPALIVE(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_LINGER> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, Linger_Option b) { return s->setsockopt_O_LINGER(handle, b); }
+            auto setsockopt_(ISocket *s, Linger_Option b) { return s->setsockopt_O_LINGER(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_OOBINLINE> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_OOBINLINE(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_OOBINLINE(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_EXCLUSIVEADDRUSE> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_EXCLUSIVEADDRUSE(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_EXCLUSIVEADDRUSE(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_SNDBUF> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, int b) { return s->setsockopt_O_SNDBUF(handle, b); }
+            auto setsockopt_(ISocket *s, int b) { return s->setsockopt_O_SNDBUF(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_RCVBUF> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, int b) { return s->setsockopt_O_RCVBUF(handle, b); }
+            auto setsockopt_(ISocket *s, int b) { return s->setsockopt_O_RCVBUF(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_RCVTIMEO> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_RCVTIMEO(handle, b); }
+            auto setsockopt_(ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_RCVTIMEO(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_SNDTIMEO> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_SNDTIMEO(handle, b); }
+            auto setsockopt_(ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_SNDTIMEO(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_NODELAY> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, bool b) { return s->setsockopt_O_NODELAY(handle, b); }
+            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_NODELAY(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_BLOCKING> {
-            auto setsockopt_(Platform_Socket handle, ISocket *s, Blocking_Options b) { return s->setsockopt_O_BLOCKING(handle, b); }
+            auto setsockopt_(ISocket *s, Blocking_Options b) { return s->setsockopt_O_BLOCKING(b); }
         };
 
       protected:
@@ -216,19 +218,18 @@ namespace NET {
         {
             return getsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
         }
-        auto getpeername() const { return getpeername_(handle); }
-        auto getsockname() const { return getsockname_(handle); }
-        auto bind(sockaddr addr) const { return bind_(handle, addr); }
-        auto listen(int backlog) const { return listen_(handle, backlog); }
+        auto getpeername() const { return getpeername_(); }
+        auto getsockname() const { return getsockname_(); }
+        auto bind(sockaddr addr) { return bind_(addr); }
+        auto listen(int backlog) const { return listen_(backlog); }
 
         virtual void async_connect(const std::shared_ptr<IIO_Context> &io_context, std::vector<SL::NET::sockaddr> &addresses,
-                                   const std::function<bool(bool, SL::NET::sockaddr &)> &&) = 0;
+                                   const std::function<ConnectSelection(ConnectionAttemptStatus, SL::NET::sockaddr &)> &&) = 0;
         virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         // send a close message and close the socket
         virtual void close() = 0;
     };
-
     std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(const std::shared_ptr<IIO_Context> &iocontext);
 
     class SOCKET_LITE_EXTERN IListener {
