@@ -38,20 +38,26 @@ namespace NET {
         }
         for (auto ptr = result; ptr != NULL; ptr = ptr->ai_next) {
 
+            char str[INET_ADDRSTRLEN];
             if (ptr->ai_family == AF_INET6 && family == Address_Family::IPV6) {
                 auto so = (sockaddr_in6 *)&ptr->ai_addr;
+
                 SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &so->sin6_addr, sizeof(so->sin6_addr));
+                memcpy(tmp.Address, so, ptr->ai_addrlen);
                 tmp.Port = so->sin6_port;
                 tmp.Family = Address_Family::IPV6;
+                tmp.AddressLen = ptr->ai_addrlen;
+
                 ret.push_back(tmp);
             }
             else if (ptr->ai_family == AF_INET && family == Address_Family::IPV4) {
                 auto so = (::sockaddr_in *)&ptr->ai_addr;
                 SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &so->sin_addr, sizeof(so->sin_addr));
+                memcpy(tmp.Address, &(ptr->ai_addr), ptr->ai_addrlen);
                 tmp.Port = so->sin_port;
                 tmp.Family = Address_Family::IPV4;
+
+                tmp.AddressLen = ptr->ai_addrlen;
                 ret.push_back(tmp);
             }
         }
@@ -62,7 +68,11 @@ namespace NET {
     bool ISocket::listen_(int backlog) const
     {
         if (handle != INVALID_SOCKET) {
-            return ::listen(handle, backlog) != SOCKET_ERROR;
+            if (::listen(handle, backlog) == SOCKET_ERROR) {
+
+                std::cerr << "listen error " << WSAGetLastError() << std::endl;
+                return true;
+            }
         }
         return false;
     }
@@ -79,24 +89,22 @@ namespace NET {
             }
         }
 #else
-        handle = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+        if (handle == INVALID_SOCKET) {
+            if (addr.Family == Address_Family::IPV4) {
+                handle = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            }
+            else {
+                handle = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+            }
+        }
+
 #endif
-        if (addr.Family == Address_Family::IPV4) {
-            ::sockaddr_in sockaddr = {0};
-            int sockaddrlen = sizeof(sockaddr);
-            memcpy(addr.Address, &sockaddr.sin_addr, sizeof(sockaddr.sin_addr));
-            sockaddr.sin_port = addr.Port;
-            sockaddr.sin_family = AF_INET;
-            return ::bind(handle, (::sockaddr *)&sockaddr, sockaddrlen) == 0;
+
+        if (::bind(handle, (::sockaddr *)addr.Address, addr.AddressLen) == 0) {
+            std::cerr << "bind error " << WSAGetLastError() << std::endl;
+            return false;
         }
-        else {
-            sockaddr_in6 sockaddr = {0};
-            int sockaddrlen = sizeof(sockaddr);
-            memcpy(addr.Address, &sockaddr.sin6_addr, sizeof(sockaddr.sin6_addr));
-            sockaddr.sin6_port = addr.Port;
-            sockaddr.sin6_family = AF_INET6;
-            return ::bind(handle, (::sockaddr *)&sockaddr, sockaddrlen) == 0;
-        }
+        return true;
     }
 
     std::optional<SL::NET::sockaddr> ISocket::getpeername_() const
@@ -108,7 +116,7 @@ namespace NET {
             if (addr.ss_family == AF_INET) {
                 auto so = (::sockaddr_in *)&addr;
                 SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &so->sin_addr, sizeof(so->sin_addr));
+                memcpy(tmp.Address, &(so->sin_addr), sizeof(so->sin_addr));
                 tmp.Port = so->sin_port;
                 tmp.Family = Address_Family::IPV4;
                 return std::optional<SL::NET::sockaddr>(tmp);
@@ -116,7 +124,7 @@ namespace NET {
             else { // AF_INET6
                 auto so = (sockaddr_in6 *)&addr;
                 SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &so->sin6_addr, sizeof(so->sin6_addr));
+                memcpy(tmp.Address, &(so->sin6_addr), sizeof(so->sin6_addr));
                 tmp.Port = so->sin6_port;
                 tmp.Family = Address_Family::IPV6;
                 return std::optional<SL::NET::sockaddr>(tmp);
@@ -133,7 +141,7 @@ namespace NET {
             if (addr.ss_family == AF_INET) {
                 auto so = (::sockaddr_in *)&addr;
                 SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &so->sin_addr, sizeof(so->sin_addr));
+                memcpy(tmp.Address, &(so->sin_addr), sizeof(so->sin_addr));
                 tmp.Port = so->sin_port;
                 tmp.Family = Address_Family::IPV4;
                 return std::optional<SL::NET::sockaddr>(tmp);
@@ -141,7 +149,7 @@ namespace NET {
             else { // AF_INET6
                 auto so = (::sockaddr_in6 *)&addr;
                 SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &so->sin6_addr, sizeof(so->sin6_addr));
+                memcpy(tmp.Address, &(so->sin6_addr), sizeof(so->sin6_addr));
                 tmp.Port = so->sin6_port;
                 tmp.Family = Address_Family::IPV6;
                 return std::optional<SL::NET::sockaddr>(tmp);

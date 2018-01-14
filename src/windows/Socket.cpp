@@ -148,6 +148,8 @@ namespace NET {
         close();
         PendingIO += 1;
         auto addr = sockcontext->RemainingAddresses.back();
+        sockaddr sockbiner;
+        sockbiner.AddressLen = addr.AddressLen;
         if (!bind(addr)) {
             return TryConnectAgain(this, sockcontext);
         }
@@ -164,35 +166,19 @@ namespace NET {
             return TryConnectAgain(this, sockcontext);
         }
 
-        if (addr.Family == Address_Family::IPV4) {
-            ::sockaddr_in sockaddr = {0};
-            int sockaddrlen = sizeof(sockaddr);
-            memcpy(addr.Address, &sockaddr.sin_addr, sizeof(sockaddr.sin_addr));
-            sockaddr.sin_port = addr.Port;
-            sockaddr.sin_family = AF_INET;
-            DWORD bytessend = 0;
-            auto connectres =
-                sockcontext->ConnectEx_(handle, (::sockaddr *)&sockaddr, sockaddrlen, NULL, 0, &bytessend, (LPOVERLAPPED)&sockcontext->Overlapped);
-            if (connectres == TRUE) {
-                return continue_connect(ConnectionAttemptStatus::SuccessfullConnect, sockcontext);
-            }
-            else if (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING) {
-                return;
-            }
+        DWORD bytessend = 0;
+        auto connectres =
+            sockcontext->ConnectEx_(handle, (::sockaddr *)addr.Address, addr.AddressLen, NULL, 0, &bytessend, (LPOVERLAPPED)&sockcontext->Overlapped);
+
+        if (connectres == TRUE) {
+            return continue_connect(ConnectionAttemptStatus::SuccessfullConnect, sockcontext);
         }
-        else {
-            sockaddr_in6 sockaddr = {0};
-            int sockaddrlen = sizeof(sockaddr);
-            memcpy(addr.Address, &sockaddr.sin6_addr, sizeof(sockaddr.sin6_addr));
-            sockaddr.sin6_port = addr.Port;
-            sockaddr.sin6_family = AF_INET6;
-            DWORD bytessend = 0;
-            auto connectres =
-                sockcontext->ConnectEx_(handle, (::sockaddr *)&sockaddr, sockaddrlen, NULL, 0, &bytessend, (LPOVERLAPPED)&sockcontext->Overlapped);
-            if (connectres == TRUE) {
-                return continue_connect(ConnectionAttemptStatus::SuccessfullConnect, sockcontext);
+        else if (connectres == FALSE) {
+            auto er = WSAGetLastError();
+            if (er != ERROR_IO_PENDING) {
+                std::cerr << "failed to load ConnectEX: " << er << std::endl;
             }
-            else if (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING) {
+            else {
                 return;
             }
         }

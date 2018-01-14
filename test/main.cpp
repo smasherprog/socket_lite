@@ -58,12 +58,14 @@ void echolistenwrite(const std::shared_ptr<SL::NET::ISocket> &socket)
 void echolistenertest()
 {
     auto iocontext = SL::NET::CreateIO_Context();
-    auto listensocket = SL::NET::CreateSocket(iocontext);
+    std::shared_ptr<SL::NET::ISocket> listensocket;
     for (auto &address : SL::NET::getaddrinfo(nullptr, SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6)) {
-        if (listensocket->bind(address)) {
+        auto lsock = SL::NET::CreateSocket(iocontext);
+        if (lsock->bind(address)) {
             std::cout << "Listener bind success " << std::endl;
-            if (listensocket->listen(5)) {
+            if (lsock->listen(5)) {
                 std::cout << "listen success " << std::endl;
+                listensocket = lsock;
             }
             else {
                 std::cout << "Listen failed " << std::endl;
@@ -87,6 +89,7 @@ void echolistenertest()
     });
     auto clientsocket = SL::NET::CreateSocket(iocontext);
     auto addresses = SL::NET::getaddrinfo("::1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6);
+
     clientsocket->async_connect(iocontext, addresses, [clientsocket](SL::NET::ConnectionAttemptStatus connectstatus, SL::NET::sockaddr &addr) {
         if (connectstatus == SL::NET::ConnectionAttemptStatus::SuccessfullConnect) {
             std::cout << "Client Socket Connected " << std::endl;

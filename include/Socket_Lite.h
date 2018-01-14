@@ -1,4 +1,5 @@
 #pragma once
+#include <assert.h>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -6,6 +7,7 @@
 #include <stdint.h>
 #include <variant>
 #include <vector>
+
 #if defined(WINDOWS) || defined(WIN32)
 #if defined(WS_LITE_DLL)
 #define SOCKET_LITE_EXTERN __declspec(dllexport)
@@ -69,10 +71,20 @@ namespace NET {
         std::chrono::seconds l_linger; /* linger time */
     };
     enum class Address_Family { IPV4, IPV6 };
-    struct SOCKET_LITE_EXTERN sockaddr {
-        char Address[65] = {0};
+    class SOCKET_LITE_EXTERN sockaddr {
+        char SocketImpl[65];
+        int SocketImplLen = 0;
+        std::string Host;
         unsigned short Port = 0;
         Address_Family Family = Address_Family::IPV4;
+
+      public:
+        sockaddr(char *buffer, int len, char *host, unsigned short port, Address_Family family);
+        const char *get_SocketAddr() const;
+        int get_SocketAddrLen() const;
+        std::string get_Host() const;
+        unsigned short get_Port() const;
+        Address_Family get_Family() const;
     };
 
     std::vector<sockaddr> SOCKET_LITE_EXTERN getaddrinfo(char *nodename, PortNumber pServiceName, Address_Family family);
