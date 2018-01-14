@@ -78,8 +78,8 @@ void echolistenertest()
         if (connectsuccess) {
             std::cout << "Listen Socket Acceot Success " << std::endl;
             if (auto peerinfo = newsocket->getsockname(); peerinfo.has_value()) {
-                std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
-                          << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
+                std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
+                          << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
             }
             echolistenread(newsocket);
         }
@@ -94,8 +94,8 @@ void echolistenertest()
         if (connectstatus == SL::NET::ConnectionAttemptStatus::SuccessfullConnect) {
             std::cout << "Client Socket Connected " << std::endl;
             if (auto peerinfo = clientsocket->getpeername(); peerinfo.has_value()) {
-                std::cout << "Address: '" << peerinfo->Address << "' Port:'" << peerinfo->Port << "' Family:'"
-                          << (peerinfo->Family == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
+                std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
+                          << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
             }
             echolistenwrite(clientsocket);
             return SL::NET::ConnectSelection::Selected;

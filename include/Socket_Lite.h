@@ -1,5 +1,4 @@
 #pragma once
-#include <assert.h>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -72,15 +71,15 @@ namespace NET {
     };
     enum class Address_Family { IPV4, IPV6 };
     class SOCKET_LITE_EXTERN sockaddr {
-        char SocketImpl[65];
+        unsigned char SocketImpl[65];
         int SocketImplLen = 0;
         std::string Host;
         unsigned short Port = 0;
         Address_Family Family = Address_Family::IPV4;
 
       public:
-        sockaddr(char *buffer, int len, char *host, unsigned short port, Address_Family family);
-        const char *get_SocketAddr() const;
+        sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, Address_Family family);
+        const unsigned char *get_SocketAddr() const;
         int get_SocketAddrLen() const;
         std::string get_Host() const;
         unsigned short get_Port() const;

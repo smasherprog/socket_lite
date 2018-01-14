@@ -148,11 +148,28 @@ namespace NET {
         close();
         PendingIO += 1;
         auto addr = sockcontext->RemainingAddresses.back();
-        sockaddr sockbiner;
-        sockbiner.AddressLen = addr.AddressLen;
-        if (!bind(addr)) {
-            return TryConnectAgain(this, sockcontext);
+
+        if (addr.get_Family() == Address_Family::IPV4) {
+            sockaddr_in bindaddr = {0};
+            bindaddr.sin_family = AF_INET;
+            bindaddr.sin_addr.s_addr = INADDR_ANY;
+            bindaddr.sin_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, Address_Family::IPV4);
+            if (!bind(mytestaddr)) {
+                return TryConnectAgain(this, sockcontext);
+            }
         }
+        else {
+            sockaddr_in6 bindaddr = {0};
+            bindaddr.sin6_family = AF_INET6;
+            bindaddr.sin6_addr = in6addr_any;
+            bindaddr.sin6_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, Address_Family::IPV6);
+            if (!bind(mytestaddr)) {
+                return TryConnectAgain(this, sockcontext);
+            }
+        }
+
         GUID guid = WSAID_CONNECTEX;
         DWORD bytes = 0;
         if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &sockcontext->ConnectEx_, sizeof(sockcontext->ConnectEx_),
@@ -167,8 +184,8 @@ namespace NET {
         }
 
         DWORD bytessend = 0;
-        auto connectres =
-            sockcontext->ConnectEx_(handle, (::sockaddr *)addr.Address, addr.AddressLen, NULL, 0, &bytessend, (LPOVERLAPPED)&sockcontext->Overlapped);
+        auto connectres = sockcontext->ConnectEx_(handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen(), NULL, 0, &bytessend,
+                                                  (LPOVERLAPPED)&sockcontext->Overlapped);
 
         if (connectres == TRUE) {
             return continue_connect(ConnectionAttemptStatus::SuccessfullConnect, sockcontext);

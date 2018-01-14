@@ -19,6 +19,20 @@
 
 namespace SL {
 namespace NET {
+    sockaddr::sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, Address_Family family)
+    {
+        assert(len < sizeof(SocketImpl));
+        memcpy(SocketImpl, buffer, len);
+        SocketImplLen = len;
+        Host = host;
+        Port = port;
+        Family = family;
+    }
+    const unsigned char *sockaddr::get_SocketAddr() const { return SocketImpl; }
+    int sockaddr::get_SocketAddrLen() const { return SocketImplLen; }
+    std::string sockaddr::get_Host() const { return Host; }
+    unsigned short sockaddr::get_Port() const { return htons(Port); }
+    Address_Family sockaddr::get_Family() const { return Family; }
 
     std::vector<SL::NET::sockaddr> getaddrinfo(char *nodename, PortNumber pServiceName, Address_Family family)
     {
@@ -40,24 +54,15 @@ namespace NET {
 
             char str[INET_ADDRSTRLEN];
             if (ptr->ai_family == AF_INET6 && family == Address_Family::IPV6) {
-                auto so = (sockaddr_in6 *)&ptr->ai_addr;
-
-                SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, so, ptr->ai_addrlen);
-                tmp.Port = so->sin6_port;
-                tmp.Family = Address_Family::IPV6;
-                tmp.AddressLen = ptr->ai_addrlen;
-
+                auto so = (::sockaddr_in6 *)ptr->ai_addr;
+                inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
+                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, Address_Family::IPV6);
                 ret.push_back(tmp);
             }
             else if (ptr->ai_family == AF_INET && family == Address_Family::IPV4) {
-                auto so = (::sockaddr_in *)&ptr->ai_addr;
-                SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &(ptr->ai_addr), ptr->ai_addrlen);
-                tmp.Port = so->sin_port;
-                tmp.Family = Address_Family::IPV4;
-
-                tmp.AddressLen = ptr->ai_addrlen;
+                auto so = (::sockaddr_in *)ptr->ai_addr;
+                inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
+                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, Address_Family::IPV4);
                 ret.push_back(tmp);
             }
         }
@@ -71,8 +76,9 @@ namespace NET {
             if (::listen(handle, backlog) == SOCKET_ERROR) {
 
                 std::cerr << "listen error " << WSAGetLastError() << std::endl;
-                return true;
+                return false;
             }
+            return true;
         }
         return false;
     }
@@ -81,7 +87,7 @@ namespace NET {
     {
 #if WIN32
         if (handle == INVALID_SOCKET) {
-            if (addr.Family == Address_Family::IPV4) {
+            if (addr.get_Family() == Address_Family::IPV4) {
                 handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
             }
             else {
@@ -100,7 +106,7 @@ namespace NET {
 
 #endif
 
-        if (::bind(handle, (::sockaddr *)addr.Address, addr.AddressLen) == 0) {
+        if (::bind(handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen()) == SOCKET_ERROR) {
             std::cerr << "bind error " << WSAGetLastError() << std::endl;
             return false;
         }
@@ -111,23 +117,21 @@ namespace NET {
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
+
+        char str[INET_ADDRSTRLEN];
         if (::getpeername(handle, (::sockaddr *)&addr, &len) == 0) {
             // deal with both IPv4 and IPv6:
             if (addr.ss_family == AF_INET) {
                 auto so = (::sockaddr_in *)&addr;
-                SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &(so->sin_addr), sizeof(so->sin_addr));
-                tmp.Port = so->sin_port;
-                tmp.Family = Address_Family::IPV4;
-                return std::optional<SL::NET::sockaddr>(tmp);
+                inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
+                return std::optional<SL::NET::sockaddr>(
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, Address_Family::IPV4));
             }
             else { // AF_INET6
                 auto so = (sockaddr_in6 *)&addr;
-                SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &(so->sin6_addr), sizeof(so->sin6_addr));
-                tmp.Port = so->sin6_port;
-                tmp.Family = Address_Family::IPV6;
-                return std::optional<SL::NET::sockaddr>(tmp);
+                inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
+                return std::optional<SL::NET::sockaddr>(
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, Address_Family::IPV6));
             }
         }
         return std::nullopt;
@@ -136,23 +140,20 @@ namespace NET {
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
+        char str[INET_ADDRSTRLEN];
         if (::getsockname(handle, (::sockaddr *)&addr, &len) == 0) {
             // deal with both IPv4 and IPv6:
             if (addr.ss_family == AF_INET) {
                 auto so = (::sockaddr_in *)&addr;
-                SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &(so->sin_addr), sizeof(so->sin_addr));
-                tmp.Port = so->sin_port;
-                tmp.Family = Address_Family::IPV4;
-                return std::optional<SL::NET::sockaddr>(tmp);
+                inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
+                return std::optional<SL::NET::sockaddr>(
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, Address_Family::IPV4));
             }
             else { // AF_INET6
                 auto so = (::sockaddr_in6 *)&addr;
-                SL::NET::sockaddr tmp;
-                memcpy(tmp.Address, &(so->sin6_addr), sizeof(so->sin6_addr));
-                tmp.Port = so->sin6_port;
-                tmp.Family = Address_Family::IPV6;
-                return std::optional<SL::NET::sockaddr>(tmp);
+                inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
+                return std::optional<SL::NET::sockaddr>(
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, Address_Family::IPV6));
             }
         }
         return std::nullopt;
