@@ -5,19 +5,19 @@
 #include <string>
 #include <thread>
 using namespace std::chrono_literals;
-auto writeecho = "echo test";
-auto readecho = "echo test";
+char writeecho[] = "echo test";
+char readecho[] = "echo test";
 auto readechos = 0.0;
 auto writeechos = 0.0;
 
 void echolistenread(const std::shared_ptr<SL::NET::ISocket> &socket)
 {
-
+    std::cout << "echolistenread " << std::endl;
     socket->recv(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
-        if (bytesread >= 0) {
+        if (bytesread == sizeof(readecho)) {
             std::cout << "Listen echo received " << std::endl;
             socket->async_write(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
-                if (bytesread >= 0) {
+                if (bytesread == sizeof(readecho)) {
                     std::cout << "Listen echo responce sent  " << std::endl;
                     readechos += 1.0;
                     echolistenread(socket);
@@ -35,11 +35,12 @@ void echolistenread(const std::shared_ptr<SL::NET::ISocket> &socket)
 
 void echolistenwrite(const std::shared_ptr<SL::NET::ISocket> &socket)
 {
+    std::cout << "echolistenwrite " << std::endl;
     socket->async_write(sizeof(writeecho), (unsigned char *)writeecho, [socket](long long bytesread) {
-        if (bytesread >= 0) {
+        if (bytesread == sizeof(writeecho)) {
             std::cout << "Listen echo sent " << std::endl;
             socket->recv(sizeof(writeecho), (unsigned char *)writeecho, [socket](long long bytesread) {
-                if (bytesread >= 0) {
+                if (bytesread == sizeof(writeecho)) {
                     std::cout << "Listen echo received " << std::endl;
                     writeechos += 1.0;
                     echolistenwrite(socket);
@@ -97,7 +98,7 @@ void echolistenertest()
     auto newsocket = SL::NET::CreateSocket(iocontext, SL::NET::Address_Family::IPV6);
     listener->async_accept(newsocket, [newsocket](bool connectsuccess) {
         if (connectsuccess) {
-            std::cout << "Listen Socket Acceot Success " << std::endl;
+            std::cout << "Listen Socket Accept Success " << std::endl;
             if (auto peerinfo = newsocket->getsockname(); peerinfo.has_value()) {
                 std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
                           << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
