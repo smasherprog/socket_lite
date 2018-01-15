@@ -27,39 +27,36 @@ SL::NET::IO_Context::~IO_Context()
         }
     }
 }
-void SL::NET::IO_Context::handleaccept(WinIOContext *overlapped)
+void SL::NET::IO_Context::handleaccept(Win_IO_Accept_Context *overlapped)
 {
-    auto context = static_cast<Win_IO_Accept_Context *>(overlapped);
-    if (setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)context->ListenSocket,
-                   sizeof(context->ListenSocket) == SOCKET_ERROR)) {
+    if (::setsockopt(overlapped->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&overlapped->ListenSocket,
+                     sizeof(overlapped->ListenSocket) == SOCKET_ERROR)) {
         std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-        delete context;
-        return;
+        //   overlapped->completionhandler(false);
+        //  return;
     }
-    if (!Socket::UpdateIOCP(context->Socket_->get_handle(), &iocp.handle, context->Socket_.get())) {
+    if (!Socket::UpdateIOCP(overlapped->Socket_->get_handle(), &iocp.handle, overlapped->Socket_.get())) {
         std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-        delete context;
-        return;
+        overlapped->completionhandler(false);
     }
-    context->completionhandler(true);
-    delete context;
+    else {
+        overlapped->completionhandler(true);
+    }
+    overlapped->clear();
 }
-void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, WinIOContext *overlapped)
+void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_Connect_Context *overlapped)
 {
-    auto context = static_cast<Win_IO_Connect_Context *>(overlapped);
-    completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, context);
+    completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, overlapped);
 }
-void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, WinIOContext *overlapped, DWORD trasnferedbytes)
+void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
 {
-    auto context = static_cast<Win_IO_RW_Context *>(overlapped);
-    context->transfered_bytes += trasnferedbytes;
-    completionkey->continue_read(context);
+    overlapped->transfered_bytes += trasnferedbytes;
+    completionkey->continue_read(overlapped);
 }
-void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, WinIOContext *overlapped, DWORD trasnferedbytes)
+void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
 {
-    auto context = static_cast<Win_IO_RW_Context *>(overlapped);
-    context->transfered_bytes += trasnferedbytes;
-    completionkey->continue_write(context);
+    overlapped->transfered_bytes += trasnferedbytes;
+    completionkey->continue_write(overlapped);
 }
 void SL::NET::IO_Context::run(ThreadCount threadcount)
 {
@@ -70,7 +67,7 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
 
             while (KeepRunning) {
                 DWORD numberofbytestransfered = 0;
-                WinIOContext *overlapped = nullptr;
+                Win_IO_Context *overlapped = nullptr;
                 Socket *completionkey = nullptr;
 
                 auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
@@ -81,16 +78,16 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
                 }
                 switch (overlapped->IOOperation) {
                 case IO_OPERATION::IoConnect:
-                    handleconnect(bSuccess, completionkey, overlapped);
+                    handleconnect(bSuccess, completionkey, static_cast<Win_IO_Connect_Context *>(overlapped));
                     break;
                 case IO_OPERATION::IoAccept:
-                    handleaccept(overlapped);
+                    handleaccept(static_cast<Win_IO_Accept_Context *>(overlapped));
                     break;
                 case IO_OPERATION::IoRead:
-                    handlerecv(bSuccess, completionkey, overlapped, numberofbytestransfered);
+                    handlerecv(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
                     break;
                 case IO_OPERATION::IoWrite:
-                    handlewrite(bSuccess, completionkey, overlapped, numberofbytestransfered);
+                    handlewrite(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
                     break;
                 default:
                     break;

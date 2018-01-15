@@ -62,7 +62,6 @@ namespace NET {
 
     typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
-    enum class ConnectSelection { Selected, NotSelected };
     enum class ConnectionAttemptStatus { SuccessfullConnect, FailedConnect };
     enum class Linger_Options { LINGER_OFF, LINGER_ON };
     struct Linger_Option {
@@ -96,8 +95,6 @@ namespace NET {
 
     class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
 
-        bool listen_(int backlog) const;
-        bool bind_(sockaddr addr);
         std::optional<sockaddr> getpeername_() const;
         std::optional<sockaddr> getsockname_() const;
         std::optional<bool> getsockopt_O_DEBUG() const;
@@ -229,19 +226,20 @@ namespace NET {
         {
             return getsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
         }
-        auto getpeername() const { return getpeername_(); }
-        auto getsockname() const { return getsockname_(); }
-        auto bind(sockaddr addr) { return bind_(addr); }
-        auto listen(int backlog) const { return listen_(backlog); }
+        std::optional<SL::NET::sockaddr> getpeername() const;
+        std::optional<SL::NET::sockaddr> getsockname() const;
+        bool bind(sockaddr addr);
+        bool listen(int backlog) const;
+        ConnectionAttemptStatus connect(SL::NET::sockaddr &addresses) const;
+        virtual void connect(SL::NET::sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&) = 0;
 
-        virtual void async_connect(const std::shared_ptr<IIO_Context> &io_context, std::vector<SL::NET::sockaddr> &addresses,
-                                   const std::function<ConnectSelection(ConnectionAttemptStatus, SL::NET::sockaddr &)> &&) = 0;
-        virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
+        int recv(int buffer_size, unsigned char *buffer);
+        virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         // send a close message and close the socket
         virtual void close() = 0;
     };
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(const std::shared_ptr<IIO_Context> &iocontext);
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(const std::shared_ptr<IIO_Context> &iocontext, Address_Family family);
 
     class SOCKET_LITE_EXTERN IListener {
       public:

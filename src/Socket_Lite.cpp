@@ -47,7 +47,7 @@ namespace NET {
         auto portstr = std::to_string(pServiceName.value);
         auto s = ::getaddrinfo(nodename, portstr.c_str(), &hints, &result);
         if (s != 0) {
-            std::cerr << "getaddrinfo" << gai_strerror(s) << std::endl;
+            std::cerr << "getaddrinfo" << WSAGetLastError() << std::endl;
             return ret;
         }
         for (auto ptr = result; ptr != NULL; ptr = ptr->ai_next) {
@@ -70,7 +70,7 @@ namespace NET {
         return ret;
     } // namespace NET
 
-    bool ISocket::listen_(int backlog) const
+    bool ISocket::listen(int backlog) const
     {
         if (handle != INVALID_SOCKET) {
             if (::listen(handle, backlog) == SOCKET_ERROR) {
@@ -82,16 +82,23 @@ namespace NET {
         }
         return false;
     }
-
-    bool ISocket::bind_(sockaddr addr)
+    ConnectionAttemptStatus ISocket::connect(SL::NET::sockaddr &addresses) const
+    {
+        if (::connect(handle, (::sockaddr *)addresses.get_SocketAddr(), addresses.get_SocketAddrLen()) == SOCKET_ERROR) {
+            std::cerr << "connect error " << WSAGetLastError() << std::endl;
+            return ConnectionAttemptStatus::FailedConnect;
+        }
+        return ConnectionAttemptStatus::SuccessfullConnect;
+    }
+    bool ISocket::bind(sockaddr addr)
     {
 #if WIN32
         if (handle == INVALID_SOCKET) {
             if (addr.get_Family() == Address_Family::IPV4) {
-                handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+                handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
             }
             else {
-                handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+                handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
             }
         }
 #else
@@ -113,7 +120,7 @@ namespace NET {
         return true;
     }
 
-    std::optional<SL::NET::sockaddr> ISocket::getpeername_() const
+    std::optional<SL::NET::sockaddr> ISocket::getpeername() const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -136,7 +143,7 @@ namespace NET {
         }
         return std::nullopt;
     }
-    std::optional<SL::NET::sockaddr> ISocket::getsockname_() const
+    std::optional<SL::NET::sockaddr> ISocket::getsockname() const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -157,6 +164,18 @@ namespace NET {
             }
         }
         return std::nullopt;
+    }
+    int ISocket::recv(int buffer_size, unsigned char *buffer)
+    {
+        auto bytesread = ::recv(handle, (char *)buffer, buffer_size, 0);
+        if (bytesread > 0) {
+            return bytesread;
+        }
+        else if (auto wsaerr = WSAGetLastError(); bytesread == 0 || (bytesread == SOCKET_ERROR && wsaerr != WSAEWOULDBLOCK)) {
+            std::cerr << "recv() failed: " << wsaerr << std::endl;
+            return -1;
+        }
+        return 0;
     }
     std::optional<bool> ISocket::getsockopt_O_DEBUG() const
     {

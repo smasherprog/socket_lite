@@ -13,13 +13,13 @@ namespace NET {
 
         Win_IO_RW_Context ReadContext;
         Win_IO_RW_Context WriteContext;
+        std::weak_ptr<IO_Context> IO_Context_;
 
-        Socket(std::atomic<size_t> &counter);
+        Socket(std::shared_ptr<IO_Context> &context, Address_Family family);
         virtual ~Socket();
         static bool UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey);
-        virtual void async_connect(const std::shared_ptr<IIO_Context> &io_context, std::vector<SL::NET::sockaddr> &addresses,
-                                   const std::function<ConnectSelection(ConnectionAttemptStatus, SL::NET::sockaddr &)> &&) override;
-        virtual void async_read(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
+        virtual void connect(SL::NET::sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&) override;
+        virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
         virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
         // send a close message and close the socket
         virtual void close() override;

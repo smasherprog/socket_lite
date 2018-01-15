@@ -39,25 +39,24 @@ namespace NET {
         }
 
         DWORD recvbytes = 0;
+        assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
 
-        auto iocontext = new Win_IO_Accept_Context();
-        iocontext->IOOperation = IO_OPERATION::IoAccept;
-        iocontext->ListenSocket = ListenSocket->get_handle();
-        iocontext->Socket_ = std::static_pointer_cast<Socket>(socket);
-        iocontext->completionhandler = std::move(handler);
+        Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
+        Win_IO_Accept_Context_.ListenSocket = ListenSocket->get_handle();
+        Win_IO_Accept_Context_.Socket_ = std::static_pointer_cast<Socket>(socket);
+        Win_IO_Accept_Context_.completionhandler = std::move(handler);
 
         PendingIO += 1;
-        auto nRet = AcceptEx_(ListenSocket->get_handle(), iocontext->Socket_->get_handle(), (LPVOID)(Buffer),
-                              MAX_BUFF_SIZE - (2 * (sizeof(SOCKADDR_STORAGE) + 16)), sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
-                              &recvbytes, (LPOVERLAPPED) & (iocontext->Overlapped));
+        auto nRet =
+            AcceptEx_(ListenSocket->get_handle(), Win_IO_Accept_Context_.Socket_->get_handle(), (LPVOID)(Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                      sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (Win_IO_Accept_Context_.Overlapped));
 
         if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
             std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
             PendingIO -= 1;
-            iocontext->completionhandler(false);
-            delete iocontext;
+            Win_IO_Accept_Context_.completionhandler(false);
+            Win_IO_Accept_Context_.clear();
         }
     }
-
 } // namespace NET
 } // namespace SL

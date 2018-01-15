@@ -4,13 +4,14 @@
 #include <memory>
 namespace SL {
 namespace NET {
-#define MAX_BUFF_SIZE 8192
     class Socket;
     class Listener final : public IListener {
       public:
         LPFN_ACCEPTEX AcceptEx_ = nullptr;
-        char Buffer[MAX_BUFF_SIZE];
+        char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
         std::shared_ptr<Socket> ListenSocket;
+        Win_IO_Accept_Context Win_IO_Accept_Context_;
+        ;
 
         std::atomic<size_t> &PendingIO;
         Listener(std::shared_ptr<ISocket> &&socket, std::atomic<size_t> &counter);

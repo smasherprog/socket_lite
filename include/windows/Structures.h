@@ -50,22 +50,32 @@ namespace NET {
         operator bool() const { return handle != NULL; }
     };
     class Socket;
-    struct WinIOContext {
+    struct Win_IO_Context {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
     };
-    struct Win_IO_Accept_Context : WinIOContext {
+    struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
         std::function<void(bool)> completionhandler;
+        void clear()
+        {
+            Overlapped = {0};
+            IOOperation = IO_OPERATION::IoNone;
+            Socket_.reset();
+            completionhandler = nullptr;
+        }
     };
-    struct Win_IO_Connect_Context : WinIOContext {
-        HANDLE iocp = NULL;
-        LPFN_CONNECTEX ConnectEx_;
-        std::vector<sockaddr> RemainingAddresses;
-        std::function<ConnectSelection(ConnectionAttemptStatus, sockaddr &)> completionhandler;
+    struct Win_IO_Connect_Context : Win_IO_Context {
+        std::function<void(ConnectionAttemptStatus)> completionhandler;
+        void clear()
+        {
+            Overlapped = {0};
+            IOOperation = IO_OPERATION::IoNone;
+            completionhandler = nullptr;
+        }
     };
-    struct Win_IO_RW_Context : WinIOContext {
+    struct Win_IO_RW_Context : Win_IO_Context {
         WSABUF wsabuf = {0};
         Bytes_Transfered transfered_bytes = 0;
         Bytes_Transfered bufferlen = 0;
@@ -78,7 +88,6 @@ namespace NET {
             wsabuf = {0};
             transfered_bytes = 0;
             bufferlen = 0;
-            delete buffer;
             buffer = nullptr;
             completionhandler = nullptr;
         }
