@@ -68,7 +68,11 @@ namespace NET {
         ReadContext.bufferlen = buffer_size;
         ReadContext.completionhandler = std::move(handler);
         ReadContext.IOOperation = IO_OPERATION::IoRead;
-        DWORD dwSendNumBytes(0), dwFlags(0);
+        DWORD dwSendNumBytes(ReadContext.bufferlen - ReadContext.transfered_bytes), dwFlags(0);
+        // still more data to read.. keep going!
+        ReadContext.wsabuf.buf = (char *)ReadContext.buffer + ReadContext.transfered_bytes;
+        ReadContext.wsabuf.len = dwSendNumBytes;
+
         // do read with zero bytes to prevent memory from being mapped
         if (auto nRet = WSARecv(handle, &ReadContext.wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
@@ -78,34 +82,34 @@ namespace NET {
 
     void Socket::continue_read(Win_IO_RW_Context *sockcontext)
     {
-        // read any data available
-        if (sockcontext->transfered_bytes < sockcontext->bufferlen) {
-            auto remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
-            do {
-                if (auto bytes_read = ISocket::recv(remainingbytes, sockcontext->buffer + sockcontext->transfered_bytes)) {
-                    if (bytes_read > 0) {
-                        sockcontext->transfered_bytes += bytes_read;
-                    }
-                    else if (bytes_read == -1) {
-                        return IOComplete(this, -1, sockcontext);
-                    }
-                    else {
-                        break;
-                    }
-                }
-                remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
-            } while (remainingbytes != 0);
-        }
 
+        /*       if (sockcontext->transfered_bytes < sockcontext->bufferlen) {
+
+                   do {
+                       if (auto bytes_read = ISocket::recv(remainingbytes, sockcontext->buffer + sockcontext->transfered_bytes)) {
+                           if (bytes_read > 0) {
+                               sockcontext->transfered_bytes += bytes_read;
+                           }
+                           else if (bytes_read == -1) {
+                               return IOComplete(this, -1, sockcontext);
+                           }
+                           else {
+                               break;
+                           }
+                       }
+                       remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
+                   } while (remainingbytes != 0);
+               }
+       */
         if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
             return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
         }
         else {
             PendingIO += 1;
+            DWORD dwSendNumBytes(sockcontext->bufferlen - sockcontext->transfered_bytes), dwFlags(0);
             // still more data to read.. keep going!
-            sockcontext->wsabuf.buf = nullptr;
-            sockcontext->wsabuf.len = 0;
-            DWORD dwSendNumBytes(0), dwFlags(0);
+            sockcontext->wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
+            sockcontext->wsabuf.len = dwSendNumBytes;
             // do read with zero bytes to prevent memory from being mapped
             if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {

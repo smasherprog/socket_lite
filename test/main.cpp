@@ -1,9 +1,16 @@
 ﻿#include "Socket_Lite.h"
+#define ASIO_STANDALONE
+#include "asio.hpp"
+#include "async_tcp_echo_server.h"
 #include <assert.h>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
+#include <utility>
+
 using namespace std::chrono_literals;
 char writeecho[] = "echo test";
 char readecho[] = "echo test";
@@ -77,7 +84,7 @@ void tryconnect(const std::shared_ptr<SL::NET::ISocket> &socket, std::vector<SL:
 
     });
 }
-void echolistenertest()
+void myechotest()
 {
     auto iocontext = SL::NET::CreateIO_Context();
     std::shared_ptr<SL::NET::ISocket> listensocket;
@@ -113,17 +120,133 @@ void echolistenertest()
     auto addresses = SL::NET::getaddrinfo("::1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6);
     tryconnect(clientsocket, addresses);
 
-    iocontext->run(SL::NET::ThreadCount(4));
+    iocontext->run(SL::NET::ThreadCount(2));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "Echo per Second " << writeechos / 10 << std::endl;
+    std::cout << "MY Echo per Second " << writeechos / 10 << std::endl;
+    newsocket->close();
+    clientsocket->close();
 }
-void echoclienttest() {}
+
+using asio::ip::tcp;
+class session : public std::enable_shared_from_this<session> {
+  public:
+    session(tcp::socket socket) : socket_(std::move(socket)) {}
+
+    void start() { do_read(); }
+
+  private:
+    void do_read()
+    {
+        auto self(shared_from_this());
+        socket_.async_read_some(asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t length) {
+            if (!ec) {
+                do_write(length);
+            }
+        });
+    }
+
+    void do_write(std::size_t length)
+    {
+        auto self(shared_from_this());
+        asio::async_write(socket_, asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t /*length*/) {
+            if (!ec) {
+                do_read();
+            }
+        });
+    }
+
+    tcp::socket socket_;
+};
+
+class asioserver {
+  public:
+    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) { do_accept(); }
+
+    void do_accept()
+    {
+        acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
+            if (!ec) {
+                std::make_shared<session>(std::move(socket))->start();
+            }
+
+            do_accept();
+        });
+    }
+
+    tcp::acceptor acceptor_;
+};
+
+class asioclient : public std::enable_shared_from_this<asioclient> {
+  public:
+    asioclient(asio::io_context &io_context, const tcp::resolver::results_type &endpoints) : io_context_(io_context), socket_(io_context)
+    {
+        do_connect(endpoints);
+    }
+    void do_connect(const tcp::resolver::results_type &endpoints)
+    {
+        asio::async_connect(socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
+            if (!ec) {
+                do_write();
+            }
+        });
+    }
+
+    void do_read()
+    {
+        auto self(shared_from_this());
+        socket_.async_read_some(asio::buffer(writeecho, sizeof(writeecho)), [this, self](std::error_code ec, std::size_t length) {
+            if (!ec) {
+                do_write();
+            }
+        });
+    }
+
+    void do_write()
+    {
+        auto self(shared_from_this());
+        asio::async_write(socket_, asio::buffer(writeecho, sizeof(writeecho)), [this, self](std::error_code ec, std::size_t /*length*/) {
+            if (!ec) {
+                writeechos += 1.0;
+                do_read();
+            }
+        });
+    }
+
+    asio::io_context &io_context_;
+    tcp::socket socket_;
+};
+
+void asioechotest()
+{
+    asio::io_context listenio_context;
+
+    asioserver s(listenio_context, 3001);
+    std::thread listent([&listenio_context]() { listenio_context.run(); });
+
+    asio::io_context clientio_context;
+    tcp::resolver resolver(clientio_context);
+    auto endpoints = resolver.resolve("127.0.0.1", "3001");
+    auto c = std::make_shared<asioclient>(clientio_context, endpoints);
+
+    std::thread t([&clientio_context]() { clientio_context.run(); });
+    std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    std::cout << "ASIO Echo per Second " << writeechos / 10 << std::endl;
+    listenio_context.stop();
+    clientio_context.stop();
+    s.acceptor_.cancel();
+    s.acceptor_.close();
+    c->socket_.close();
+    listent.join();
+    t.join();
+}
 
 int main(int argc, char *argv[])
 {
     // the verbode ways to use this library
-    echolistenertest();
-    echoclienttest();
+    myechotest();
+    writeechos = 0.0;
+    asioechotest();
+
     int k = 0;
     std::cin >> k;
     return 0;

@@ -12,9 +12,9 @@ SL::NET::IO_Context::~IO_Context()
 {
     KeepRunning = false;
     Listener_.reset(); // release the listener
-    while (PendingIO != 0) {
+    /*while (PendingIO != 0) {
         std::this_thread::sleep_for(1ms);
-    }
+    }*/
     for (auto &t : Threads) {
         if (t.joinable()) {
             // destroying myself
@@ -73,7 +73,7 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
                 auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                           (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
                 auto newpending = --PendingIO;
-                if (!KeepRunning && newpending == 0) {
+                if (!KeepRunning) {
                     return;
                 }
                 switch (overlapped->IOOperation) {
