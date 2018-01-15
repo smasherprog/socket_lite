@@ -45,17 +45,23 @@ namespace NET {
         Win_IO_Accept_Context_.ListenSocket = ListenSocket->get_handle();
         Win_IO_Accept_Context_.Socket_ = std::static_pointer_cast<Socket>(socket);
         Win_IO_Accept_Context_.completionhandler = std::move(handler);
-
-        PendingIO += 1;
-        auto nRet =
-            AcceptEx_(ListenSocket->get_handle(), Win_IO_Accept_Context_.Socket_->get_handle(), (LPVOID)(Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
-                      sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (Win_IO_Accept_Context_.Overlapped));
-
-        if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
-            std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
-            PendingIO -= 1;
+        if (!Win_IO_Accept_Context_.Socket_->setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
+            std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
             Win_IO_Accept_Context_.completionhandler(false);
             Win_IO_Accept_Context_.clear();
+        }
+        else {
+            PendingIO += 1;
+            auto nRet = AcceptEx_(ListenSocket->get_handle(), Win_IO_Accept_Context_.Socket_->get_handle(), (LPVOID)(Buffer), 0,
+                                  sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &recvbytes,
+                                  (LPOVERLAPPED) & (Win_IO_Accept_Context_.Overlapped));
+
+            if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
+                std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
+                PendingIO -= 1;
+                Win_IO_Accept_Context_.completionhandler(false);
+                Win_IO_Accept_Context_.clear();
+            }
         }
     }
 } // namespace NET

@@ -12,13 +12,13 @@ auto writeechos = 0.0;
 
 void echolistenread(const std::shared_ptr<SL::NET::ISocket> &socket)
 {
-    std::cout << "echolistenread " << std::endl;
+    // std::cout << "echolistenread " << std::endl;
     socket->recv(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
         if (bytesread == sizeof(readecho)) {
-            std::cout << "Listen echo received " << std::endl;
+            // std::cout << "Listen echo received " << std::endl;
             socket->async_write(sizeof(readecho), (unsigned char *)readecho, [socket](long long bytesread) {
                 if (bytesread == sizeof(readecho)) {
-                    std::cout << "Listen echo responce sent  " << std::endl;
+                    //   std::cout << "Listen echo responce sent  " << std::endl;
                     readechos += 1.0;
                     echolistenread(socket);
                 }
@@ -35,13 +35,13 @@ void echolistenread(const std::shared_ptr<SL::NET::ISocket> &socket)
 
 void echolistenwrite(const std::shared_ptr<SL::NET::ISocket> &socket)
 {
-    std::cout << "echolistenwrite " << std::endl;
+    //   std::cout << "echolistenwrite " << std::endl;
     socket->async_write(sizeof(writeecho), (unsigned char *)writeecho, [socket](long long bytesread) {
         if (bytesread == sizeof(writeecho)) {
-            std::cout << "Listen echo sent " << std::endl;
+            //   std::cout << "Listen echo sent " << std::endl;
             socket->recv(sizeof(writeecho), (unsigned char *)writeecho, [socket](long long bytesread) {
                 if (bytesread == sizeof(writeecho)) {
-                    std::cout << "Listen echo received " << std::endl;
+                    //  std::cout << "Listen echo received " << std::endl;
                     writeechos += 1.0;
                     echolistenwrite(socket);
                 }
@@ -113,7 +113,7 @@ void echolistenertest()
     auto addresses = SL::NET::getaddrinfo("::1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV6);
     tryconnect(clientsocket, addresses);
 
-    iocontext->run(SL::NET::ThreadCount(1));
+    iocontext->run(SL::NET::ThreadCount(4));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "Echo per Second " << writeechos / 10 << std::endl;
 }
@@ -124,6 +124,7 @@ int main(int argc, char *argv[])
     // the verbode ways to use this library
     echolistenertest();
     echoclienttest();
-
+    int k = 0;
+    std::cin >> k;
     return 0;
 }

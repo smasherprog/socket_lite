@@ -51,11 +51,10 @@ namespace NET {
         if (bytes == -1) {
             std::cout << "Closing Socket " << std::endl;
             s->close();
-            s->PendingIO -= 1;
         }
-
-        context->completionhandler(bytes);
+        auto handler(std::move(context->completionhandler));
         context->clear();
+        handler(bytes);
     }
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
@@ -69,8 +68,6 @@ namespace NET {
         ReadContext.bufferlen = buffer_size;
         ReadContext.completionhandler = std::move(handler);
         ReadContext.IOOperation = IO_OPERATION::IoRead;
-        ReadContext.wsabuf.buf = nullptr;
-        ReadContext.wsabuf.len = 0;
         DWORD dwSendNumBytes(0), dwFlags(0);
         // do read with zero bytes to prevent memory from being mapped
         if (auto nRet = WSARecv(handle, &ReadContext.wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
@@ -83,9 +80,8 @@ namespace NET {
     {
         // read any data available
         if (sockcontext->transfered_bytes < sockcontext->bufferlen) {
-
-            while (true) {
-                auto remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
+            auto remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
+            do {
                 if (auto bytes_read = ISocket::recv(remainingbytes, sockcontext->buffer + sockcontext->transfered_bytes)) {
                     if (bytes_read > 0) {
                         sockcontext->transfered_bytes += bytes_read;
@@ -97,7 +93,8 @@ namespace NET {
                         break;
                     }
                 }
-            }
+                remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
+            } while (remainingbytes != 0);
         }
 
         if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
@@ -156,6 +153,10 @@ namespace NET {
             std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
             return handler(ConnectionAttemptStatus::FailedConnect);
         }
+        if (!setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
+            std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
+            return handler(ConnectionAttemptStatus::FailedConnect);
+        }
         auto context = new Win_IO_Connect_Context();
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoConnect;
@@ -201,6 +202,7 @@ namespace NET {
             return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
         }
         else {
+            PendingIO += 1;
             sockcontext->wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
             sockcontext->wsabuf.len = sockcontext->bufferlen - sockcontext->transfered_bytes;
             DWORD dwSendNumBytes(0), dwFlags(0);

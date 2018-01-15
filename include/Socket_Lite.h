@@ -95,8 +95,6 @@ namespace NET {
 
     class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
 
-        std::optional<sockaddr> getpeername_() const;
-        std::optional<sockaddr> getsockname_() const;
         std::optional<bool> getsockopt_O_DEBUG() const;
         std::optional<bool> getsockopt_O_ACCEPTCONN() const;
         std::optional<bool> getsockopt_O_BROADCAST() const;
@@ -129,90 +127,90 @@ namespace NET {
 
         template <Socket_Options SO> struct getsockopt_factory_impl;
         template <> struct getsockopt_factory_impl<Socket_Options::O_DEBUG> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_DEBUG(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_DEBUG(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_ACCEPTCONN> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_ACCEPTCONN(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_ACCEPTCONN(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_BROADCAST> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_BROADCAST(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_BROADCAST(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_REUSEADDR> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_REUSEADDR(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_REUSEADDR(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_KEEPALIVE> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_KEEPALIVE(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_KEEPALIVE(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_LINGER> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_LINGER(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_LINGER(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_OOBINLINE> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_OOBINLINE(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_OOBINLINE(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_EXCLUSIVEADDRUSE> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_EXCLUSIVEADDRUSE(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_EXCLUSIVEADDRUSE(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_SNDBUF> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDBUF(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDBUF(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_RCVBUF> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVBUF(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVBUF(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_RCVTIMEO> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVTIMEO(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVTIMEO(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_SNDTIMEO> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDTIMEO(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDTIMEO(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_ERROR> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_ERROR(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_ERROR(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_NODELAY> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_NODELAY(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_NODELAY(); }
         };
         template <> struct getsockopt_factory_impl<Socket_Options::O_BLOCKING> {
-            auto getsockopt_(ISocket *s) { return s->getsockopt_O_BLOCKING(); }
+            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_BLOCKING(); }
         };
 
         template <Socket_Options SO> struct setsockopt_factory_impl;
         template <> struct setsockopt_factory_impl<Socket_Options::O_DEBUG> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_DEBUG(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_DEBUG(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_BROADCAST> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_BROADCAST(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_BROADCAST(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_REUSEADDR> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_REUSEADDR(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_REUSEADDR(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_KEEPALIVE> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_KEEPALIVE(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_KEEPALIVE(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_LINGER> {
-            auto setsockopt_(ISocket *s, Linger_Option b) { return s->setsockopt_O_LINGER(b); }
+            static auto setsockopt_(ISocket *s, Linger_Option b) { return s->setsockopt_O_LINGER(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_OOBINLINE> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_OOBINLINE(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_OOBINLINE(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_EXCLUSIVEADDRUSE> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_EXCLUSIVEADDRUSE(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_EXCLUSIVEADDRUSE(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_SNDBUF> {
-            auto setsockopt_(ISocket *s, int b) { return s->setsockopt_O_SNDBUF(b); }
+            static auto setsockopt_(ISocket *s, int b) { return s->setsockopt_O_SNDBUF(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_RCVBUF> {
-            auto setsockopt_(ISocket *s, int b) { return s->setsockopt_O_RCVBUF(b); }
+            static auto setsockopt_(ISocket *s, int b) { return s->setsockopt_O_RCVBUF(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_RCVTIMEO> {
-            auto setsockopt_(ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_RCVTIMEO(b); }
+            static auto setsockopt_(ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_RCVTIMEO(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_SNDTIMEO> {
-            auto setsockopt_(ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_SNDTIMEO(b); }
+            static auto setsockopt_(ISocket *s, std::chrono::seconds b) { return s->setsockopt_O_SNDTIMEO(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_NODELAY> {
-            auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_NODELAY(b); }
+            static auto setsockopt_(ISocket *s, bool b) { return s->setsockopt_O_NODELAY(b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_BLOCKING> {
-            auto setsockopt_(ISocket *s, Blocking_Options b) { return s->setsockopt_O_BLOCKING(b); }
+            static auto setsockopt_(ISocket *s, Blocking_Options b) { return s->setsockopt_O_BLOCKING(b); }
         };
 
       protected:
@@ -224,7 +222,7 @@ namespace NET {
         template <Socket_Options SO> auto getsockopt() const { return getsockopt_factory_impl<SO>::getsockopt_(handle, this); }
         template <Socket_Options SO, typename... Args> auto setsockopt(Args &&... args)
         {
-            return getsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
+            return setsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
         }
         std::optional<SL::NET::sockaddr> getpeername() const;
         std::optional<SL::NET::sockaddr> getsockname() const;
