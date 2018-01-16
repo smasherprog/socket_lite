@@ -11,12 +11,11 @@ namespace NET {
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
         std::shared_ptr<Socket> ListenSocket;
         Win_IO_Accept_Context Win_IO_Accept_Context_;
-        ;
-
         std::atomic<size_t> &PendingIO;
-        Listener(std::shared_ptr<ISocket> &&socket, std::atomic<size_t> &counter);
-        virtual ~Listener();
 
+        Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket);
+        virtual ~Listener();
+        virtual void close();
         virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler);
     };
 

@@ -11,20 +11,20 @@ namespace NET {
                                                                  std::shared_ptr<ISocket> &&listensocket)
     {
         auto context = static_cast<IO_Context *>(iocontext.get());
-        auto listener = std::make_shared<Listener>(std::forward<std::shared_ptr<ISocket>>(listensocket), context->PendingIO);
+        auto listener = std::make_shared<Listener>(context->PendingIO, std::forward<std::shared_ptr<ISocket>>(listensocket));
         if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &context->iocp.handle, listener->ListenSocket.get())) {
             return std::shared_ptr<IListener>();
         }
-        assert(!context->Listener_); // only one listner at a time please
-        context->Listener_ = listener;
         return listener;
     }
 
-    Listener::Listener(std::shared_ptr<ISocket> &&socket, std::atomic<size_t> &counter)
+    Listener::Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket)
         : PendingIO(counter), ListenSocket(std::static_pointer_cast<Socket>(socket))
     {
     }
     Listener::~Listener() {}
+
+    void Listener::close() { ListenSocket->close(); }
 
     void Listener::async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler)
     {
@@ -57,8 +57,8 @@ namespace NET {
                                   (LPOVERLAPPED) & (Win_IO_Accept_Context_.Overlapped));
 
             if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
-                std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
                 PendingIO -= 1;
+                std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
                 Win_IO_Accept_Context_.completionhandler(false);
                 Win_IO_Accept_Context_.clear();
             }

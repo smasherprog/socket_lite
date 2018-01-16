@@ -229,7 +229,8 @@ namespace NET {
         bool bind(sockaddr addr);
         bool listen(int backlog) const;
         ConnectionAttemptStatus connect(SL::NET::sockaddr &addresses) const;
-        virtual void connect(SL::NET::sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&) = 0;
+        virtual void connect(std::shared_ptr<IIO_Context> &iocontext, SL::NET::sockaddr &address,
+                             const std::function<void(ConnectionAttemptStatus)> &&) = 0;
 
         int recv(int buffer_size, unsigned char *buffer);
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
@@ -237,11 +238,12 @@ namespace NET {
         // send a close message and close the socket
         virtual void close() = 0;
     };
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(const std::shared_ptr<IIO_Context> &iocontext, Address_Family family);
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family);
 
     class SOCKET_LITE_EXTERN IListener {
       public:
         virtual ~IListener() {}
+        virtual void close() = 0;
         virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler) = 0;
     };
     std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IIO_Context> &iocontext,

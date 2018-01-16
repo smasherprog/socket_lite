@@ -7,14 +7,15 @@
 namespace SL {
 namespace NET {
 
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(const std::shared_ptr<IIO_Context> &iocontext, Address_Family family)
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family)
     {
         auto context = std::static_pointer_cast<IO_Context>(iocontext);
-        return std::make_shared<Socket>(context, family);
+        return std::make_shared<Socket>(context->PendingIO, family);
     }
 
-    Socket::Socket(std::shared_ptr<IO_Context> &context, Address_Family family) : PendingIO(context->PendingIO), IO_Context_(context)
+    Socket::Socket(std::atomic<size_t> &iocounter, Address_Family family) : PendingIO(iocounter)
     {
+        std::cout << "Socket() " << std::endl;
         if (family == Address_Family::IPV4) {
             handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
@@ -42,6 +43,7 @@ namespace NET {
     void Socket::close()
     {
         if (handle != INVALID_SOCKET) {
+            std::cout << "closesocket() " << std::endl;
             closesocket(handle);
         }
         handle = INVALID_SOCKET;
@@ -76,13 +78,16 @@ namespace NET {
         // do read with zero bytes to prevent memory from being mapped
         if (auto nRet = WSARecv(handle, &ReadContext.wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+            PendingIO -= 1;
             return IOComplete(this, -1, &ReadContext);
         }
     }
 
-    void Socket::continue_read(Win_IO_RW_Context *sockcontext)
+    void Socket::continue_read(bool success, Win_IO_RW_Context *sockcontext)
     {
-
+        if (!success) {
+            return IOComplete(this, -1, sockcontext);
+        }
         /*       if (sockcontext->transfered_bytes < sockcontext->bufferlen) {
 
                    do {
@@ -113,12 +118,13 @@ namespace NET {
             // do read with zero bytes to prevent memory from being mapped
             if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+                PendingIO -= 1;
                 return IOComplete(this, -1, sockcontext);
             }
         }
     }
 
-    void Socket::connect(sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
+    void Socket::connect(std::shared_ptr<IIO_Context> &iocontext, sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
     {
         close();
         if (address.get_Family() == Address_Family::IPV4) {
@@ -141,20 +147,17 @@ namespace NET {
                 return handler(ConnectionAttemptStatus::FailedConnect);
             }
         }
-        auto iocontext = IO_Context_.lock();
-        if (!iocontext)
-            return handler(ConnectionAttemptStatus::FailedConnect);
-
-        GUID guid = WSAID_CONNECTEX;
-        DWORD bytes = 0;
-        if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &iocontext->ConnectEx_, sizeof(iocontext->ConnectEx_), &bytes,
-                     NULL, NULL) != SOCKET_ERROR) {
-            if (!Socket::UpdateIOCP(handle, &iocontext->iocp.handle, this)) {
+        auto iocontext_ = std::static_pointer_cast<IO_Context>(iocontext);
+        if (!iocontext_->ConnectEx_) {
+            GUID guid = WSAID_CONNECTEX;
+            DWORD bytes = 0;
+            if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &iocontext_->ConnectEx_, sizeof(iocontext_->ConnectEx_),
+                         &bytes, NULL, NULL) == SOCKET_ERROR) {
+                std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
                 return handler(ConnectionAttemptStatus::FailedConnect);
             }
         }
-        else {
-            std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
+        if (!Socket::UpdateIOCP(handle, &iocontext_->iocp.handle, this)) {
             return handler(ConnectionAttemptStatus::FailedConnect);
         }
         if (!setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
@@ -166,8 +169,8 @@ namespace NET {
         context->IOOperation = IO_OPERATION::IoConnect;
         PendingIO += 1;
         DWORD bytessend = 0;
-        auto connectres = iocontext->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
-                                                (LPOVERLAPPED)&context->Overlapped);
+        auto connectres = iocontext_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
+                                                 (LPOVERLAPPED)&context->Overlapped);
 
         if (!(connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING))) {
             PendingIO -= 1;
@@ -195,11 +198,11 @@ namespace NET {
         WriteContext.bufferlen = buffer_size;
         WriteContext.completionhandler = std::move(handler);
         WriteContext.IOOperation = IO_OPERATION::IoWrite;
-        continue_write(&WriteContext);
+        continue_write(true, &WriteContext);
     }
-    void Socket::continue_write(Win_IO_RW_Context *sockcontext)
+    void Socket::continue_write(bool success, Win_IO_RW_Context *sockcontext)
     {
-        if (sockcontext->transfered_bytes == -1) {
+        if (sockcontext->transfered_bytes == -1 || !success) {
             return IOComplete(this, -1, sockcontext);
         }
         else if (sockcontext->transfered_bytes == sockcontext->bufferlen) {
@@ -212,6 +215,7 @@ namespace NET {
             DWORD dwSendNumBytes(0), dwFlags(0);
             if (auto nRet = WSASend(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+                PendingIO -= 1;
                 return IOComplete(this, -1, sockcontext);
             }
         }
