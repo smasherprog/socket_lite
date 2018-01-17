@@ -1,5 +1,5 @@
 #pragma once
-#include "Socket_Lite.h"
+
 #include "common/Structures.h"
 #include <WinSock2.h>
 #include <Windows.h>

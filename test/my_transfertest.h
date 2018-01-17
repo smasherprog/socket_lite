@@ -9,37 +9,30 @@
 
 using namespace std::chrono_literals;
 
-namespace myechotest {
+namespace mytransfertest {
 
-char writeecho[] = "echo test";
-char readecho[] = "echo test";
-auto readechos = 0.0;
-auto writeechos = 0.0;
-
+std::vector<char> writebuffer;
+std::vector<char> readbuffer;
+double writeechos = 0.0;
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket) {}
+    session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket)
+    {
+        //  socket_->setsockopt<SL::NET::Socket_Options::O_SNDBUF>(1024 * 1024 * 4);
+        // socket_->setsockopt<SL::NET::Socket_Options::O_RCVBUF>(1024 * 1024 * 4);
+    }
 
     void start() { do_read(); }
     void do_read()
     {
         auto self(shared_from_this());
-        socket_->recv(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
-            if (bytesread == sizeof(writeecho)) {
-                do_write();
-            }
-        });
-    }
-
-    void do_write()
-    {
-        auto self(shared_from_this());
-        socket_->async_write(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
-            if (bytesread == sizeof(writeecho)) {
+        socket_->recv(writebuffer.size(), (unsigned char *)writebuffer.data(), [self, this](long long bytesread) {
+            if (bytesread == writebuffer.size()) {
                 do_read();
             }
         });
     }
+
     std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
@@ -99,6 +92,8 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
                     std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
                               << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
                 }
+                //    socket_->setsockopt<SL::NET::Socket_Options::O_SNDBUF>(1024 * 1024 * 4);
+                //   socket_->setsockopt<SL::NET::Socket_Options::O_RCVBUF>(1024 * 1024 * 4);
                 do_write();
             }
             else {
@@ -107,24 +102,13 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
             }
         });
     }
-
-    void do_read()
-    {
-        auto self(shared_from_this());
-        socket_->recv(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
-            if (bytesread == sizeof(writeecho)) {
-                do_write();
-            }
-        });
-    }
-
     void do_write()
     {
         auto self(shared_from_this());
-        socket_->async_write(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
-            if (bytesread == sizeof(writeecho)) {
+        socket_->async_write(readbuffer.size(), (unsigned char *)readbuffer.data(), [self, this](long long bytesread) {
+            if (bytesread == readbuffer.size()) {
                 writeechos += 1.0;
-                do_read();
+                do_write();
             }
         });
     }
@@ -133,8 +117,10 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
-void myechotest()
+void mytransfertest()
 {
+    writebuffer.resize(1024 * 1024 * 8);
+    readbuffer.resize(1024 * 1024 * 8);
     auto iocontext = SL::NET::CreateIO_Context();
     asioserver s(iocontext, SL::NET::PortNumber(3000));
     auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV4);
@@ -144,7 +130,7 @@ void myechotest()
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     c->socket_->close();
     s.close();
-    std::cout << "My Echo per Second " << writeechos / 10 << std::endl;
+    std::cout << "My MB per Second " << (writeechos / 10) * 8 << std::endl;
 }
 
-} // namespace myechotest
+} // namespace mytransfertest

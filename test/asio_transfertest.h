@@ -10,12 +10,11 @@
 #include <thread>
 using namespace std::chrono_literals;
 
-namespace asiotest {
+namespace asiotransfertest {
 
-char writeecho[] = "echo test";
-char readecho[] = "echo test";
-auto readechos = 0.0;
-auto writeechos = 0.0;
+std::vector<char> writebuffer;
+std::vector<char> readbuffer;
+double writeechos = 0.0;
 
 using asio::ip::tcp;
 class session : public std::enable_shared_from_this<session> {
@@ -28,17 +27,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.async_read_some(asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t) {
-            if (!ec) {
-                do_write();
-            }
-        });
-    }
-
-    void do_write()
-    {
-        auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t /*length*/) {
+        socket_.async_read_some(asio::buffer(writebuffer.data(), writebuffer.size()), [this, self](std::error_code ec, std::size_t) {
             if (!ec) {
                 do_read();
             }
@@ -81,23 +70,13 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
         });
     }
 
-    void do_read()
-    {
-        auto self(shared_from_this());
-        socket_.async_read_some(asio::buffer(writeecho, sizeof(writeecho)), [this, self](std::error_code ec, std::size_t) {
-            if (!ec) {
-                do_write();
-            }
-        });
-    }
-
     void do_write()
     {
         auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(writeecho, sizeof(writeecho)), [this, self](std::error_code ec, std::size_t /*length*/) {
+        asio::async_write(socket_, asio::buffer(readbuffer.data(), readbuffer.size()), [this, self](std::error_code ec, std::size_t /*length*/) {
             if (!ec) {
                 writeechos += 1.0;
-                do_read();
+                do_write();
             }
         });
     }
@@ -106,8 +85,10 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     tcp::socket socket_;
 };
 
-void asioechotest()
+void asiotransfertest()
 {
+    writebuffer.resize(1024 * 1024 * 8);
+    readbuffer.resize(1024 * 1024 * 8);
     asio::io_context iocontext;
     asioserver s(iocontext, 3001);
 
@@ -119,7 +100,7 @@ void asioechotest()
     std::thread t2([&iocontext]() { iocontext.run(); });
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "ASIO Echo per Second " << writeechos / 10 << std::endl;
+    std::cout << "ASIO MB per Second " << (writeechos / 10) * 8 << std::endl;
     iocontext.stop();
     s.acceptor_.cancel();
     s.acceptor_.close();
@@ -128,4 +109,4 @@ void asioechotest()
     t2.join();
 }
 
-} // namespace asiotest
+} // namespace asiotransfertest

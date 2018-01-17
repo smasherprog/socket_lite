@@ -15,7 +15,6 @@ SL::NET::IO_Context::~IO_Context()
         std::this_thread::sleep_for(1ms);
     }
     for (size_t i = 0; i < Threads.size(); i++) {
-        // Help threads get out of blocking - GetQueuedCompletionStatus()
         PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
     }
 
@@ -111,8 +110,7 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
                 default:
                     break;
                 }
-                auto pendio = --PendingIO;
-                if (pendio == 0) {
+                if (--PendingIO == 0) {
                     return;
                 }
             }

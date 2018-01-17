@@ -165,9 +165,13 @@ namespace NET {
         }
         return std::nullopt;
     }
-    int ISocket::recv(int buffer_size, unsigned char *buffer)
+    int ISocket::recv(int buffer_size, unsigned char *buffer, RecvFlags flags)
     {
-        auto bytesread = ::recv(handle, (char *)buffer, buffer_size, 0);
+        int f = RecvFlags::OOB & flags ? MSG_OOB : 0;
+        f = RecvFlags::PEEK & flags ? MSG_PEEK | f : f;
+        f = RecvFlags::WAITALL & flags ? MSG_WAITALL | f : f;
+
+        auto bytesread = ::recv(handle, (char *)buffer, buffer_size, f);
         if (bytesread > 0) {
             return bytesread;
         }

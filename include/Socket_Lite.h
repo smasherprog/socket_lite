@@ -62,6 +62,7 @@ namespace NET {
 
     typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
+    enum RecvFlags { NONE, PEEK, OOB, WAITALL };
     enum class ConnectionAttemptStatus { SuccessfullConnect, FailedConnect };
     enum class Linger_Options { LINGER_OFF, LINGER_ON };
     struct Linger_Option {
@@ -232,7 +233,7 @@ namespace NET {
         virtual void connect(std::shared_ptr<IIO_Context> &iocontext, SL::NET::sockaddr &address,
                              const std::function<void(ConnectionAttemptStatus)> &&) = 0;
 
-        int recv(int buffer_size, unsigned char *buffer);
+        int recv(int buffer_size, unsigned char *buffer, RecvFlags flags);
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         // send a close message and close the socket
