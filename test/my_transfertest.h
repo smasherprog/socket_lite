@@ -16,11 +16,7 @@ std::vector<char> readbuffer;
 double writeechos = 0.0;
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket)
-    {
-        //  socket_->setsockopt<SL::NET::Socket_Options::O_SNDBUF>(1024 * 1024 * 4);
-        // socket_->setsockopt<SL::NET::Socket_Options::O_RCVBUF>(1024 * 1024 * 4);
-    }
+    session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket) {}
 
     void start() { do_read(); }
     void do_read()
@@ -92,8 +88,6 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
                     std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
                               << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
                 }
-                //    socket_->setsockopt<SL::NET::Socket_Options::O_SNDBUF>(1024 * 1024 * 4);
-                //   socket_->setsockopt<SL::NET::Socket_Options::O_RCVBUF>(1024 * 1024 * 4);
                 do_write();
             }
             else {
@@ -105,7 +99,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     void do_write()
     {
         auto self(shared_from_this());
-        socket_->async_write(readbuffer.size(), (unsigned char *)readbuffer.data(), [self, this](long long bytesread) {
+        socket_->send(readbuffer.size(), (unsigned char *)readbuffer.data(), [self, this](long long bytesread) {
             if (bytesread == readbuffer.size()) {
                 writeechos += 1.0;
                 do_write();

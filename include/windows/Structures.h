@@ -76,7 +76,6 @@ namespace NET {
         }
     };
     struct Win_IO_RW_Context : Win_IO_Context {
-        WSABUF wsabuf = {0};
         Bytes_Transfered transfered_bytes = 0;
         Bytes_Transfered bufferlen = 0;
         unsigned char *buffer = nullptr;
@@ -85,7 +84,6 @@ namespace NET {
         {
             Overlapped = {0};
             IOOperation = IO_OPERATION::IoNone;
-            wsabuf = {0};
             transfered_bytes = 0;
             bufferlen = 0;
             buffer = nullptr;

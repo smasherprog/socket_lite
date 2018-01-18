@@ -62,8 +62,21 @@ namespace NET {
 
     typedef Explicit<unsigned short, INTERNAL::ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, INTERNAL::PorNumbertTag> PortNumber;
-    enum RecvFlags { NONE, PEEK, OOB, WAITALL };
+
     enum class ConnectionAttemptStatus { SuccessfullConnect, FailedConnect };
+    enum SocketErrors {
+        SE_EAGAIN = INT_MIN,
+        SE_EWOULDBLOCK,
+        SE_EBADF,
+        SE_ECONNRESET,
+        SE_EINTR,
+        SE_EINVAL,
+        SE_ENOTCONN,
+        SE_ENOTSOCK,
+        SE_EOPNOTSUPP,
+        SE_ETIMEDOUT
+    };
+
     enum class Linger_Options { LINGER_OFF, LINGER_ON };
     struct Linger_Option {
         Linger_Options l_onoff;        /* option on/off */
@@ -233,10 +246,8 @@ namespace NET {
         virtual void connect(std::shared_ptr<IIO_Context> &iocontext, SL::NET::sockaddr &address,
                              const std::function<void(ConnectionAttemptStatus)> &&) = 0;
 
-        int recv(int buffer_size, unsigned char *buffer, RecvFlags flags);
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
-        virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
-        // send a close message and close the socket
+        virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void close() = 0;
     };
     std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family);

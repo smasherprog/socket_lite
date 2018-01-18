@@ -15,7 +15,6 @@ namespace NET {
 
     Socket::Socket(std::atomic<size_t> &iocounter, Address_Family family) : PendingIO(iocounter)
     {
-        std::cout << "Socket() " << std::endl;
         if (family == Address_Family::IPV4) {
             handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
@@ -23,11 +22,7 @@ namespace NET {
             handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
     }
-    Socket::~Socket()
-    {
-        std::cout << "~Socket() " << std::endl;
-        close();
-    }
+    Socket::~Socket() { close(); }
 
     bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
     {
@@ -43,7 +38,6 @@ namespace NET {
     void Socket::close()
     {
         if (handle != INVALID_SOCKET) {
-            std::cout << "closesocket() " << std::endl;
             closesocket(handle);
         }
         handle = INVALID_SOCKET;
@@ -51,7 +45,6 @@ namespace NET {
     template <typename T> void IOComplete(Socket *s, Bytes_Transfered bytes, T *context)
     {
         if (bytes == -1) {
-            std::cout << "Closing Socket " << std::endl;
             s->close();
         }
         auto handler(std::move(context->completionhandler));
@@ -72,11 +65,12 @@ namespace NET {
         ReadContext.IOOperation = IO_OPERATION::IoRead;
         DWORD dwSendNumBytes(ReadContext.bufferlen - ReadContext.transfered_bytes), dwFlags(0);
         // still more data to read.. keep going!
-        ReadContext.wsabuf.buf = (char *)ReadContext.buffer + ReadContext.transfered_bytes;
-        ReadContext.wsabuf.len = dwSendNumBytes;
+        WSABUF wsabuf;
+        wsabuf.buf = (char *)ReadContext.buffer + ReadContext.transfered_bytes;
+        wsabuf.len = dwSendNumBytes;
 
         // do read with zero bytes to prevent memory from being mapped
-        if (auto nRet = WSARecv(handle, &ReadContext.wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
+        if (auto nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
             PendingIO -= 1;
             return IOComplete(this, -1, &ReadContext);
@@ -113,10 +107,11 @@ namespace NET {
             PendingIO += 1;
             DWORD dwSendNumBytes(sockcontext->bufferlen - sockcontext->transfered_bytes), dwFlags(0);
             // still more data to read.. keep going!
-            sockcontext->wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
-            sockcontext->wsabuf.len = dwSendNumBytes;
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
+            wsabuf.len = dwSendNumBytes;
             // do read with zero bytes to prevent memory from being mapped
-            if (auto nRet = WSARecv(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
+            if (auto nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
                 PendingIO -= 1;
                 return IOComplete(this, -1, sockcontext);
@@ -188,7 +183,7 @@ namespace NET {
         sockcontext->completionhandler(connect_success);
         delete sockcontext;
     }
-    void Socket::async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
+    void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
     {
         if (handle == INVALID_SOCKET) {
             handler(-1);
@@ -210,10 +205,11 @@ namespace NET {
         }
         else {
             PendingIO += 1;
-            sockcontext->wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
-            sockcontext->wsabuf.len = sockcontext->bufferlen - sockcontext->transfered_bytes;
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
+            wsabuf.len = sockcontext->bufferlen - sockcontext->transfered_bytes;
             DWORD dwSendNumBytes(0), dwFlags(0);
-            if (auto nRet = WSASend(handle, &sockcontext->wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
+            if (auto nRet = WSASend(handle, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
                 PendingIO -= 1;
                 return IOComplete(this, -1, sockcontext);

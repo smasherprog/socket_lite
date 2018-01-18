@@ -9,7 +9,6 @@
 namespace SL {
 namespace NET {
 
-    enum class SocketIO_Status { StillTransfering, DoneTransfering };
     class Socket final : public ISocket {
       public:
         std::atomic<size_t> &PendingIO;
@@ -22,8 +21,7 @@ namespace NET {
         virtual void connect(std::shared_ptr<IIO_Context> &iocontext, SL::NET::sockaddr &address,
                              const std::function<void(ConnectionAttemptStatus)> &&) override;
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
-        virtual void async_write(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
-        // send a close message and close the socket
+        virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
         virtual void close() override;
         SOCKET get_handle() const { return handle; }
         void continue_write(bool success, Win_IO_RW_Context *sockcontext);

@@ -22,12 +22,10 @@ namespace NET {
         ~IO_Context();
         void run(ThreadCount threadcount);
 
-        void addconnectattempt(Win_IO_Connect_Context *overlapped);
         void handleaccept(bool success, Win_IO_Accept_Context *overlapped);
         void handleconnect(bool success, Socket *completionkey, Win_IO_Connect_Context *overlapped);
         void handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes);
         void handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes);
     };
-
 } // namespace NET
 } // namespace SL

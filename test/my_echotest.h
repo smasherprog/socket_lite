@@ -34,7 +34,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
-        socket_->async_write(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
+        socket_->send(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
             if (bytesread == sizeof(writeecho)) {
                 do_read();
             }
@@ -121,7 +121,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     void do_write()
     {
         auto self(shared_from_this());
-        socket_->async_write(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
+        socket_->send(sizeof(writeecho), (unsigned char *)writeecho, [self, this](long long bytesread) {
             if (bytesread == sizeof(writeecho)) {
                 writeechos += 1.0;
                 do_read();

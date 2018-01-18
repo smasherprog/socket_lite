@@ -19,6 +19,33 @@
 
 namespace SL {
 namespace NET {
+#ifdef WIN32
+    SocketErrors TranslateError(int errorcode)
+    {
+        switch (errorcode) {
+        case WSAECONNRESET:
+            return SocketErrors::SE_ECONNRESET;
+        case WSAETIMEDOUT:
+        case WSAECONNABORTED:
+            return SocketErrors::SE_ETIMEDOUT;
+        case WSAEWOULDBLOCK:
+            return SocketErrors::SE_EWOULDBLOCK;
+
+        default:
+            return SocketErrors::SE_ECONNRESET;
+        };
+    }
+#else
+    SocketErrors TranslateError(int errorcode)
+    {
+        switch (errorcode) {
+
+        default:
+            return SocketErrors::SE_ECONNRESET;
+        };
+    }
+#endif
+
     sockaddr::sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, Address_Family family)
     {
         assert(len < sizeof(SocketImpl));
@@ -164,22 +191,6 @@ namespace NET {
             }
         }
         return std::nullopt;
-    }
-    int ISocket::recv(int buffer_size, unsigned char *buffer, RecvFlags flags)
-    {
-        int f = RecvFlags::OOB & flags ? MSG_OOB : 0;
-        f = RecvFlags::PEEK & flags ? MSG_PEEK | f : f;
-        f = RecvFlags::WAITALL & flags ? MSG_WAITALL | f : f;
-
-        auto bytesread = ::recv(handle, (char *)buffer, buffer_size, f);
-        if (bytesread > 0) {
-            return bytesread;
-        }
-        else if (auto wsaerr = WSAGetLastError(); bytesread == 0 || (bytesread == SOCKET_ERROR && wsaerr != WSAEWOULDBLOCK)) {
-            std::cerr << "recv() failed: " << wsaerr << std::endl;
-            return -1;
-        }
-        return 0;
     }
     std::optional<bool> ISocket::getsockopt_O_DEBUG() const
     {

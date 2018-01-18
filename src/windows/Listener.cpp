@@ -40,17 +40,16 @@ namespace NET {
 
         DWORD recvbytes = 0;
         assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
-
-        Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
-        Win_IO_Accept_Context_.ListenSocket = ListenSocket->get_handle();
         Win_IO_Accept_Context_.Socket_ = std::static_pointer_cast<Socket>(socket);
-        Win_IO_Accept_Context_.completionhandler = std::move(handler);
         if (!Win_IO_Accept_Context_.Socket_->setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
             std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
-            Win_IO_Accept_Context_.completionhandler(false);
-            Win_IO_Accept_Context_.clear();
+            handler(false);
         }
         else {
+            Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
+            Win_IO_Accept_Context_.ListenSocket = ListenSocket->get_handle();
+
+            Win_IO_Accept_Context_.completionhandler = std::move(handler);
             PendingIO += 1;
             auto nRet = AcceptEx_(ListenSocket->get_handle(), Win_IO_Accept_Context_.Socket_->get_handle(), (LPVOID)(Buffer), 0,
                                   sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &recvbytes,
@@ -59,8 +58,9 @@ namespace NET {
             if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
                 PendingIO -= 1;
                 std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
-                Win_IO_Accept_Context_.completionhandler(false);
+                auto handl(std::move(Win_IO_Accept_Context_.completionhandler));
                 Win_IO_Accept_Context_.clear();
+                handl(false);
             }
         }
     }
