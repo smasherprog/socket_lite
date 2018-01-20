@@ -26,7 +26,7 @@ namespace NET {
         SOCKET get_handle() const { return handle; }
         void continue_write(bool success, Win_IO_RW_Context *sockcontext);
         void continue_read(bool success, Win_IO_RW_Context *sockcontext);
-        void continue_connect(ConnectionAttemptStatus connect_success, Win_IO_Connect_Context *sockcontext);
+        void continue_connect(ConnectionAttemptStatus connect_success, Win_IO_RW_Context *sockcontext);
     };
 
 } // namespace NET

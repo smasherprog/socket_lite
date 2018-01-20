@@ -87,13 +87,16 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 
 void asiotransfertest()
 {
+    writeechos = 0.0;
+    auto porttouse = std::rand() % 3000 + 10000;
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
     asio::io_context iocontext;
-    asioserver s(iocontext, 3001);
+
+    asioserver s(iocontext, porttouse);
 
     tcp::resolver resolver(iocontext);
-    auto endpoints = resolver.resolve("127.0.0.1", "3001");
+    auto endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
     auto c = std::make_shared<asioclient>(iocontext, endpoints);
 
     std::thread t([&iocontext]() { iocontext.run(); });

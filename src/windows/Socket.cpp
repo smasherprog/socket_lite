@@ -22,7 +22,11 @@ namespace NET {
             handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
     }
-    Socket::~Socket() { close(); }
+    Socket::~Socket()
+    {
+        //  std::cout << "~Socket()" << std::endl;
+        close();
+    }
 
     bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
     {
@@ -82,24 +86,7 @@ namespace NET {
         if (!success) {
             return IOComplete(this, -1, sockcontext);
         }
-        /*       if (sockcontext->transfered_bytes < sockcontext->bufferlen) {
 
-                   do {
-                       if (auto bytes_read = ISocket::recv(remainingbytes, sockcontext->buffer + sockcontext->transfered_bytes)) {
-                           if (bytes_read > 0) {
-                               sockcontext->transfered_bytes += bytes_read;
-                           }
-                           else if (bytes_read == -1) {
-                               return IOComplete(this, -1, sockcontext);
-                           }
-                           else {
-                               break;
-                           }
-                       }
-                       remainingbytes = sockcontext->bufferlen - sockcontext->transfered_bytes;
-                   } while (remainingbytes != 0);
-               }
-       */
         if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
             return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
         }
@@ -122,6 +109,7 @@ namespace NET {
     void Socket::connect(std::shared_ptr<IIO_Context> &iocontext, sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
     {
         close();
+        ReadContext.clear();
         if (address.get_Family() == Address_Family::IPV4) {
             sockaddr_in bindaddr = {0};
             bindaddr.sin_family = AF_INET;
@@ -155,33 +143,45 @@ namespace NET {
         if (!Socket::UpdateIOCP(handle, &iocontext_->iocp.handle, this)) {
             return handler(ConnectionAttemptStatus::FailedConnect);
         }
-        if (!setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
-            std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
-            return handler(ConnectionAttemptStatus::FailedConnect);
-        }
-        auto context = new Win_IO_Connect_Context();
-        context->completionhandler = std::move(handler);
-        context->IOOperation = IO_OPERATION::IoConnect;
+
+        ReadContext.completionhandler = [ihandle(std::move(handler))](Bytes_Transfered bytestransfered)
+        {
+            if (bytestransfered == -1) {
+                ihandle(ConnectionAttemptStatus::FailedConnect);
+            }
+            else {
+                ihandle(ConnectionAttemptStatus::SuccessfullConnect);
+            }
+        };
+        ;
+        ReadContext.IOOperation = IO_OPERATION::IoConnect;
         PendingIO += 1;
         DWORD bytessend = 0;
         auto connectres = iocontext_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
-                                                 (LPOVERLAPPED)&context->Overlapped);
+                                                 (LPOVERLAPPED)&ReadContext.Overlapped);
 
         if (!(connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING))) {
             PendingIO -= 1;
-            context->completionhandler(ConnectionAttemptStatus::FailedConnect);
-            delete context;
+            auto chandle(std::move(ReadContext.completionhandler));
+            chandle(-1);
         }
     }
-    void Socket::continue_connect(ConnectionAttemptStatus connect_success, Win_IO_Connect_Context *sockcontext)
+    void Socket::continue_connect(ConnectionAttemptStatus connect_success, Win_IO_RW_Context *sockcontext)
     {
-
-        if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
+        if (connect_success == ConnectionAttemptStatus::SuccessfullConnect &&
+            ::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
             std::cerr << "Error setsockopt SO_UPDATE_CONNECT_CONTEXT Code: " << WSAGetLastError() << std::endl;
             connect_success = ConnectionAttemptStatus::FailedConnect;
         }
-        sockcontext->completionhandler(connect_success);
-        delete sockcontext;
+
+        auto chandle(std::move(sockcontext->completionhandler));
+        if (connect_success == ConnectionAttemptStatus::FailedConnect) {
+            chandle(-1);
+        }
+        else {
+            chandle(1);
+        }
+        sockcontext->clear();
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
     {

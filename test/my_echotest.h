@@ -135,9 +135,10 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 
 void myechotest()
 {
+    auto porttouse = std::rand() % 3000 + 10000;
     auto iocontext = SL::NET::CreateIO_Context();
-    asioserver s(iocontext, SL::NET::PortNumber(3000));
-    auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV4);
+    asioserver s(iocontext, SL::NET::PortNumber(porttouse));
+    auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);
     auto c = std::make_shared<asioclient>(iocontext, addresses);
 
     iocontext->run(SL::NET::ThreadCount(2));

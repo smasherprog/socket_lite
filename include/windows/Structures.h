@@ -66,15 +66,6 @@ namespace NET {
             completionhandler = nullptr;
         }
     };
-    struct Win_IO_Connect_Context : Win_IO_Context {
-        std::function<void(ConnectionAttemptStatus)> completionhandler;
-        void clear()
-        {
-            Overlapped = {0};
-            IOOperation = IO_OPERATION::IoNone;
-            completionhandler = nullptr;
-        }
-    };
     struct Win_IO_RW_Context : Win_IO_Context {
         Bytes_Transfered transfered_bytes = 0;
         Bytes_Transfered bufferlen = 0;

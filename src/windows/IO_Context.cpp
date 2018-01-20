@@ -42,8 +42,11 @@ void SL::NET::IO_Context::handleaccept(bool success, Win_IO_Accept_Context *over
     if (handle) {
         handle(success);
     }
+    else {
+        int k = 6;
+    }
 }
-void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_Connect_Context *overlapped)
+void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
 {
     completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, overlapped);
 }
@@ -85,7 +88,7 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
                 }
                 switch (overlapped->IOOperation) {
                 case IO_OPERATION::IoConnect:
-                    handleconnect(bSuccess, completionkey, static_cast<Win_IO_Connect_Context *>(overlapped));
+                    handleconnect(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped));
                     break;
                 case IO_OPERATION::IoAccept:
                     handleaccept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));

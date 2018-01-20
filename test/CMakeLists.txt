@@ -1,8 +1,7 @@
 project(socket_lite_test)
 
 
-
-add_executable(${PROJECT_NAME} main.cpp asio_echotest.h my_echotest.h) 
+add_executable(${PROJECT_NAME} main.cpp asio_echotest.h my_echotest.h asio_transfertest.h my_connectiontest.h my_transfertest.h) 
 find_package(Threads REQUIRED)
 if(WIN32) 
 	target_link_libraries(${PROJECT_NAME} Ws2_32 socket_lite)

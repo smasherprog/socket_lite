@@ -7,12 +7,14 @@
 
 int main(int argc, char *argv[])
 {
-    myconnectiontest::myconnectiontest(); /*
-     myechotest::myechotest();
-     asiotest::asioechotest();
-     mytransfertest::mytransfertest();
-     asiotransfertest::asiotransfertest();*/
-    int k = 0;
-    std::cin >> k;
+    std::srand(std::time(nullptr));
+    myconnectiontest::myconnectiontest();
+
+    myechotest::myechotest();
+    asiotest::asioechotest();
+
+    asiotransfertest::asiotransfertest();
+    mytransfertest::mytransfertest();
+
     return 0;
 }

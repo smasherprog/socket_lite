@@ -7,10 +7,13 @@
 #include <thread>
 #include <vector>
 
+#include <ctime>
+
 using namespace std::chrono_literals;
 
 namespace myconnectiontest {
 
+const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 
 class asioserver {
@@ -27,6 +30,7 @@ class asioserver {
                 }
             }
         }
+        listensocket->setsockopt<SL::NET::Socket_Options::O_REUSEADDR>(true);
         Listener = SL::NET::CreateListener(io_context, std::move(listensocket));
         do_accept();
     }
@@ -40,32 +44,37 @@ class asioserver {
             }
         });
     }
+    std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
     void close() { Listener->close(); }
     std::shared_ptr<SL::NET::IIO_Context> &IOContext;
     std::shared_ptr<SL::NET::IListener> Listener;
 };
-
+bool keepgoing = true;
+std::vector<SL::NET::sockaddr> addresses;
+void connect(std::shared_ptr<SL::NET::IIO_Context> iocontext)
+{
+    auto socket_ = SL::NET::CreateSocket(iocontext, SL::NET::Address_Family::IPV4);
+    socket_->connect(iocontext, addresses.back(), [iocontext, socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
+        connections += 1.0;
+        if (keepgoing) {
+            connect(iocontext);
+        }
+    });
+}
 void myconnectiontest()
 {
+    connections = 0.0;
     auto iocontext = SL::NET::CreateIO_Context();
-    asioserver s(iocontext, SL::NET::PortNumber(3000));
-    auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(3000), SL::NET::Address_Family::IPV4);
+    auto porttouse = std::rand() % 3000 + 10000;
+    asioserver s(iocontext, SL::NET::PortNumber(porttouse));
+    addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);
 
     iocontext->run(SL::NET::ThreadCount(2));
-    auto start = std::chrono::high_resolution_clock::now();
-    for (auto i = 0; i < 10000; i++) {
-        auto socket_ = SL::NET::CreateSocket(iocontext, SL::NET::Address_Family::IPV4);
-        socket_->connect(iocontext, addresses.back(), [socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
-            if (connectstatus == SL::NET::ConnectionAttemptStatus::SuccessfullConnect) {
-                connections += 1.0;
-            }
-            socket_->close();
-        });
-    }
-    s.close();
-    auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count();
+    connect(iocontext);
 
-    std::cout << "Connections per Second " << 10000 * 1000 / seconds << std::endl;
+    std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    keepgoing = false;
+    std::cout << "My Connections per Second " << connections / 10 << std::endl;
 }
 
 } // namespace myconnectiontest
