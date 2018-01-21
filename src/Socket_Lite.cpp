@@ -119,7 +119,7 @@ namespace NET {
     }
     bool ISocket::bind(sockaddr addr)
     {
-#if WIN32
+#if _WIN32
         if (handle == INVALID_SOCKET) {
             if (addr.get_Family() == Address_Family::IPV4) {
                 handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
@@ -295,7 +295,7 @@ namespace NET {
 
     std::optional<std::chrono::seconds> ISocket::getsockopt_O_SNDTIMEO() const
     {
-#ifdef WIN32
+#ifdef _ WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
@@ -313,7 +313,7 @@ namespace NET {
 
     std::optional<std::chrono::seconds> ISocket::getsockopt_O_RCVTIMEO() const
     {
-#ifdef WIN32
+#ifdef _ _ WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {
@@ -351,7 +351,7 @@ namespace NET {
 
     std::optional<Blocking_Options> ISocket::getsockopt_O_BLOCKING() const
     {
-#ifdef WIN32
+#ifdef _WIN32
         // not supported on windows
         return std::nullopt;
 #else
@@ -430,7 +430,7 @@ namespace NET {
 
     bool ISocket::setsockopt_O_SNDTIMEO(std::chrono::seconds sec) const
     {
-#ifdef WIN32
+#ifdef _WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, valuelen) == 0;
