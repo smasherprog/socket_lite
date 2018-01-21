@@ -41,5 +41,5 @@ build_script:
   - if %platform%==x64 set generator=Visual Studio 15 2017 Win64
   - cmd: echo %generator% %SHARED% %configuration% 
   - cmd: cmake -G"%generator%" %VCPKGFLAGS% -DBUILD_SHARED_LIBS=%SHARED% .. 
-  - cmd: cmake --build . --target INSTALL --config %configuration%
+  - cmd: cmake --build . --config %configuration%
   - ctest -V;
