@@ -53,7 +53,6 @@ void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win
 void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
 {
     if (trasnferedbytes == 0) {
-        std::cout << "Dropped Connection " << (int)success << std::endl;
         success = false;
     }
     overlapped->transfered_bytes += trasnferedbytes;
@@ -62,7 +61,6 @@ void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO
 void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
 {
     if (trasnferedbytes == 0) {
-        std::cout << "Dropped Connection " << (int)success << std::endl;
         success = false;
     }
     overlapped->transfered_bytes += trasnferedbytes;
