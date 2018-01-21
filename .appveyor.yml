@@ -38,4 +38,4 @@ build_script:
   - cmd: echo %generator% %SHARED% %configuration% 
   - cmd: cmake -G"%generator%" -DBUILD_SHARED_LIBS=%SHARED% .. 
   - cmd: cmake --build .
-  - ctest -V;
+  - ctest -C %configuration% -V 
