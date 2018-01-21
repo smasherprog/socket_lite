@@ -128,6 +128,11 @@ namespace NET {
                 handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
             }
         }
+
+        if (handle == INVALID_SOCKET) {
+            std::cerr << "WSASocketW error " << WSAGetLastError() << std::endl;
+        }
+
 #else
         if (handle == INVALID_SOCKET) {
             if (addr.Family == Address_Family::IPV4) {

@@ -54,8 +54,13 @@ namespace NET {
 #else
     typedef long long int Bytes_Transfered;
 #endif
-#ifdef WIN32
+#ifdef _WIN32
+#if ((UINTPTR_MAX) == (UINT_MAX))
     typedef unsigned int Platform_Socket;
+#else
+
+    typedef unsigned long long Platform_Socket;
+#endif
 #else
     typedef int Platform_Socket;
 #endif
