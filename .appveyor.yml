@@ -10,10 +10,6 @@ configuration:
   
 environment:
   matrix:
-  - SHARED: ON
-    POSTFIXNAME: MD
-    POSTVCPKGNAME:
-    
   - SHARED: OFF
     POSTFIXNAME: MT
     POSTVCPKGNAME: -static
