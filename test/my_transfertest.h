@@ -55,10 +55,7 @@ class asioserver {
         auto newsocket = SL::NET::CreateSocket(IOContext, SL::NET::Address_Family::IPV4);
         Listener->async_accept(newsocket, [newsocket, this](bool connectsuccess) {
             if (connectsuccess) {
-                if (auto peerinfo = newsocket->getsockname(); peerinfo.has_value()) {
-                    std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
-                              << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
-                }
+
                 std::make_shared<session>(newsocket)->start();
                 do_accept();
             }
@@ -84,10 +81,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
             return;
         socket_->connect(IOcontext, Addresses.back(), [this](SL::NET::ConnectionAttemptStatus connectstatus) {
             if (connectstatus == SL::NET::ConnectionAttemptStatus::SuccessfullConnect) {
-                if (auto peerinfo = socket_->getpeername(); peerinfo.has_value()) {
-                    std::cout << "Address: '" << peerinfo->get_Host() << "' Port:'" << peerinfo->get_Port() << "' Family:'"
-                              << (peerinfo->get_Family() == SL::NET::Address_Family::IPV4 ? "ipv4'\n" : "ipv6'\n");
-                }
+
                 do_write();
             }
             else {
