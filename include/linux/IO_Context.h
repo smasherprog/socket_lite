@@ -12,11 +12,9 @@ namespace NET {
         bool KeepRunning = true;
         std::vector<std::thread> Threads;
 
-      public:
-        WSARAII wsa;
+      public: 
         IOCP iocp;
-        std::atomic<size_t> PendingIO;
-        LPFN_CONNECTEX ConnectEx_ = nullptr;
+        std::atomic<size_t> PendingIO; 
 
         IO_Context();
         ~IO_Context();

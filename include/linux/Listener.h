@@ -6,9 +6,8 @@ namespace SL {
 namespace NET {
     class Socket;
     class Listener final : public IListener {
-      public:
-        LPFN_ACCEPTEX AcceptEx_ = nullptr;
-        char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
+        public:
+      
         std::shared_ptr<Socket> ListenSocket;
         Win_IO_Accept_Context Win_IO_Accept_Context_;
         std::atomic<size_t> &PendingIO;

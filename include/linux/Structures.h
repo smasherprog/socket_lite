@@ -1,66 +1,45 @@
 #pragma once
 
 #include "common/Structures.h"
-#include <WinSock2.h>
-#include <Windows.h>
-#include <Ws2tcpip.h>
-#include <functional>
-#include <iostream>
-#include <mswsock.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/epoll.h>
+#include <errno.h>
+
 
 namespace SL {
 namespace NET {
-
-    struct WSARAII {
-
-        WSADATA wsaData;
-        bool good = false;
-        WSARAII()
-        {
-            if (auto ret = WSAStartup(0x202, &wsaData); ret != 0) {
-                // error
-                good = false;
-            }
-            good = true;
-        }
-        ~WSARAII()
-        {
-            if (auto ret = WSACleanup(); ret != 0) {
-                // error
-            }
-        }
-        operator bool() const { return good; }
-    };
-
     struct IOCP {
 
-        HANDLE handle = NULL;
+        int handle = -1;
         IOCP()
         {
-            if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0); handle == NULL) {
-                std::cerr << "CreateIoCompletionPort() failed to create I/O completion port: " << GetLastError() << std::endl;
+            if (handle = epoll_create1(0); handle == -1) {
+                std::cerr << "epoll_create1() failed : " << errno() << std::endl;
             }
         }
         ~IOCP()
         {
             if (operator bool()) {
-                CloseHandle(handle);
+                close(handle);
             }
         }
-        operator bool() const { return handle != NULL; }
+        operator bool() const { return handle != -1; }
     };
     class Socket;
-    struct Win_IO_Context {
-        WSAOVERLAPPED Overlapped = {0};
+    struct Win_IO_Context { 
+        
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
     };
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
-        SOCKET ListenSocket = INVALID_SOCKET;
+        int ListenSocket = -1;
         std::function<void(bool)> completionhandler;
         void clear()
-        {
-            Overlapped = {0};
+        { 
             IOOperation = IO_OPERATION::IoNone;
             Socket_.reset();
             completionhandler = nullptr;
@@ -72,8 +51,7 @@ namespace NET {
         unsigned char *buffer = nullptr;
         std::function<void(Bytes_Transfered)> completionhandler;
         void clear()
-        {
-            Overlapped = {0};
+        { 
             IOOperation = IO_OPERATION::IoNone;
             transfered_bytes = 0;
             bufferlen = 0;
