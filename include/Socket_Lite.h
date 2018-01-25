@@ -257,7 +257,7 @@ namespace NET {
         Platform_Socket get_handle() const { return handle; }
         void set_handle(Platform_Socket h) { handle = h; }
     };
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family);
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext);
 
     class SOCKET_LITE_EXTERN IListener {
       public:

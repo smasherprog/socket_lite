@@ -7,21 +7,13 @@
 namespace SL {
 namespace NET {
 
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family)
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext)
     {
         auto context = std::static_pointer_cast<IO_Context>(iocontext);
-        return std::make_shared<Socket>(context->PendingIO, family);
+        return std::make_shared<Socket>(context->PendingIO);
     }
 
-    Socket::Socket(std::atomic<size_t> &iocounter, Address_Family family) : PendingIO(iocounter)
-    {
-        if (family == Address_Family::IPV4) {
-            handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        }
-        else {
-            handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        }
-    }
+    Socket::Socket(std::atomic<size_t> &iocounter) : PendingIO(iocounter) {}
     Socket::~Socket()
     {
         //  std::cout << "~Socket()" << std::endl;

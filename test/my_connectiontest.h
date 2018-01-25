@@ -23,7 +23,7 @@ class asioserver {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
         for (auto &address : SL::NET::getaddrinfo(nullptr, port, SL::NET::Address_Family::IPV4)) {
-            auto lsock = SL::NET::CreateSocket(IOContext, SL::NET::Address_Family::IPV4);
+            auto lsock = SL::NET::CreateSocket(IOContext);
             if (lsock->bind(address)) {
                 if (lsock->listen(5)) {
                     listensocket = lsock;
@@ -37,7 +37,7 @@ class asioserver {
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto newsocket = SL::NET::CreateSocket(IOContext, SL::NET::Address_Family::IPV4);
+        auto newsocket = SL::NET::CreateSocket(IOContext);
         Listener->async_accept(newsocket, [newsocket, this](bool connectsuccess) {
             if (connectsuccess) {
                 do_accept();
@@ -53,7 +53,7 @@ bool keepgoing = true;
 std::vector<SL::NET::sockaddr> addresses;
 void connect(std::shared_ptr<SL::NET::IIO_Context> iocontext)
 {
-    auto socket_ = SL::NET::CreateSocket(iocontext, SL::NET::Address_Family::IPV4);
+    auto socket_ = SL::NET::CreateSocket(iocontext);
     socket_->connect(iocontext, addresses.back(), [iocontext, socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
         connections += 1.0;
         if (keepgoing) {

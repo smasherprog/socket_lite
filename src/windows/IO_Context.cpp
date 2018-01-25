@@ -42,9 +42,6 @@ void SL::NET::IO_Context::handleaccept(bool success, Win_IO_Accept_Context *over
     if (handle) {
         handle(success);
     }
-    else {
-        int k = 6;
-    }
 }
 void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
 {
