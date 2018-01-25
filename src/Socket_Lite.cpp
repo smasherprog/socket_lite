@@ -300,7 +300,7 @@ namespace NET {
 
     std::optional<std::chrono::seconds> ISocket::getsockopt_O_SNDTIMEO() const
     {
-#ifdef _ WIN32
+#ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
@@ -318,7 +318,7 @@ namespace NET {
 
     std::optional<std::chrono::seconds> ISocket::getsockopt_O_RCVTIMEO() const
     {
-#ifdef _ _ WIN32
+#ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {
