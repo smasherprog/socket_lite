@@ -5,8 +5,14 @@
 
 using namespace std::chrono_literals;
 
-std::shared_ptr<SL::NET::IIO_Context> SL::NET::CreateIO_Context() { return std::make_shared<IO_Context>(); }
-SL::NET::IO_Context::IO_Context() { PendingIO = 0; }
+std::shared_ptr<SL::NET::IIO_Context> SL::NET::CreateIO_Context()
+{
+    return std::make_shared<IO_Context>();
+}
+SL::NET::IO_Context::IO_Context()
+{
+    PendingIO = 0;
+}
 
 SL::NET::IO_Context::~IO_Context()
 {
@@ -24,28 +30,13 @@ SL::NET::IO_Context::~IO_Context()
             // destroying myself
             if (t.get_id() == std::this_thread::get_id()) {
                 t.detach();
-            }
-            else {
+            } else {
                 t.join();
             }
         }
     }
 }
-void SL::NET::IO_Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
-{
-    if (success && !Socket::UpdateIOCP(overlapped->Socket_->get_handle(), &iocp.handle, overlapped->Socket_.get())) {
-        std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-        success = false;
-    }
-    auto handle(std::move(overlapped->completionhandler));
-    overlapped->clear();
-    if (handle) {
-        handle(success);
-    }
-    else {
-        int k = 6;
-    }
-}
+
 void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
 {
     completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, overlapped);
@@ -66,44 +57,44 @@ void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, Win_I
     overlapped->transfered_bytes += trasnferedbytes;
     completionkey->continue_write(success, overlapped);
 }
+const int maxevents =8;
 void SL::NET::IO_Context::run(ThreadCount threadcount)
 {
 
     Threads.reserve(threadcount.value);
     for (auto i = 0; i < threadcount.value; i++) {
         Threads.push_back(std::thread([&] {
-
+            std::vecdtor<epoll_event> epollevents;
+            epollevents.resize(maxevents);
             while (true) {
-                DWORD numberofbytestransfered = 0;
-                Win_IO_Context *overlapped = nullptr;
-                Socket *completionkey = nullptr;
+                int efd =-1;
+                auto count = epoll_wait(iocp.handle, epollevents.data(),maxevents, -1 );
+                for(auto i=0; i< count ; i++) {
+                    if(epolllevents[i].data.fd == Listener_->ListenSocket->get_handle()) {
+                        handleaccept(epolllevents[i]);
+                    }
+                    switch (overlapped->IOOperation) {
+                    case IO_OPERATION::IoConnect:
+                        handleconnect(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped));
+                        break;
+                    case IO_OPERATION::IoAccept:
 
-                auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
-                                                          (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
-
-                if (!overlapped) {
-                    return;
-                }
-                switch (overlapped->IOOperation) {
-                case IO_OPERATION::IoConnect:
-                    handleconnect(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped));
-                    break;
-                case IO_OPERATION::IoAccept:
-                    handleaccept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
-                    break;
-                case IO_OPERATION::IoRead:
-                    handlerecv(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
-                    break;
-                case IO_OPERATION::IoWrite:
-                    handlewrite(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
-                    break;
-                default:
-                    break;
-                }
-                if (--PendingIO == 0) {
-                    return;
+                        break;
+                    case IO_OPERATION::IoRead:
+                        handlerecv(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
+                        break;
+                    case IO_OPERATION::IoWrite:
+                        handlewrite(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
+                        break;
+                    default:
+                        break;
+                    }
+                    if (--PendingIO == 0) {
+                        return;
+                    }
                 }
             }
-        }));
-    }
+        }
+    }));
+}
 }
