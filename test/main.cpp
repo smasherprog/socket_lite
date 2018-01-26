@@ -10,13 +10,11 @@
 int main(int argc, char *argv[])
 {
     std::srand(std::time(nullptr));
+    myconnectiontest::myconnectiontest();
 
     mymultithreadedechotest::myechotest();
     asio_multithreadedechotest::asioechotest();
-
     myechotest::myechotest();
-
-    myconnectiontest::myconnectiontest();
     asiotest::asioechotest();
     asiotransfertest::asiotransfertest();
     mytransfertest::mytransfertest();
