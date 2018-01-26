@@ -7,6 +7,7 @@ namespace SL
 namespace NET
 {
 class Socket;
+class IO_Context;
 class Listener final : public IListener
 {
     std::shared_ptr<Socket> ListenSocket;

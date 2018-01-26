@@ -14,7 +14,7 @@ std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_p
 {
     listensocker->setsockopt<Socket_Options::O_BLOCKING>(true);
     auto context = std::static_pointer_cast<IO_Context *>(iocontext);
-    auto addr = listensocket->getpeername();
+    auto addr = listensocket->getsockname();
     if(!addr.has_value()) {
         return std::shared_ptr<IListener>();
     }
@@ -38,9 +38,12 @@ Listener::Listener(const std::shared_ptr<IO_Context>& context, std::shared_ptr<I
         while (true) {
             int efd =-1;
             auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
-            for(auto i=0; i< count ; i++) {
-                if(epolllevents[i].data.fd == ListenSocket->get_handle()) {
-                    handleaccept(epolllevents[i]);
+            if(count!=-1) {
+
+                for(auto i=0; i< count ; i++) {
+                    if(epolllevents[i].data.fd == ListenSocket->get_handle()) {
+                        handleaccept(epolllevents[i]);
+                    }
                 }
             }
         }
@@ -51,6 +54,7 @@ Listener::~Listener() {}
 void Listener::close()
 {
     ListenSocket->close();
+    IO_Context_.reset();
 }
 
 void Listener::async_accept(const std::function<void(bool)> &&handler)
@@ -72,6 +76,7 @@ void Listener::handleaccept(epoll_event% ev)
         sock->set_handle(conf);
         sock->setsockopt<SL::NET::O_BLOCKING>(true);
         handle(sock);
+        IO_Context_->handleaccept(conff);
     } else {
         if(conf>=0) {
             closesocket(conf);
@@ -79,7 +84,6 @@ void Listener::handleaccept(epoll_event% ev)
         if(handle) {
             handle(std::shared_ptr<Socket>());
         }
-
     }
 }
 } // namespace NET

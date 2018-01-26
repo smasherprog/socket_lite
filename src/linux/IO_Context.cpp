@@ -4,17 +4,21 @@
 #include <chrono>
 
 using namespace std::chrono_literals;
+namespace SL
+{
+namespace NET
+{
 
-std::shared_ptr<SL::NET::IIO_Context> SL::NET::CreateIO_Context()
+std::shared_ptr<IIO_Context> CreateIO_Context()
 {
     return std::make_shared<IO_Context>();
 }
-SL::NET::IO_Context::IO_Context()
+IO_Context::IO_Context()
 {
     PendingIO = 0;
 }
 
-SL::NET::IO_Context::~IO_Context()
+IO_Context::~IO_Context()
 {
     KeepRunning = false;
     while (PendingIO != 0) {
@@ -36,12 +40,18 @@ SL::NET::IO_Context::~IO_Context()
         }
     }
 }
-
-void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
+void IO_Context::handleaccept(int socket)
+{
+    epoll_event ev = {0};
+    ev.data.fd = socket;
+    ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    epoll_ctl(iocp.handle, EPOLL_CTL_ADD, socket, &ev);
+}
+void IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
 {
     completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, overlapped);
 }
-void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
+void IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
 {
     if (trasnferedbytes == 0) {
         success = false;
@@ -49,7 +59,7 @@ void SL::NET::IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO
     overlapped->transfered_bytes += trasnferedbytes;
     completionkey->continue_read(success, overlapped);
 }
-void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
+void IO_Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
 {
     if (trasnferedbytes == 0) {
         success = false;
@@ -58,7 +68,7 @@ void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, Win_I
     completionkey->continue_write(success, overlapped);
 }
 
-void SL::NET::IO_Context::run(ThreadCount threadcount)
+void IO_Context::run(ThreadCount threadcount)
 {
 
     Threads.reserve(threadcount.value);
@@ -96,5 +106,8 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
             }
         }
     }));
+}
+}
+
 }
 }

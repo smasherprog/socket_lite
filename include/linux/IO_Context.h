@@ -23,7 +23,7 @@ public:
     ~IO_Context();
     void run(ThreadCount threadcount);
 
-    void handleaccept(bool success, Win_IO_Accept_Context *overlapped);
+    void handleaccept(int socket);
     void handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped);
     void handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes);
     void handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes);
