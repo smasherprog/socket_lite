@@ -13,13 +13,13 @@ std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_p
         std::shared_ptr<ISocket> &&listensocket)
 {
     listensocker->setsockopt<Socket_Options::O_BLOCKING>(true);
-    auto context = static_cast<IO_Context *>(iocontext.get());
+    auto context = std::static_pointer_cast<IO_Context *>(iocontext);
     auto listener = std::make_shared<Listener>(context->PendingIO, std::forward<std::shared_ptr<ISocket>>(listensocket));
-    context->Listener_ = listener;
+    listener->IO_Context= context;
     epoll_event ev;
     ev.data.fd = listener->ListenSocket->get_handle();
     ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
-    if(epoll_ctl(context->iocp.handle, EPOLL_CTL_ADD, listener->ListenSocket->get_handle(), &ev)==-1) {
+    if(epoll_ctl(listener->iocp.handle, EPOLL_CTL_ADD, listener->ListenSocket->get_handle(), &ev)==-1) {
         return std::shared_ptr<IListener>();
     }
     return listener;
@@ -28,6 +28,19 @@ std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_p
 Listener::Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket)
     : PendingIO(counter), ListenSocket(std::static_pointer_cast<Socket>(socket))
 {
+    AcceptThread = std::thread([&] {
+        std::vecdtor<epoll_event> epollevents;
+        epollevents.resize(MAXEVENTS);
+        while (true) {
+            int efd =-1;
+            auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
+            for(auto i=0; i< count ; i++) {
+                if(epolllevents[i].data.fd == ListenSocket->get_handle()) {
+                    handleaccept(epolllevents[i]);
+                }
+            }
+        }
+    });
 }
 Listener::~Listener() {}
 
@@ -51,8 +64,12 @@ void Listener::handleaccept(epoll_event% ev)
     auto conf = accept(ListenSocket->get_handle(), (sockaddr*)&addr, &addr );
     auto handle(std::move(Win_IO_Accept_Context_->completionhandler));
     Win_IO_Accept_Context_->clear();
-    if (handle) {
-        handle(success);
+    if (conf >0 && handle) {
+        Win_IO_Accept_Context_.Socket_->set_handle(conf);
+        Win_IO_Accept_Context_.Socket_->setsockopt<SL::NET::O_BLOCKING>(true);
+        handle(ConnectionAttemptStatus::SuccessfullConnect);
+    } else if(handle) {
+        handle(ConnectionAttemptStatus::FailedConnect);
     }
 }
 } // namespace NET

@@ -335,9 +335,7 @@ public:
     Platform_Socket get_handle() const {
         return handle;
     }
-    void set_handle(Platform_Socket h) const {
-        handle =h;
-    }
+    void set_handle(Platform_Socket h) const ;
 };
 std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family);
 

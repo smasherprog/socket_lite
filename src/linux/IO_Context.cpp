@@ -57,7 +57,7 @@ void SL::NET::IO_Context::handlewrite(bool success, Socket *completionkey, Win_I
     overlapped->transfered_bytes += trasnferedbytes;
     completionkey->continue_write(success, overlapped);
 }
-const int maxevents =8;
+
 void SL::NET::IO_Context::run(ThreadCount threadcount)
 {
 
@@ -65,10 +65,10 @@ void SL::NET::IO_Context::run(ThreadCount threadcount)
     for (auto i = 0; i < threadcount.value; i++) {
         Threads.push_back(std::thread([&] {
             std::vecdtor<epoll_event> epollevents;
-            epollevents.resize(maxevents);
+            epollevents.resize(MAXEVENTS);
             while (true) {
                 int efd =-1;
-                auto count = epoll_wait(iocp.handle, epollevents.data(),maxevents, -1 );
+                auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
                 for(auto i=0; i< count ; i++) {
                     if(epolllevents[i].data.fd == Listener_->ListenSocket->get_handle()) {
                         handleaccept(epolllevents[i]);

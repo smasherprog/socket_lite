@@ -18,7 +18,6 @@ class IO_Context final : public IIO_Context
 public:
     IOCP iocp;
     std::atomic<size_t> PendingIO;
-    std::shared_ptr<Listener> Listener_;
 
     IO_Context();
     ~IO_Context();

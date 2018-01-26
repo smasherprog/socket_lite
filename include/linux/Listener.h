@@ -8,12 +8,14 @@ namespace NET
 {
 class Socket;
 class Listener final : public IListener
-        {
-            std::shared_ptr<Socket> ListenSocket;
-            Win_IO_Accept_Context Win_IO_Accept_Context_;
-            std::atomic<size_t> &PendingIO;
+{
+    std::shared_ptr<Socket> ListenSocket;
+    Win_IO_Accept_Context Win_IO_Accept_Context_;
+    std::shared_ptr<IO_Context> IO_Context_;
+    IOCP iocp;
+    std::thread AcceptThread;
 public:
- 
+
 
     Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket);
     virtual ~Listener();

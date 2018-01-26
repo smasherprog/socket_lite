@@ -14,6 +14,7 @@ namespace SL
 {
 namespace NET
 {
+const int MAXEVENTS =8;
 struct IOCP {
 
     int handle = -1;
