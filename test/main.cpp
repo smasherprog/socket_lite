@@ -14,14 +14,12 @@ int main(int argc, char *argv[])
     mymultithreadedechotest::myechotest();
     asio_multithreadedechotest::asioechotest();
 
-    // myechotest::myechotest();
+    myechotest::myechotest();
 
-    /*
     myconnectiontest::myconnectiontest();
     asiotest::asioechotest();
     asiotransfertest::asiotransfertest();
     mytransfertest::mytransfertest();
-     */
 
     return 0;
 }
