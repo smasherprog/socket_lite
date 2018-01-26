@@ -46,6 +46,7 @@ class asioserver {
                 }
             }
         }
+        listensocket->setsockopt<SL::NET::Socket_Options::O_REUSEADDR>(true);
         Listener = SL::NET::CreateListener(io_context, std::move(listensocket));
         do_accept();
     }
