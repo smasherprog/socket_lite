@@ -96,7 +96,7 @@ namespace NET {
         freeaddrinfo(result);
         return ret;
     } // namespace NET
-
+    ISocket::ISocket() { handle = INVALID_SOCKET; }
     bool ISocket::listen(int backlog) const
     {
         if (handle != INVALID_SOCKET) {
