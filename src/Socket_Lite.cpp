@@ -318,12 +318,32 @@ std::optional<int> ISocket::getsockopt_O_RCVBUF() const
     return std::nullopt;
 }
 
+
+
 std::optional<std::chrono::seconds> ISocket::getsockopt_O_SNDTIMEO() const
 {
-#ifdef _ WIN32
+#ifdef _WIN32
     DWORD value = 0;
     int valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
+        return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
+    }
+#else
+    timeval value = {0};
+    int valuelen = sizeof(value);
+    if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
+        return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
+    }
+#endif
+    return std::nullopt;
+}
+
+std::optional<std::chrono::seconds> ISocket::getsockopt_O_RCVTIMEO() const
+{
+#ifdef _WIN32
+    DWORD value = 0;
+    int valuelen = sizeof(value);
+    if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {
         return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
     }
 #else
