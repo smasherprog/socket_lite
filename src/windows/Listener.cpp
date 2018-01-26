@@ -12,7 +12,7 @@ namespace NET {
     {
         auto context = static_cast<IO_Context *>(iocontext.get());
         auto addr = listensocket->getpeername();
-        if (addr.has_value()) {
+        if (!addr.has_value()) {
             return std::shared_ptr<IListener>();
         }
         auto listener = std::make_shared<Listener>(context->PendingIO, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
