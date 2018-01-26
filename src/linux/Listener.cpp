@@ -14,8 +14,12 @@ std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_p
 {
     listensocker->setsockopt<Socket_Options::O_BLOCKING>(true);
     auto context = std::static_pointer_cast<IO_Context *>(iocontext);
-    auto listener = std::make_shared<Listener>(context->PendingIO, std::forward<std::shared_ptr<ISocket>>(listensocket));
-    listener->IO_Context= context;
+    auto addr = listensocket->getpeername();
+    if(!addr.has_value()) {
+        return std::shared_ptr<IListener>();
+    }
+    auto listener = std::make_shared<Listener>(context, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+
     epoll_event ev;
     ev.data.fd = listener->ListenSocket->get_handle();
     ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
@@ -25,8 +29,8 @@ std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_p
     return listener;
 }
 
-Listener::Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket)
-    : PendingIO(counter), ListenSocket(std::static_pointer_cast<Socket>(socket))
+Listener::Listener(const std::shared_ptr<IO_Context>& context, std::shared_ptr<ISocket> &&socket, const sockaddr& addr)
+    : PendingIO(context->PendingIO), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
 {
     AcceptThread = std::thread([&] {
         std::vecdtor<epoll_event> epollevents;
@@ -49,10 +53,9 @@ void Listener::close()
     ListenSocket->close();
 }
 
-void Listener::async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler)
+void Listener::async_accept(const std::function<void(bool)> &&handler)
 {
     assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
-    Win_IO_Accept_Context_.Socket_ = std::static_pointer_cast<Socket>(socket);
     Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
     Win_IO_Accept_Context_.ListenSocket = ListenSocket->get_handle();
     Win_IO_Accept_Context_.completionhandler = std::move(handler);
@@ -65,11 +68,18 @@ void Listener::handleaccept(epoll_event% ev)
     auto handle(std::move(Win_IO_Accept_Context_->completionhandler));
     Win_IO_Accept_Context_->clear();
     if (conf >0 && handle) {
-        Win_IO_Accept_Context_.Socket_->set_handle(conf);
-        Win_IO_Accept_Context_.Socket_->setsockopt<SL::NET::O_BLOCKING>(true);
-        handle(ConnectionAttemptStatus::SuccessfullConnect);
-    } else if(handle) {
-        handle(ConnectionAttemptStatus::FailedConnect);
+        auto sock = std::make_shared<Socket>(PendingIO);
+        sock->set_handle(conf);
+        sock->setsockopt<SL::NET::O_BLOCKING>(true);
+        handle(sock);
+    } else {
+        if(conf>=0) {
+            closesocket(conf);
+        }
+        if(handle) {
+            handle(std::shared_ptr<Socket>());
+        }
+
     }
 }
 } // namespace NET
