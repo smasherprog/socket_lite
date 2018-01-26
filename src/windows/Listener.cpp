@@ -11,22 +11,28 @@ namespace NET {
                                                                  std::shared_ptr<ISocket> &&listensocket)
     {
         auto context = static_cast<IO_Context *>(iocontext.get());
-        auto listener = std::make_shared<Listener>(context->PendingIO, std::forward<std::shared_ptr<ISocket>>(listensocket));
+        auto addr = listensocket->getpeername();
+        if (addr.has_value()) {
+            return std::shared_ptr<IListener>();
+        }
+        auto listener = std::make_shared<Listener>(context->PendingIO, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+
         if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &context->iocp.handle, listener->ListenSocket.get())) {
             return std::shared_ptr<IListener>();
         }
+
         return listener;
     }
 
-    Listener::Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket)
-        : PendingIO(counter), ListenSocket(std::static_pointer_cast<Socket>(socket))
+    Listener::Listener(std::atomic<size_t> &context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr)
+        : PendingIO(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
     {
     }
     Listener::~Listener() {}
 
     void Listener::close() { ListenSocket->close(); }
 
-    void Listener::async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler)
+    void Listener::async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler)
     {
         if (!AcceptEx_) {
             GUID acceptex_guid = WSAID_ACCEPTEX;
@@ -40,7 +46,7 @@ namespace NET {
 
         DWORD recvbytes = 0;
         assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
-        Win_IO_Accept_Context_.Socket_ = std::static_pointer_cast<Socket>(socket);
+        Win_IO_Accept_Context_.Socket_ = std::make_shared<Socket>(PendingIO, ListenSocketAddr.get_Family());
         if (!Win_IO_Accept_Context_.Socket_->setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
             std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
             handler(false);

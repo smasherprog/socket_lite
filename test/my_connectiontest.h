@@ -37,9 +37,8 @@ class asioserver {
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto newsocket = SL::NET::CreateSocket(IOContext);
-        Listener->async_accept(newsocket, [newsocket, this](bool connectsuccess) {
-            if (connectsuccess) {
+        Listener->async_accept([this](const std::shared_ptr<SL::NET::ISocket> &socket) {
+            if (socket) {
                 do_accept();
             }
         });

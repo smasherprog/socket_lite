@@ -33,14 +33,18 @@ SL::NET::IO_Context::~IO_Context()
 }
 void SL::NET::IO_Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
 {
+    auto sock = overlapped->Socket_;
     if (success && !Socket::UpdateIOCP(overlapped->Socket_->get_handle(), &iocp.handle, overlapped->Socket_.get())) {
         std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
         success = false;
     }
+    if (!success) {
+        sock.reset();
+    }
     auto handle(std::move(overlapped->completionhandler));
     overlapped->clear();
     if (handle) {
-        handle(success);
+        handle(sock);
     }
 }
 void SL::NET::IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
