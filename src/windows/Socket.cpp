@@ -38,14 +38,6 @@ namespace NET {
             return false;
         }
     }
-
-    void Socket::close()
-    {
-        if (handle != INVALID_SOCKET) {
-            closesocket(handle);
-        }
-        handle = INVALID_SOCKET;
-    }
     template <typename T> void IOComplete(Socket *s, Bytes_Transfered bytes, T *context)
     {
         if (bytes == -1) {

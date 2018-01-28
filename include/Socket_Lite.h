@@ -1,4 +1,18 @@
 #pragma once
+
+#ifdef _WIN32
+#include <WinSock2.h>
+#include <Windows.h>
+#include <Ws2tcpip.h>
+#include <mswsock.h>
+
+#else
+#include <sys/socket.h>
+#include <sys/types.h>
+#define INVALID_SOCKET -1
+#define closesocket close
+#endif
+
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -83,14 +97,15 @@ namespace NET {
     };
 
     enum class Linger_Options { LINGER_OFF, LINGER_ON };
+    enum class SockOptStatus { ENABLED, DISABLED };
     struct Linger_Option {
         Linger_Options l_onoff;        /* option on/off */
         std::chrono::seconds l_linger; /* linger time */
     };
     enum class Address_Family { IPV4, IPV6 };
     class SOCKET_LITE_EXTERN sockaddr {
-        unsigned char SocketImpl[65] = {0};
-        int SocketImplLen = 0;
+        sockaddr_storage sockaddr_;
+        int sockaddr_len = 0;
         std::string Host;
         unsigned short Port = 0;
         Address_Family Family = Address_Family::IPV4;
@@ -109,6 +124,105 @@ namespace NET {
         Address_Family get_Family() const;
     };
 
+    template <class T> T getsockopt(Socket_Options option, Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        int ret = -1;
+        switch (option) {
+        case SL::NET::Socket_Options::O_DEBUG:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_ACCEPTCONN:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_ACCEPTCONN, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_BROADCAST:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_REUSEADDR:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_REUSEADDR, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_KEEPALIVE:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_LINGER: {
+
+            linger lvalue;
+            int lvaluelen = sizeof(lvalue);
+            if (::getsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&lvalue, &lvaluelen) == 0) {
+                return std::optional<Linger_Option>(
+                    {lvalue.l_onoff == 0 ? Linger_Options::LINGER_OFF : Linger_Options::LINGER_ON, std::chrono::seconds(lvalue.l_linger)});
+            }
+        } break;
+        case SL::NET::Socket_Options::O_OOBINLINE:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_EXCLUSIVEADDRUSE:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_SNDBUF:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_SNDBUF, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_RCVBUF:
+            ret = ::getsockopt(handle, SOL_SOCKET, SO_RCVBUF, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_SNDTIMEO: {
+#ifdef _WIN32
+
+            DWORD dvalue = 0;
+            int dvaluelen = sizeof(dvalue);
+            if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&dvalue, &dvaluelen) == 0) {
+                return std::optional<std::chrono::seconds>(dvalue * 1000); // convert from ms to seconds
+            }
+#else
+            timeval tvalue = {0};
+            int tvaluelen = sizeof(tvalue);
+            if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&tvalue, &tvaluelen) == 0) {
+                return std::optional<std::chrono::seconds>(tvalue.tv_sec);
+            }
+#endif
+        } break;
+        case SL::NET::Socket_Options::O_RCVTIMEO:
+
+#ifdef _WIN32
+            DWORD dvalue = 0;
+            int dvaluelen = sizeof(dvalue);
+            if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&dvalue, &dvaluelen) == 0) {
+                return std::optional<std::chrono::seconds>(dvalue * 1000); // convert from ms to seconds
+            }
+#else
+            timeval tvalue = {0};
+            int tvaluelen = sizeof(tvalue);
+            if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&tvalue, &tvaluelen) == 0) {
+                return std::optional<std::chrono::seconds>(tvalue.tv_sec);
+            }
+#endif
+
+            break;
+        case SL::NET::Socket_Options::O_ERROR:
+            if (::getsockopt(handle, SOL_SOCKET, SO_ERROR, (char *)&value, &valuelen) == 0) {
+                return std::optional<int>(value);
+            }
+            break;
+        case SL::NET::Socket_Options::O_NODELAY:
+            ret = ::getsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, &valuelen);
+            break;
+        case SL::NET::Socket_Options::O_BLOCKING:
+
+#ifndef _WIN32
+            if (auto arg = fcntl(handle, F_GETFL, NULL); arg >= 0) {
+                return std::optional<Blocking_Options>((arg & O_NONBLOCK) != 0 ? Blocking_Options::NON_BLOCKING : Blocking_Options::BLOCKING);
+            }
+#endif
+            break;
+        default:
+            break;
+        }
+        if (ret == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
     std::vector<sockaddr> SOCKET_LITE_EXTERN getaddrinfo(char *nodename, PortNumber pServiceName, Address_Family family);
     class SOCKET_LITE_EXTERN IIO_Context {
       public:
@@ -118,22 +232,6 @@ namespace NET {
     std::shared_ptr<IIO_Context> SOCKET_LITE_EXTERN CreateIO_Context();
 
     class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
-
-        std::optional<bool> getsockopt_O_DEBUG() const;
-        std::optional<bool> getsockopt_O_ACCEPTCONN() const;
-        std::optional<bool> getsockopt_O_BROADCAST() const;
-        std::optional<bool> getsockopt_O_REUSEADDR() const;
-        std::optional<bool> getsockopt_O_KEEPALIVE() const;
-        std::optional<Linger_Option> getsockopt_O_LINGER() const;
-        std::optional<bool> getsockopt_O_OOBINLINE() const;
-        std::optional<bool> getsockopt_O_EXCLUSIVEADDRUSE() const;
-        std::optional<int> getsockopt_O_SNDBUF() const;
-        std::optional<int> getsockopt_O_RCVBUF() const;
-        std::optional<std::chrono::seconds> getsockopt_O_SNDTIMEO() const;
-        std::optional<std::chrono::seconds> getsockopt_O_RCVTIMEO() const;
-        std::optional<int> getsockopt_O_ERROR() const;
-        std::optional<bool> getsockopt_O_NODELAY() const;
-        std::optional<Blocking_Options> getsockopt_O_BLOCKING() const;
 
         bool setsockopt_O_DEBUG(bool b) const;
         bool setsockopt_O_BROADCAST(bool b) const;
@@ -148,53 +246,6 @@ namespace NET {
         bool setsockopt_O_RCVTIMEO(std::chrono::seconds sec) const;
         bool setsockopt_O_NODELAY(bool b) const;
         bool setsockopt_O_BLOCKING(Blocking_Options b) const;
-
-        template <Socket_Options SO> struct getsockopt_factory_impl;
-        template <> struct getsockopt_factory_impl<Socket_Options::O_DEBUG> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_DEBUG(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_ACCEPTCONN> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_ACCEPTCONN(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_BROADCAST> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_BROADCAST(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_REUSEADDR> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_REUSEADDR(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_KEEPALIVE> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_KEEPALIVE(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_LINGER> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_LINGER(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_OOBINLINE> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_OOBINLINE(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_EXCLUSIVEADDRUSE> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_EXCLUSIVEADDRUSE(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_SNDBUF> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDBUF(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_RCVBUF> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVBUF(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_RCVTIMEO> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_RCVTIMEO(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_SNDTIMEO> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_SNDTIMEO(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_ERROR> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_ERROR(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_NODELAY> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_NODELAY(); }
-        };
-        template <> struct getsockopt_factory_impl<Socket_Options::O_BLOCKING> {
-            static auto getsockopt_(ISocket *s) { return s->getsockopt_O_BLOCKING(); }
-        };
 
         template <Socket_Options SO> struct setsockopt_factory_impl;
         template <> struct setsockopt_factory_impl<Socket_Options::O_DEBUG> {
@@ -238,12 +289,12 @@ namespace NET {
         };
 
       protected:
-        Platform_Socket handle;
+        Platform_Socket handle = INVALID_SOCKET;
 
       public:
-        ISocket();
-        virtual ~ISocket(){};
-        template <Socket_Options SO> auto getsockopt() const { return getsockopt_factory_impl<SO>::getsockopt_(handle, this); }
+        ISocket() {}
+        virtual ~ISocket() { close(); };
+        template <Socket_Options SO, class T> T getsockopt() const { return SL::NET::getsockopt(SO, handle); }
         template <Socket_Options SO, typename... Args> auto setsockopt(Args &&... args)
         {
             return setsockopt_factory_impl<SO>::setsockopt_(this, std::forward<Args>(args)...);
@@ -258,7 +309,13 @@ namespace NET {
 
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
-        virtual void close() = 0;
+        virtual void close()
+        {
+            if (handle != INVALID_SOCKET) {
+                closesocket(handle);
+            }
+            handle = INVALID_SOCKET;
+        }
         Platform_Socket get_handle() const { return handle; }
         void set_handle(Platform_Socket h);
     };
