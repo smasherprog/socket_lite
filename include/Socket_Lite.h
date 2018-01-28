@@ -89,14 +89,19 @@ namespace NET {
     };
     enum class Address_Family { IPV4, IPV6 };
     class SOCKET_LITE_EXTERN sockaddr {
-        unsigned char SocketImpl[65];
+        unsigned char SocketImpl[65] = {0};
         int SocketImplLen = 0;
         std::string Host;
         unsigned short Port = 0;
         Address_Family Family = Address_Family::IPV4;
 
       public:
+        sockaddr() {}
         sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, Address_Family family);
+        sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Family(addr.Family), Port(addr.Port)
+        {
+            memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
+        }
         const unsigned char *get_SocketAddr() const;
         int get_SocketAddrLen() const;
         std::string get_Host() const;
@@ -236,7 +241,7 @@ namespace NET {
         Platform_Socket handle;
 
       public:
-        ISocket() {}
+        ISocket();
         virtual ~ISocket(){};
         template <Socket_Options SO> auto getsockopt() const { return getsockopt_factory_impl<SO>::getsockopt_(handle, this); }
         template <Socket_Options SO, typename... Args> auto setsockopt(Args &&... args)
@@ -254,14 +259,16 @@ namespace NET {
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void close() = 0;
+        Platform_Socket get_handle() const { return handle; }
+        void set_handle(Platform_Socket h);
     };
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext, Address_Family family);
+    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext);
 
     class SOCKET_LITE_EXTERN IListener {
       public:
         virtual ~IListener() {}
         virtual void close() = 0;
-        virtual void async_accept(std::shared_ptr<ISocket> &socket, const std::function<void(bool)> &&handler) = 0;
+        virtual void async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler) = 0;
     };
     std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IIO_Context> &iocontext,
                                                                  std::shared_ptr<ISocket> &&listensocket); // listener steals the socket

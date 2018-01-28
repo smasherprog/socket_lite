@@ -9,11 +9,11 @@
 
 using namespace std::chrono_literals;
 
-namespace myechotest {
+namespace mymultithreadedechotest {
 
 char writeecho[] = "echo test";
 char readecho[] = "echo test";
-auto readechos = 0.0;
+
 auto writeechos = 0.0;
 
 class session : public std::enable_shared_from_this<session> {
@@ -64,7 +64,6 @@ class asioserver {
     ~asioserver() { close(); }
     void do_accept()
     {
-
         Listener->async_accept([this](const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket) {
                 std::make_shared<session>(socket)->start();
@@ -134,12 +133,16 @@ void myechotest()
     asioserver s(iocontext, SL::NET::PortNumber(porttouse));
     auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);
     auto c = std::make_shared<asioclient>(iocontext, addresses);
+    auto c1 = std::make_shared<asioclient>(iocontext, addresses);
+    auto c2 = std::make_shared<asioclient>(iocontext, addresses);
 
-    iocontext->run(SL::NET::ThreadCount(2));
+    iocontext->run(SL::NET::ThreadCount(4));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     c->socket_->close();
+    c1->socket_->close();
+    c2->socket_->close();
     s.close();
-    std::cout << "My Echo per Second " << writeechos / 10 << std::endl;
+    std::cout << "My 4 thread Echos per Second " << writeechos / 10 << std::endl;
 }
 
-} // namespace myechotest
+} // namespace mymultithreadedechotest

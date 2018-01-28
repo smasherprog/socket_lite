@@ -96,7 +96,7 @@ namespace NET {
         freeaddrinfo(result);
         return ret;
     } // namespace NET
-
+    ISocket::ISocket() { handle = INVALID_SOCKET; }
     bool ISocket::listen(int backlog) const
     {
         if (handle != INVALID_SOCKET) {
@@ -108,6 +108,14 @@ namespace NET {
             return true;
         }
         return false;
+    }
+
+    void ISocket::set_handle(Platform_Socket h)
+    {
+        if (handle != INVALID_SOCKET) {
+            closesocket(handle);
+        }
+        handle = h;
     }
     ConnectionAttemptStatus ISocket::connect(SL::NET::sockaddr &addresses) const
     {
@@ -300,7 +308,7 @@ namespace NET {
 
     std::optional<std::chrono::seconds> ISocket::getsockopt_O_SNDTIMEO() const
     {
-#ifdef _ WIN32
+#ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
@@ -318,7 +326,7 @@ namespace NET {
 
     std::optional<std::chrono::seconds> ISocket::getsockopt_O_RCVTIMEO() const
     {
-#ifdef _ _ WIN32
+#ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {

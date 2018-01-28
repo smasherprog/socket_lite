@@ -57,7 +57,7 @@ namespace NET {
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
-        std::function<void(bool)> completionhandler;
+        std::function<void(const std::shared_ptr<ISocket> &)> completionhandler;
         void clear()
         {
             Overlapped = {0};

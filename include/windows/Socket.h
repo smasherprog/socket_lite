@@ -15,6 +15,7 @@ namespace NET {
         Win_IO_RW_Context ReadContext;
         Win_IO_RW_Context WriteContext;
 
+        Socket(std::atomic<size_t> &iocounter);
         Socket(std::atomic<size_t> &iocounter, Address_Family family);
         virtual ~Socket();
         static bool UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey);

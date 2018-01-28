@@ -38,6 +38,13 @@ elseif(APPLE)
     )
 else()
 	set(SOCKET_LITE_PLATFORM_SRC 
+		include/linux/IO_Context.h 
+		src/linux/IO_Context.cpp
+		include/linux/Socket.h
+		src/linux/Socket.cpp
+		include/linux/Listener.h
+		src/linux/Listener.cpp
+		include/linux/Structures.h
     )
 	set(SOCKET_LITE_PLATFORM_INC
 		include/linux 

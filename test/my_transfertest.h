@@ -39,24 +39,23 @@ class asioserver {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
         for (auto &address : SL::NET::getaddrinfo(nullptr, port, SL::NET::Address_Family::IPV4)) {
-            auto lsock = SL::NET::CreateSocket(IOContext, SL::NET::Address_Family::IPV4);
+            auto lsock = SL::NET::CreateSocket(IOContext);
             if (lsock->bind(address)) {
                 if (lsock->listen(5)) {
                     listensocket = lsock;
                 }
             }
         }
+        listensocket->setsockopt<SL::NET::Socket_Options::O_REUSEADDR>(true);
         Listener = SL::NET::CreateListener(io_context, std::move(listensocket));
         do_accept();
     }
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto newsocket = SL::NET::CreateSocket(IOContext, SL::NET::Address_Family::IPV4);
-        Listener->async_accept(newsocket, [newsocket, this](bool connectsuccess) {
-            if (connectsuccess) {
-
-                std::make_shared<session>(newsocket)->start();
+        Listener->async_accept([this](const std::shared_ptr<SL::NET::ISocket> &socket) {
+            if (socket) {
+                std::make_shared<session>(socket)->start();
                 do_accept();
             }
         });
@@ -71,7 +70,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     asioclient(std::shared_ptr<SL::NET::IIO_Context> &io_context, const std::vector<SL::NET::sockaddr> &endpoints)
         : IOcontext(io_context), Addresses(endpoints)
     {
-        socket_ = SL::NET::CreateSocket(io_context, SL::NET::Address_Family::IPV4);
+        socket_ = SL::NET::CreateSocket(io_context);
         do_connect();
     }
     ~asioclient() {}
