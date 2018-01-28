@@ -54,7 +54,7 @@ add_library(${PROJECT_NAME}
 	include/common/SpinLock.h
 	include/common/Structures.h
 	include/common/List.h
-	src/Socket_Lite.cpp  
+	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )
 
