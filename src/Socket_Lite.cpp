@@ -2,7 +2,7 @@
 #include "Socket_Lite.h"
 #include <assert.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
@@ -117,6 +117,15 @@ namespace NET {
         }
         handle = h;
     }
+    ISocket::ISocket() { handle = INVALID_SOCKET; }
+    void ISocket::close()
+    {
+        if (handle != INVALID_SOCKET) {
+            closesocket(handle);
+        }
+        handle = INVALID_SOCKET;
+    }
+
     ConnectionAttemptStatus ISocket::connect(SL::NET::sockaddr &addresses) const
     {
         if (::connect(handle, (::sockaddr *)addresses.get_SocketAddr(), addresses.get_SocketAddrLen()) == SOCKET_ERROR) {
@@ -206,35 +215,205 @@ namespace NET {
         return std::nullopt;
     }
 
-    bool ISocket::setsockopt_O_DEBUG(bool b) const
+    std::optional<bool> INTERNAL::getsockopt_O_DEBUG(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_ACCEPTCONN(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_ACCEPTCONN, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_BROADCAST(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_REUSEADDR(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_REUSEADDR, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_KEEPALIVE(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Linger_Option> INTERNAL::getsockopt_O_LINGER(Platform_Socket handle)
+    {
+        linger value;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&value, &valuelen) == 0) {
+            return std::optional<Linger_Option>(
+                {value.l_onoff == 0 ? Linger_Options::LINGER_OFF : Linger_Options::LINGER_ON, std::chrono::seconds(value.l_linger)});
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_OOBINLINE(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<int> INTERNAL::getsockopt_O_SNDBUF(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_SNDBUF, (char *)&value, &valuelen) == 0) {
+            return std::optional<int>(value);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<int> INTERNAL::getsockopt_O_RCVBUF(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_RCVBUF, (char *)&value, &valuelen) == 0) {
+            return std::optional<int>(value);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<std::chrono::seconds> INTERNAL::getsockopt_O_SNDTIMEO(Platform_Socket handle)
+    {
+#ifdef _WIN32
+        DWORD value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
+            return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
+        }
+#else
+        timeval value = {0};
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
+            return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
+        }
+#endif
+        return std::nullopt;
+    }
+
+    std::optional<std::chrono::seconds> INTERNAL::getsockopt_O_RCVTIMEO(Platform_Socket handle)
+    {
+#ifdef _WIN32
+        DWORD value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {
+            return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
+        }
+#else
+        timeval value = {0};
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
+            return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
+        }
+#endif
+        return std::nullopt;
+    }
+
+    std::optional<int> INTERNAL::getsockopt_O_ERROR(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, SOL_SOCKET, SO_ERROR, (char *)&value, &valuelen) == 0) {
+            return std::optional<int>(value);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<bool> INTERNAL::getsockopt_O_NODELAY(Platform_Socket handle)
+    {
+        int value = 0;
+        int valuelen = sizeof(value);
+        if (::getsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, &valuelen) == 0) {
+            return std::optional<bool>(value != 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Blocking_Options> INTERNAL::getsockopt_O_BLOCKING(Platform_Socket handle)
+    {
+#ifdef _WIN32
+
+        return std::nullopt;
+#else
+        long arg = 0;
+        if ((arg = fcntl(handle, F_GETFL, NULL)) < 0) {
+            return std::nullopt;
+        }
+        return std::optional<Blocking_Options>((arg & O_NONBLOCK) != 0 ? Blocking_Options::NON_BLOCKING : Blocking_Options::BLOCKING);
+#endif
+    }
+    bool INTERNAL::setsockopt_O_DEBUG(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_BROADCAST(bool b) const
+    bool INTERNAL::setsockopt_O_BROADCAST(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_REUSEADDR(bool b) const
+    bool INTERNAL::setsockopt_O_REUSEADDR(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_KEEPALIVE(bool b) const
+    bool INTERNAL::setsockopt_O_KEEPALIVE(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_LINGER(Linger_Option o) const
+    bool INTERNAL::setsockopt_O_LINGER(Platform_Socket handle, Linger_Option o)
     {
         linger value;
         value.l_onoff = o.l_onoff == Linger_Options::LINGER_OFF ? 0 : 1;
@@ -243,35 +422,35 @@ namespace NET {
         return ::setsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_OOBINLINE(bool b) const
+    bool INTERNAL::setsockopt_O_OOBINLINE(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_EXCLUSIVEADDRUSE(bool b) const
+    bool INTERNAL::setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_SNDBUF(int b) const
+    bool INTERNAL::setsockopt_O_SNDBUF(Platform_Socket handle, int b)
     {
         int value = b;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_SNDBUF, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_RCVBUF(int b) const
+    bool INTERNAL::setsockopt_O_RCVBUF(Platform_Socket handle, int b)
     {
         int value = b;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_RCVBUF, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_SNDTIMEO(std::chrono::seconds sec) const
+    bool INTERNAL::setsockopt_O_SNDTIMEO(Platform_Socket handle, std::chrono::seconds sec)
     {
 #ifdef _WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
@@ -284,7 +463,7 @@ namespace NET {
 #endif
     }
 
-    bool ISocket::setsockopt_O_RCVTIMEO(std::chrono::seconds sec) const
+    bool INTERNAL::setsockopt_O_RCVTIMEO(Platform_Socket handle, std::chrono::seconds sec)
     {
 #ifdef WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
@@ -297,14 +476,14 @@ namespace NET {
 #endif
     }
 
-    bool ISocket::setsockopt_O_NODELAY(bool b) const
+    bool INTERNAL::setsockopt_O_NODELAY(Platform_Socket handle, bool b)
     {
         int value = b ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, valuelen) == 0;
     }
 
-    bool ISocket::setsockopt_O_BLOCKING(Blocking_Options b) const
+    bool INTERNAL::setsockopt_O_BLOCKING(Platform_Socket handle, Blocking_Options b)
     {
 
 #ifdef WIN32
