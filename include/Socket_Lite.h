@@ -111,20 +111,20 @@ namespace NET {
         Address_Family get_Family() const;
     };
     namespace INTERNAL {
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_DEBUG(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_ACCEPTCONN(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_BROADCAST(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_REUSEADDR(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_KEEPALIVE(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_DEBUG(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_ACCEPTCONN(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_BROADCAST(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_REUSEADDR(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_KEEPALIVE(Platform_Socket handle);
         std::optional<Linger_Option> SOCKET_LITE_EXTERN getsockopt_O_LINGER(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_OOBINLINE(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_OOBINLINE(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle);
         std::optional<int> SOCKET_LITE_EXTERN getsockopt_O_SNDBUF(Platform_Socket handle);
         std::optional<int> SOCKET_LITE_EXTERN getsockopt_O_RCVBUF(Platform_Socket handle);
         std::optional<std::chrono::seconds> SOCKET_LITE_EXTERN getsockopt_O_SNDTIMEO(Platform_Socket handle);
         std::optional<std::chrono::seconds> SOCKET_LITE_EXTERN getsockopt_O_RCVTIMEO(Platform_Socket handle);
         std::optional<int> SOCKET_LITE_EXTERN getsockopt_O_ERROR(Platform_Socket handle);
-        std::optional<bool> SOCKET_LITE_EXTERN getsockopt_O_NODELAY(Platform_Socket handle);
+        std::optional<SockOptStatus> SOCKET_LITE_EXTERN getsockopt_O_NODELAY(Platform_Socket handle);
         std::optional<Blocking_Options> SOCKET_LITE_EXTERN getsockopt_O_BLOCKING(Platform_Socket handle);
 
         template <Socket_Options SO> struct getsockopt_factory_impl;
@@ -174,41 +174,41 @@ namespace NET {
             static auto getsockopt_(Platform_Socket handle) { return getsockopt_O_BLOCKING(handle); }
         };
 
-        bool SOCKET_LITE_EXTERN setsockopt_O_DEBUG(Platform_Socket handle, bool b);
-        bool SOCKET_LITE_EXTERN setsockopt_O_BROADCAST(Platform_Socket handle, bool b);
-        bool SOCKET_LITE_EXTERN setsockopt_O_REUSEADDR(Platform_Socket handle, bool b);
-        bool SOCKET_LITE_EXTERN setsockopt_O_KEEPALIVE(Platform_Socket handle, bool b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_DEBUG(Platform_Socket handle, SockOptStatus b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_BROADCAST(Platform_Socket handle, SockOptStatus b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_REUSEADDR(Platform_Socket handle, SockOptStatus b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_KEEPALIVE(Platform_Socket handle, SockOptStatus b);
         bool SOCKET_LITE_EXTERN setsockopt_O_LINGER(Platform_Socket handle, Linger_Option o);
-        bool SOCKET_LITE_EXTERN setsockopt_O_OOBINLINE(Platform_Socket handle, bool b);
-        bool SOCKET_LITE_EXTERN setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle, bool b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_OOBINLINE(Platform_Socket handle, SockOptStatus b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle, SockOptStatus b);
         bool SOCKET_LITE_EXTERN setsockopt_O_SNDBUF(Platform_Socket handle, int b);
         bool SOCKET_LITE_EXTERN setsockopt_O_RCVBUF(Platform_Socket handle, int b);
         bool SOCKET_LITE_EXTERN setsockopt_O_SNDTIMEO(Platform_Socket handle, std::chrono::seconds sec);
         bool SOCKET_LITE_EXTERN setsockopt_O_RCVTIMEO(Platform_Socket handle, std::chrono::seconds sec);
-        bool SOCKET_LITE_EXTERN setsockopt_O_NODELAY(Platform_Socket handle, bool b);
+        bool SOCKET_LITE_EXTERN setsockopt_O_NODELAY(Platform_Socket handle, SockOptStatus b);
         bool SOCKET_LITE_EXTERN setsockopt_O_BLOCKING(Platform_Socket handle, Blocking_Options b);
 
         template <Socket_Options SO> struct setsockopt_factory_impl;
         template <> struct setsockopt_factory_impl<Socket_Options::O_DEBUG> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_DEBUG(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_DEBUG(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_BROADCAST> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_BROADCAST(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_BROADCAST(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_REUSEADDR> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_REUSEADDR(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_REUSEADDR(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_KEEPALIVE> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_KEEPALIVE(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_KEEPALIVE(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_LINGER> {
             static auto setsockopt_(Platform_Socket handle, Linger_Option b) { return setsockopt_O_LINGER(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_OOBINLINE> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_OOBINLINE(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_OOBINLINE(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_EXCLUSIVEADDRUSE> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_EXCLUSIVEADDRUSE(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_EXCLUSIVEADDRUSE(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_SNDBUF> {
             static auto setsockopt_(Platform_Socket handle, int b) { return setsockopt_O_SNDBUF(handle, b); }
@@ -223,7 +223,7 @@ namespace NET {
             static auto setsockopt_(Platform_Socket handle, std::chrono::seconds b) { return setsockopt_O_SNDTIMEO(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_NODELAY> {
-            static auto setsockopt_(Platform_Socket handle, bool b) { return setsockopt_O_NODELAY(handle, b); }
+            static auto setsockopt_(Platform_Socket handle, SockOptStatus b) { return setsockopt_O_NODELAY(handle, b); }
         };
         template <> struct setsockopt_factory_impl<Socket_Options::O_BLOCKING> {
             static auto setsockopt_(Platform_Socket handle, Blocking_Options b) { return setsockopt_O_BLOCKING(handle, b); }

@@ -215,52 +215,52 @@ namespace NET {
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_DEBUG(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_DEBUG(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_ACCEPTCONN(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_ACCEPTCONN(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_ACCEPTCONN, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_BROADCAST(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_BROADCAST(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_REUSEADDR(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_REUSEADDR(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_REUSEADDR, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_KEEPALIVE(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_KEEPALIVE(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
@@ -276,22 +276,22 @@ namespace NET {
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_OOBINLINE(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_OOBINLINE(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
@@ -362,12 +362,12 @@ namespace NET {
         return std::nullopt;
     }
 
-    std::optional<bool> INTERNAL::getsockopt_O_NODELAY(Platform_Socket handle)
+    std::optional<SockOptStatus> INTERNAL::getsockopt_O_NODELAY(Platform_Socket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, &valuelen) == 0) {
-            return std::optional<bool>(value != 0);
+            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
         }
         return std::nullopt;
     }
@@ -385,30 +385,30 @@ namespace NET {
         return std::optional<Blocking_Options>((arg & O_NONBLOCK) != 0 ? Blocking_Options::NON_BLOCKING : Blocking_Options::BLOCKING);
 #endif
     }
-    bool INTERNAL::setsockopt_O_DEBUG(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_DEBUG(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_BROADCAST(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_BROADCAST(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_REUSEADDR(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_REUSEADDR(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_KEEPALIVE(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_KEEPALIVE(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, valuelen) == 0;
     }
@@ -422,16 +422,16 @@ namespace NET {
         return ::setsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_OOBINLINE(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_OOBINLINE(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, valuelen) == 0;
     }
@@ -476,9 +476,9 @@ namespace NET {
 #endif
     }
 
-    bool INTERNAL::setsockopt_O_NODELAY(Platform_Socket handle, bool b)
+    bool INTERNAL::setsockopt_O_NODELAY(Platform_Socket handle, SockOptStatus b)
     {
-        int value = b ? 1 : 0;
+        int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, valuelen) == 0;
     }
