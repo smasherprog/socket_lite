@@ -20,7 +20,8 @@ namespace NET {
 
         IO_Context();
         ~IO_Context();
-        void run(ThreadCount threadcount);
+        virtual void run(ThreadCount threadcount) override;
+        virtual std::shared_ptr<ISocket> CreateSocket() override;
 
         void handleaccept(bool success, Win_IO_Accept_Context *overlapped);
         void handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped);

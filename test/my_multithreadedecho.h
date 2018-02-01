@@ -50,7 +50,7 @@ class asioserver {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
         for (auto &address : SL::NET::getaddrinfo(nullptr, port, SL::NET::Address_Family::IPV4)) {
-            auto lsock = SL::NET::CreateSocket(IOContext);
+            auto lsock = IOContext->CreateSocket();
             if (lsock->bind(address)) {
                 if (lsock->listen(5)) {
                     listensocket = lsock;
@@ -81,7 +81,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     asioclient(std::shared_ptr<SL::NET::IIO_Context> &io_context, const std::vector<SL::NET::sockaddr> &endpoints)
         : IOcontext(io_context), Addresses(endpoints)
     {
-        socket_ = SL::NET::CreateSocket(io_context);
+        socket_ = io_context->CreateSocket();
         do_connect();
     }
     ~asioclient() {}
@@ -128,7 +128,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 
 void myechotest()
 {
-    auto porttouse = std::rand() % 3000 + 10000;
+    auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     auto iocontext = SL::NET::CreateIO_Context();
     asioserver s(iocontext, SL::NET::PortNumber(porttouse));
     auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);

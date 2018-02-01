@@ -108,7 +108,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 
 void asioechotest()
 {
-    auto porttouse = std::rand() % 3000 + 10000;
+    auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asio::io_context iocontext;
     asioserver s(iocontext, porttouse);
 

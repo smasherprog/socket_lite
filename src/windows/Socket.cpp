@@ -7,11 +7,6 @@
 namespace SL {
 namespace NET {
 
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext)
-    {
-        auto context = std::static_pointer_cast<IO_Context>(iocontext);
-        return std::make_shared<Socket>(context->PendingIO);
-    }
     Socket::Socket(std::atomic<size_t> &iocounter, Address_Family family) : Socket(iocounter)
     {
         if (family == Address_Family::IPV4) {

@@ -88,7 +88,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 void asiotransfertest()
 {
     writeechos = 0.0;
-    auto porttouse = std::rand() % 3000 + 10000;
+    auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
     asio::io_context iocontext;

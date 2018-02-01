@@ -236,13 +236,7 @@ namespace NET {
         return INTERNAL::setsockopt_factory_impl<SO>::setsockopt_(handle, std::forward<Args>(args)...);
     }
     std::vector<sockaddr> SOCKET_LITE_EXTERN getaddrinfo(char *nodename, PortNumber pServiceName, Address_Family family);
-    class SOCKET_LITE_EXTERN IIO_Context {
-      public:
-        virtual ~IIO_Context() {}
-        virtual void run(ThreadCount threadcount) = 0;
-    };
-    std::shared_ptr<IIO_Context> SOCKET_LITE_EXTERN CreateIO_Context();
-
+    class IIO_Context;
     class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
 
       protected:
@@ -270,7 +264,13 @@ namespace NET {
         Platform_Socket get_handle() const { return handle; }
         void set_handle(Platform_Socket h);
     };
-    std::shared_ptr<ISocket> SOCKET_LITE_EXTERN CreateSocket(std::shared_ptr<IIO_Context> &iocontext);
+    class SOCKET_LITE_EXTERN IIO_Context {
+      public:
+        virtual ~IIO_Context() {}
+        virtual void run(ThreadCount threadcount) = 0;
+        virtual std::shared_ptr<ISocket> CreateSocket() = 0;
+    };
+    std::shared_ptr<IIO_Context> SOCKET_LITE_EXTERN CreateIO_Context();
 
     class SOCKET_LITE_EXTERN IListener {
       public:
