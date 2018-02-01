@@ -47,7 +47,7 @@ class asioserver {
             }
         }
         listensocket->setsockopt<SL::NET::Socket_Options::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
-        Listener = SL::NET::CreateListener(io_context, std::move(listensocket));
+        Listener = io_context->CreateListener(std::move(listensocket));
         do_accept();
     }
     ~asioserver() { close(); }
@@ -78,7 +78,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     {
         if (Addresses.empty())
             return;
-        socket_->connect(IOcontext, Addresses.back(), [this](SL::NET::ConnectionAttemptStatus connectstatus) {
+        socket_->connect(Addresses.back(), [this](SL::NET::ConnectionAttemptStatus connectstatus) {
             if (connectstatus == SL::NET::ConnectionAttemptStatus::SuccessfullConnect) {
 
                 do_write();

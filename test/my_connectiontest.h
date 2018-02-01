@@ -31,7 +31,7 @@ class asioserver {
             }
         }
         listensocket->setsockopt<SL::NET::Socket_Options::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
-        Listener = SL::NET::CreateListener(io_context, std::move(listensocket));
+        Listener = io_context->CreateListener(std::move(listensocket));
         do_accept();
     }
     ~asioserver() { close(); }
@@ -53,7 +53,7 @@ std::vector<SL::NET::sockaddr> addresses;
 void connect(std::shared_ptr<SL::NET::IContext> iocontext)
 {
     auto socket_ = iocontext->CreateSocket();
-    socket_->connect(iocontext, addresses.back(), [iocontext, socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
+    socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
         connections += 1.0;
         if (keepgoing) {
             connect(iocontext);

@@ -7,7 +7,7 @@
 namespace SL {
 namespace NET {
 
-    Socket::Socket(std::atomic<size_t> &iocounter, Address_Family family) : Socket(iocounter)
+    Socket::Socket(Context *context, Address_Family family) : Socket(context)
     {
         if (family == Address_Family::IPV4) {
             handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
@@ -16,12 +16,8 @@ namespace NET {
             handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
     }
-    Socket::Socket(std::atomic<size_t> &iocounter) : PendingIO(iocounter) {}
-    Socket::~Socket()
-    {
-        //  std::cout << "~Socket()" << std::endl;
-        close();
-    }
+    Socket::Socket(Context *context) : Context_(context) {}
+    Socket::~Socket() {}
 
     bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
     {
@@ -48,7 +44,7 @@ namespace NET {
         if (handle == INVALID_SOCKET) {
             handler(-1);
         }
-        PendingIO += 1;
+        Context_->PendingIO += 1;
         assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
         ReadContext.buffer = buffer;
         ReadContext.bufferlen = buffer_size;
@@ -63,7 +59,7 @@ namespace NET {
         // do read with zero bytes to prevent memory from being mapped
         if (auto nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-            PendingIO -= 1;
+            Context_->PendingIO -= 1;
             return IOComplete(this, -1, &ReadContext);
         }
     }
@@ -78,7 +74,7 @@ namespace NET {
             return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
         }
         else {
-            PendingIO += 1;
+            Context_->PendingIO += 1;
             DWORD dwSendNumBytes(static_cast<DWORD>(sockcontext->bufferlen - sockcontext->transfered_bytes)), dwFlags(0);
             // still more data to read.. keep going!
             WSABUF wsabuf;
@@ -87,13 +83,13 @@ namespace NET {
             // do read with zero bytes to prevent memory from being mapped
             if (auto nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-                PendingIO -= 1;
+                Context_->PendingIO -= 1;
                 return IOComplete(this, -1, sockcontext);
             }
         }
     }
 
-    void Socket::connect(std::shared_ptr<IContext> &iocontext, sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
+    void Socket::connect(sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
     {
         close();
         ReadContext.clear();
@@ -117,17 +113,17 @@ namespace NET {
                 return handler(ConnectionAttemptStatus::FailedConnect);
             }
         }
-        auto iocontext_ = std::static_pointer_cast<Context>(iocontext);
-        if (!iocontext_->ConnectEx_) {
+
+        if (!Context_->ConnectEx_) {
             GUID guid = WSAID_CONNECTEX;
             DWORD bytes = 0;
-            if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &iocontext_->ConnectEx_, sizeof(iocontext_->ConnectEx_),
-                         &bytes, NULL, NULL) == SOCKET_ERROR) {
+            if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &Context_->ConnectEx_, sizeof(Context_->ConnectEx_), &bytes,
+                         NULL, NULL) == SOCKET_ERROR) {
                 std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
                 return handler(ConnectionAttemptStatus::FailedConnect);
             }
         }
-        if (!Socket::UpdateIOCP(handle, &iocontext_->iocp.handle, this)) {
+        if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
             return handler(ConnectionAttemptStatus::FailedConnect);
         }
 
@@ -142,13 +138,13 @@ namespace NET {
         };
         ;
         ReadContext.IOOperation = IO_OPERATION::IoConnect;
-        PendingIO += 1;
+        Context_->PendingIO += 1;
         DWORD bytessend = 0;
-        auto connectres = iocontext_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
-                                                 (LPOVERLAPPED)&ReadContext.Overlapped);
+        auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
+                                               (LPOVERLAPPED)&ReadContext.Overlapped);
 
         if (!(connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING))) {
-            PendingIO -= 1;
+            Context_->PendingIO -= 1;
             auto chandle(std::move(ReadContext.completionhandler));
             chandle(-1);
         }
@@ -191,14 +187,14 @@ namespace NET {
             return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
         }
         else {
-            PendingIO += 1;
+            Context_->PendingIO += 1;
             WSABUF wsabuf;
             wsabuf.buf = (char *)sockcontext->buffer + sockcontext->transfered_bytes;
             wsabuf.len = static_cast<decltype(wsabuf.len)>(sockcontext->bufferlen - sockcontext->transfered_bytes);
             DWORD dwSendNumBytes(0), dwFlags(0);
             if (auto nRet = WSASend(handle, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-                PendingIO -= 1;
+                Context_->PendingIO -= 1;
                 return IOComplete(this, -1, sockcontext);
             }
         }

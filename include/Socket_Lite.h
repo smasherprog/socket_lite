@@ -255,8 +255,7 @@ namespace NET {
         bool bind(sockaddr addr);
         bool listen(int backlog) const;
         ConnectionAttemptStatus connect(SL::NET::sockaddr &addresses) const;
-        virtual void connect(std::shared_ptr<IContext> &iocontext, SL::NET::sockaddr &address,
-                             const std::function<void(ConnectionAttemptStatus)> &&) = 0;
+        virtual void connect(SL::NET::sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&) = 0;
 
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
         virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) = 0;
@@ -264,22 +263,20 @@ namespace NET {
         Platform_Socket get_handle() const { return handle; }
         void set_handle(Platform_Socket h);
     };
-    class SOCKET_LITE_EXTERN IContext {
-      public:
-        virtual ~IContext() {}
-        virtual void run(ThreadCount threadcount) = 0;
-        virtual std::shared_ptr<ISocket> CreateSocket() = 0;
-    };
-    std::shared_ptr<IContext> SOCKET_LITE_EXTERN CreateContext();
-
     class SOCKET_LITE_EXTERN IListener {
       public:
         virtual ~IListener() {}
         virtual void close() = 0;
         virtual void async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler) = 0;
     };
-    std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IContext> &iocontext,
-                                                                 std::shared_ptr<ISocket> &&listensocket); // listener steals the socket
+    class SOCKET_LITE_EXTERN IContext {
+      public:
+        virtual ~IContext() {}
+        virtual void run(ThreadCount threadcount) = 0;
+        virtual std::shared_ptr<ISocket> CreateSocket() = 0;
+        virtual std::shared_ptr<IListener> CreateListener(std::shared_ptr<ISocket> &&listensocket) = 0; // listener steals the socket
+    };
+    std::shared_ptr<IContext> SOCKET_LITE_EXTERN CreateContext();
 
 } // namespace NET
 } // namespace SL

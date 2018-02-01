@@ -10,12 +10,11 @@ namespace NET {
         LPFN_ACCEPTEX AcceptEx_ = nullptr;
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
         std::shared_ptr<Socket> ListenSocket;
-
+        Context *Context_;
         Win_IO_Accept_Context Win_IO_Accept_Context_;
-        std::atomic<size_t> &PendingIO;
         sockaddr ListenSocketAddr;
 
-        Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
+        Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
         virtual ~Listener();
         virtual void close() override;
         virtual void async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler) override;

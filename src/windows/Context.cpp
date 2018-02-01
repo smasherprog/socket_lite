@@ -32,7 +32,20 @@ namespace NET {
             }
         }
     }
-    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(PendingIO); }
+    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
+    std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
+    {
+        auto addr = listensocket->getsockname();
+        if (!addr.has_value()) {
+            return std::shared_ptr<IListener>();
+        }
+        auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+
+        if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &iocp.handle, listener->ListenSocket.get())) {
+            return std::shared_ptr<IListener>();
+        }
+        return listener;
+    }
     void Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
     {
         auto sock = overlapped->Socket_;
