@@ -40,16 +40,17 @@ namespace NET {
             if (WSAIoctl(ListenSocket->get_handle(), SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
                          sizeof(AcceptEx_), &bytes, NULL, NULL) == SOCKET_ERROR) {
                 std::cerr << "failed to load AcceptEx: " << WSAGetLastError() << std::endl;
-                handler(false);
+                handler(std::shared_ptr<ISocket>());
             }
         }
 
         DWORD recvbytes = 0;
         assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
+        Win_IO_Accept_Context_.clear();
         Win_IO_Accept_Context_.Socket_ = std::make_shared<Socket>(PendingIO, ListenSocketAddr.get_Family());
         if (!Win_IO_Accept_Context_.Socket_->setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
             std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
-            handler(false);
+            handler(std::shared_ptr<ISocket>());
         }
         else {
             Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
@@ -66,7 +67,7 @@ namespace NET {
                 std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
                 auto handl(std::move(Win_IO_Accept_Context_.completionhandler));
                 Win_IO_Accept_Context_.clear();
-                handl(false);
+                handl(std::shared_ptr<ISocket>());
             }
         }
     }

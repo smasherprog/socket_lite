@@ -17,8 +17,8 @@ namespace NET {
 
         Listener(std::atomic<size_t> &counter, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
         virtual ~Listener();
-        virtual void close();
-        virtual void async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler);
+        virtual void close() override;
+        virtual void async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler) override;
     };
 
 } // namespace NET
