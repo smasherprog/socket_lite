@@ -18,7 +18,7 @@ auto connections = 0.0;
 
 class asioserver {
   public:
-    asioserver(std::shared_ptr<SL::NET::IIO_Context> &io_context, SL::NET::PortNumber port) : IOContext(io_context)
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) : IOContext(io_context)
     {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
@@ -45,12 +45,12 @@ class asioserver {
     }
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
     void close() { Listener->close(); }
-    std::shared_ptr<SL::NET::IIO_Context> &IOContext;
+    std::shared_ptr<SL::NET::IContext> &IOContext;
     std::shared_ptr<SL::NET::IListener> Listener;
 };
 bool keepgoing = true;
 std::vector<SL::NET::sockaddr> addresses;
-void connect(std::shared_ptr<SL::NET::IIO_Context> iocontext)
+void connect(std::shared_ptr<SL::NET::IContext> iocontext)
 {
     auto socket_ = iocontext->CreateSocket();
     socket_->connect(iocontext, addresses.back(), [iocontext, socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
@@ -63,7 +63,7 @@ void connect(std::shared_ptr<SL::NET::IIO_Context> iocontext)
 void myconnectiontest()
 {
     connections = 0.0;
-    auto iocontext = SL::NET::CreateIO_Context();
+    auto iocontext = SL::NET::CreateContext();
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asioserver s(iocontext, SL::NET::PortNumber(porttouse));
     addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);

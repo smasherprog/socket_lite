@@ -1,5 +1,5 @@
 
-#include "IO_Context.h"
+#include "Context.h"
 #include "Socket.h"
 #include "common/List.h"
 #include <assert.h>
@@ -93,7 +93,7 @@ namespace NET {
         }
     }
 
-    void Socket::connect(std::shared_ptr<IIO_Context> &iocontext, sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
+    void Socket::connect(std::shared_ptr<IContext> &iocontext, sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
     {
         close();
         ReadContext.clear();
@@ -117,7 +117,7 @@ namespace NET {
                 return handler(ConnectionAttemptStatus::FailedConnect);
             }
         }
-        auto iocontext_ = std::static_pointer_cast<IO_Context>(iocontext);
+        auto iocontext_ = std::static_pointer_cast<Context>(iocontext);
         if (!iocontext_->ConnectEx_) {
             GUID guid = WSAID_CONNECTEX;
             DWORD bytes = 0;

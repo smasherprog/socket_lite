@@ -1,4 +1,4 @@
-#include "IO_Context.h"
+#include "Context.h"
 #include "Listener.h"
 #include "Socket.h"
 #include <chrono>
@@ -6,10 +6,10 @@
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
-    std::shared_ptr<IIO_Context> CreateIO_Context() { return std::make_shared<IO_Context>(); }
-    IO_Context::IO_Context() { PendingIO = 0; }
+    std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
+    Context::Context() { PendingIO = 0; }
 
-    IO_Context::~IO_Context()
+    Context::~Context()
     {
         KeepRunning = false;
         while (PendingIO != 0) {
@@ -32,8 +32,8 @@ namespace NET {
             }
         }
     }
-    std::shared_ptr<ISocket> IO_Context::CreateSocket() { return std::make_shared<Socket>(PendingIO); }
-    void IO_Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
+    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(PendingIO); }
+    void Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
     {
         auto sock = overlapped->Socket_;
         if (success && !Socket::UpdateIOCP(overlapped->Socket_->get_handle(), &iocp.handle, overlapped->Socket_.get())) {
@@ -49,11 +49,11 @@ namespace NET {
             handle(sock);
         }
     }
-    void IO_Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
+    void Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
     {
         completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, overlapped);
     }
-    void IO_Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
+    void Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
         if (trasnferedbytes == 0) {
             success = false;
@@ -61,7 +61,7 @@ namespace NET {
         overlapped->transfered_bytes += trasnferedbytes;
         completionkey->continue_read(success, overlapped);
     }
-    void IO_Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
+    void Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
         if (trasnferedbytes == 0) {
             success = false;
@@ -69,7 +69,7 @@ namespace NET {
         overlapped->transfered_bytes += trasnferedbytes;
         completionkey->continue_write(success, overlapped);
     }
-    void IO_Context::run(ThreadCount threadcount)
+    void Context::run(ThreadCount threadcount)
     {
 
         Threads.reserve(threadcount.value);

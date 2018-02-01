@@ -7,7 +7,7 @@
 namespace SL {
 namespace NET {
     class Listener;
-    class IO_Context final : public IIO_Context {
+    class Context final : public IContext {
 
         bool KeepRunning = true;
         std::vector<std::thread> Threads;
@@ -18,8 +18,8 @@ namespace NET {
         std::atomic<size_t> PendingIO;
         LPFN_CONNECTEX ConnectEx_ = nullptr;
 
-        IO_Context();
-        ~IO_Context();
+        Context();
+        ~Context();
         virtual void run(ThreadCount threadcount) override;
         virtual std::shared_ptr<ISocket> CreateSocket() override;
 

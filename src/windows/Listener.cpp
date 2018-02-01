@@ -1,5 +1,5 @@
 
-#include "IO_Context.h"
+#include "Context.h"
 #include "Listener.h"
 #include "Socket.h"
 #include <assert.h>
@@ -7,10 +7,9 @@
 
 namespace SL {
 namespace NET {
-    std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IIO_Context> &iocontext,
-                                                                 std::shared_ptr<ISocket> &&listensocket)
+    std::shared_ptr<IListener> SOCKET_LITE_EXTERN CreateListener(const std::shared_ptr<IContext> &iocontext, std::shared_ptr<ISocket> &&listensocket)
     {
-        auto context = static_cast<IO_Context *>(iocontext.get());
+        auto context = static_cast<Context *>(iocontext.get());
         auto addr = listensocket->getsockname();
         if (!addr.has_value()) {
             return std::shared_ptr<IListener>();

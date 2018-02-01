@@ -19,7 +19,7 @@ namespace NET {
         Socket(std::atomic<size_t> &iocounter, Address_Family family);
         virtual ~Socket();
         static bool UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey);
-        virtual void connect(std::shared_ptr<IIO_Context> &iocontext, SL::NET::sockaddr &address,
+        virtual void connect(std::shared_ptr<IContext> &iocontext, SL::NET::sockaddr &address,
                              const std::function<void(ConnectionAttemptStatus)> &&) override;
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;
         virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler) override;

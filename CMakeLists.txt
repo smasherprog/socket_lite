@@ -17,8 +17,8 @@ endif()
 
 if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
-		include/windows/IO_Context.h 
-		src/windows/IO_Context.cpp
+		include/windows/Context.h 
+		src/windows/Context.cpp
 		include/windows/Socket.h
 		src/windows/Socket.cpp
 		include/windows/Listener.h
@@ -38,8 +38,8 @@ elseif(APPLE)
     )
 else()
 	set(SOCKET_LITE_PLATFORM_SRC 
-		include/linux/IO_Context.h 
-		src/linux/IO_Context.cpp
+		include/linux/Context.h 
+		src/linux/Context.cpp
 		include/linux/Socket.h
 		src/linux/Socket.cpp
 		include/linux/Listener.h

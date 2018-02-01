@@ -34,7 +34,7 @@ class session : public std::enable_shared_from_this<session> {
 
 class asioserver {
   public:
-    asioserver(std::shared_ptr<SL::NET::IIO_Context> &io_context, SL::NET::PortNumber port) : IOContext(io_context)
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) : IOContext(io_context)
     {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
@@ -61,13 +61,13 @@ class asioserver {
         });
     }
     void close() { Listener->close(); }
-    std::shared_ptr<SL::NET::IIO_Context> &IOContext;
+    std::shared_ptr<SL::NET::IContext> &IOContext;
     std::shared_ptr<SL::NET::IListener> Listener;
 };
 
 class asioclient : public std::enable_shared_from_this<asioclient> {
   public:
-    asioclient(std::shared_ptr<SL::NET::IIO_Context> &io_context, const std::vector<SL::NET::sockaddr> &endpoints)
+    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints)
         : IOcontext(io_context), Addresses(endpoints)
     {
         socket_ = io_context->CreateSocket();
@@ -99,7 +99,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
             }
         });
     }
-    std::shared_ptr<SL::NET::IIO_Context> &IOcontext;
+    std::shared_ptr<SL::NET::IContext> &IOcontext;
     std::vector<SL::NET::sockaddr> Addresses;
     std::shared_ptr<SL::NET::ISocket> socket_;
 };
@@ -110,7 +110,7 @@ void mytransfertest()
     writeechos = 0.0;
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
-    auto iocontext = SL::NET::CreateIO_Context();
+    auto iocontext = SL::NET::CreateContext();
     asioserver s(iocontext, SL::NET::PortNumber(porttouse));
     auto addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);
     auto c = std::make_shared<asioclient>(iocontext, addresses);
