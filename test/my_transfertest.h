@@ -26,9 +26,6 @@ class session : public std::enable_shared_from_this<session> {
             if (bytesread == writebuffer.size() && code == SL::NET::StatusCode::SC_SUCCESS) {
                 do_read();
             }
-            else {
-                std::cout << "Closing session socket" << std::endl;
-            }
         });
     }
 
@@ -64,9 +61,6 @@ class asioserver {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(socket)->start();
                 do_accept();
-            }
-            else {
-                std::cout << "Listener Closing " << std::endl;
             }
         });
     }
@@ -104,9 +98,6 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
             if (bytesread == readbuffer.size() && code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 do_write();
-            }
-            else {
-                std::cout << "asioclient closing " << std::endl;
             }
         });
     }

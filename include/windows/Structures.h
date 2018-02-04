@@ -5,7 +5,6 @@
 #include <Windows.h>
 #include <Ws2tcpip.h>
 #include <functional>
-#include <iostream>
 #include <mswsock.h>
 
 namespace SL {

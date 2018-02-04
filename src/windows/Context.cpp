@@ -65,11 +65,17 @@ namespace NET {
     }
     void Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
+        if (trasnferedbytes == 0 && overlapped->bufferlen != 0 && success) {
+            success = WSAGetLastError() == WSA_IO_PENDING;
+        }
         overlapped->transfered_bytes += trasnferedbytes;
         completionkey->continue_read(success, overlapped);
     }
     void Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
+        if (trasnferedbytes == 0 && overlapped->bufferlen != 0 && success) {
+            success = WSAGetLastError() == WSA_IO_PENDING;
+        }
         overlapped->transfered_bytes += trasnferedbytes;
         completionkey->continue_write(success, overlapped);
     }
@@ -90,7 +96,6 @@ namespace NET {
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
                     if (!overlapped) {
-                        std::cout << "run" << std::endl;
                         return;
                     }
                     switch (overlapped->IOOperation) {

@@ -10,13 +10,13 @@
 int main()
 {
     std::srand(std::time(nullptr));
-    // myconnectiontest::myconnectiontest();
+    myconnectiontest::myconnectiontest();
 
-    // mymultithreadedechotest::myechotest();
-    // asio_multithreadedechotest::asioechotest();
-    // myechotest::myechotest();
-    // asiotest::asioechotest();
-    // asiotransfertest::asiotransfertest();
+    mymultithreadedechotest::myechotest();
+    asio_multithreadedechotest::asioechotest();
+    myechotest::myechotest();
+    asiotest::asioechotest();
+    asiotransfertest::asiotransfertest();
     mytransfertest::mytransfertest();
     return 0;
 }
