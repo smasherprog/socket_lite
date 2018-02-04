@@ -48,23 +48,20 @@ namespace NET {
     }
     void Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
     {
-        auto sock = overlapped->Socket_;
-        if (success && !Socket::UpdateIOCP(overlapped->Socket_->get_handle(), &iocp.handle, overlapped->Socket_.get())) {
-            std::cerr << "Error setsockopt SO_UPDATE_ACCEPT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-            success = false;
-        }
-        if (!success) {
-            sock.reset();
-        }
+        auto sock(std::move(overlapped->Socket_));
         auto handle(std::move(overlapped->completionhandler));
         overlapped->clear();
-        if (handle) {
-            handle(sock);
+        if (success && !Socket::UpdateIOCP(sock->get_handle(), &iocp.handle, sock.get())) {
+            sock.reset();
+            handle(TranslateError(), sock);
+        }
+        else {
+            handle(StatusCode::SC_SUCCESS, sock);
         }
     }
     void Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
     {
-        completionkey->continue_connect(success ? ConnectionAttemptStatus::SuccessfullConnect : ConnectionAttemptStatus::FailedConnect, overlapped);
+        completionkey->continue_connect(success ? StatusCode::SC_SUCCESS : TranslateError(), overlapped);
     }
     void Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {

@@ -1,7 +1,7 @@
 
 #include "Socket_Lite.h"
+#include "Structures.h"
 #include <assert.h>
-
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <Windows.h>
@@ -11,42 +11,18 @@
 #else
 #include <sys/socket.h>
 #include <sys/types.h>
-#define INVALID_SOCKET -1
+#define INVALID_SOCKET 0
 #define closesocket close
 #endif
-#include <iostream>
 #include <string>
 
 namespace SL {
 namespace NET {
-#ifdef WIN32
-    SocketErrors TranslateError(int errorcode)
+    sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Family(addr.Family), Port(addr.Port)
     {
-        switch (errorcode) {
-        case WSAECONNRESET:
-            return SocketErrors::SE_ECONNRESET;
-        case WSAETIMEDOUT:
-        case WSAECONNABORTED:
-            return SocketErrors::SE_ETIMEDOUT;
-        case WSAEWOULDBLOCK:
-            return SocketErrors::SE_EWOULDBLOCK;
-
-        default:
-            return SocketErrors::SE_ECONNRESET;
-        };
+        memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
     }
-#else
-    SocketErrors TranslateError(int errorcode)
-    {
-        switch (errorcode) {
-
-        default:
-            return SocketErrors::SE_ECONNRESET;
-        };
-    }
-#endif
-
-    sockaddr::sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, Address_Family family)
+    sockaddr::sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, AddressFamily family)
     {
         assert(len < sizeof(SocketImpl));
         memcpy(SocketImpl, buffer, len);
@@ -59,9 +35,9 @@ namespace NET {
     int sockaddr::get_SocketAddrLen() const { return SocketImplLen; }
     std::string sockaddr::get_Host() const { return Host; }
     unsigned short sockaddr::get_Port() const { return htons(Port); }
-    Address_Family sockaddr::get_Family() const { return Family; }
+    AddressFamily sockaddr::get_Family() const { return Family; }
 
-    std::vector<SL::NET::sockaddr> getaddrinfo(char *nodename, PortNumber pServiceName, Address_Family family)
+    std::tuple<StatusCode, std::vector<SL::NET::sockaddr>> getaddrinfo(char *nodename, PortNumber pServiceName, AddressFamily family)
     {
         ::addrinfo hints = {0};
         ::addrinfo *result(nullptr);
@@ -74,43 +50,37 @@ namespace NET {
         auto portstr = std::to_string(pServiceName.value);
         auto s = ::getaddrinfo(nodename, portstr.c_str(), &hints, &result);
         if (s != 0) {
-            std::cerr << "getaddrinfo" << WSAGetLastError() << std::endl;
-            return ret;
+            return std::make_tuple(TranslateError(), ret);
         }
         for (auto ptr = result; ptr != NULL; ptr = ptr->ai_next) {
 
             char str[INET_ADDRSTRLEN];
-            if (ptr->ai_family == AF_INET6 && family == Address_Family::IPV6) {
+            if (ptr->ai_family == AF_INET6 && family == AddressFamily::IPV6) {
                 auto so = (::sockaddr_in6 *)ptr->ai_addr;
                 inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
-                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, Address_Family::IPV6);
+                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6);
                 ret.push_back(tmp);
             }
-            else if (ptr->ai_family == AF_INET && family == Address_Family::IPV4) {
+            else if (ptr->ai_family == AF_INET && family == AddressFamily::IPV4) {
                 auto so = (::sockaddr_in *)ptr->ai_addr;
                 inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
-                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, Address_Family::IPV4);
+                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4);
                 ret.push_back(tmp);
             }
         }
         freeaddrinfo(result);
-        return ret;
+        return std::make_tuple(StatusCode::SC_SUCCESS, ret);
     } // namespace NET
 
-    bool ISocket::listen(int backlog) const
+    StatusCode ISocket::listen(int backlog) const
     {
-        if (handle != INVALID_SOCKET) {
-            if (::listen(handle, backlog) == SOCKET_ERROR) {
-
-                std::cerr << "listen error " << WSAGetLastError() << std::endl;
-                return false;
-            }
-            return true;
+        if (::listen(handle, backlog) == SOCKET_ERROR) {
+            return TranslateError();
         }
-        return false;
+        return StatusCode::SC_SUCCESS;
     }
 
-    void ISocket::set_handle(Platform_Socket h)
+    void ISocket::set_handle(PlatformSocket h)
     {
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
@@ -126,30 +96,27 @@ namespace NET {
         handle = INVALID_SOCKET;
     }
 
-    ConnectionAttemptStatus ISocket::connect(SL::NET::sockaddr &addresses) const
+    StatusCode ISocket::connect(SL::NET::sockaddr &addresses) const
     {
         if (::connect(handle, (::sockaddr *)addresses.get_SocketAddr(), addresses.get_SocketAddrLen()) == SOCKET_ERROR) {
-            std::cerr << "connect error " << WSAGetLastError() << std::endl;
-            return ConnectionAttemptStatus::FailedConnect;
+            return TranslateError();
         }
-        return ConnectionAttemptStatus::SuccessfullConnect;
+        return StatusCode::SC_SUCCESS;
     }
-    bool ISocket::bind(sockaddr addr)
+    StatusCode ISocket::bind(sockaddr addr)
     {
 #if _WIN32
         if (handle == INVALID_SOCKET) {
-            if (addr.get_Family() == Address_Family::IPV4) {
+            if (addr.get_Family() == AddressFamily::IPV4) {
                 handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
             }
             else {
                 handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
             }
         }
-
         if (handle == INVALID_SOCKET) {
-            std::cerr << "WSASocketW error " << WSAGetLastError() << std::endl;
+            return TranslateError();
         }
-
 #else
         if (handle == INVALID_SOCKET) {
             if (addr.Family == Address_Family::IPV4) {
@@ -159,14 +126,14 @@ namespace NET {
                 handle = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
             }
         }
-
+        if (handle == INVALID_SOCKET) {
+        }
 #endif
 
         if (::bind(handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen()) == SOCKET_ERROR) {
-            std::cerr << "bind error " << WSAGetLastError() << std::endl;
-            return false;
+            return TranslateError();
         }
-        return true;
+        return StatusCode::SC_SUCCESS;
     }
 
     std::optional<SL::NET::sockaddr> ISocket::getpeername() const
@@ -181,13 +148,13 @@ namespace NET {
                 auto so = (::sockaddr_in *)&addr;
                 inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
                 return std::optional<SL::NET::sockaddr>(
-                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, Address_Family::IPV4));
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4));
             }
             else { // AF_INET6
                 auto so = (sockaddr_in6 *)&addr;
                 inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
                 return std::optional<SL::NET::sockaddr>(
-                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, Address_Family::IPV6));
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6));
             }
         }
         return std::nullopt;
@@ -203,180 +170,189 @@ namespace NET {
                 auto so = (::sockaddr_in *)&addr;
                 inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
                 return std::optional<SL::NET::sockaddr>(
-                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, Address_Family::IPV4));
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4));
             }
             else { // AF_INET6
                 auto so = (::sockaddr_in6 *)&addr;
                 inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
                 return std::optional<SL::NET::sockaddr>(
-                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, Address_Family::IPV6));
+                    SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6));
             }
         }
         return std::nullopt;
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_DEBUG(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_DEBUG(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_ACCEPTCONN(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_ACCEPTCONN(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_ACCEPTCONN, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_BROADCAST(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_BROADCAST(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_REUSEADDR(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_REUSEADDR(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_REUSEADDR, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_KEEPALIVE(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_KEEPALIVE(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<Linger_Option> INTERNAL::getsockopt_O_LINGER(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<LingerOption>> INTERNAL::getsockopt_O_LINGER(PlatformSocket handle)
     {
         linger value;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&value, &valuelen) == 0) {
-            return std::optional<Linger_Option>(
-                {value.l_onoff == 0 ? Linger_Options::LINGER_OFF : Linger_Options::LINGER_ON, std::chrono::seconds(value.l_linger)});
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<LingerOption>({value.l_onoff == 0 ? LingerOptions::LINGER_OFF : LingerOptions::LINGER_ON,
+                                                                std::chrono::seconds(value.l_linger)}));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_OOBINLINE(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_OOBINLINE(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_EXCLUSIVEADDRUSE(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<int> INTERNAL::getsockopt_O_SNDBUF(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_SNDBUF(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDBUF, (char *)&value, &valuelen) == 0) {
-            return std::optional<int>(value);
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<int>(value));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<int> INTERNAL::getsockopt_O_RCVBUF(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_RCVBUF(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_RCVBUF, (char *)&value, &valuelen) == 0) {
-            return std::optional<int>(value);
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<int>(value));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<std::chrono::seconds> INTERNAL::getsockopt_O_SNDTIMEO(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<std::chrono::seconds>> INTERNAL::getsockopt_O_SNDTIMEO(PlatformSocket handle)
     {
 #ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-            return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<std::chrono::seconds>(value * 1000)); // convert from ms to seconds
         }
 #else
         timeval value = {0};
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-            return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<std::chrono::seconds>(value.tv_sec)); // convert from ms to seconds
         }
 #endif
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<std::chrono::seconds> INTERNAL::getsockopt_O_RCVTIMEO(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<std::chrono::seconds>> INTERNAL::getsockopt_O_RCVTIMEO(PlatformSocket handle)
     {
 #ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_RCVTIMEO, (char *)&value, &valuelen) == 0) {
-            return std::optional<std::chrono::seconds>(value * 1000); // convert from ms to seconds
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<std::chrono::seconds>(value * 1000)); // convert from ms to seconds
         }
 #else
         timeval value = {0};
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-            return std::optional<std::chrono::seconds>(value.tv_sec); // convert from ms to seconds
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<std::chrono::seconds>(value.tv_sec)); // convert from ms to seconds
         }
 #endif
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<int> INTERNAL::getsockopt_O_ERROR(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_ERROR(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, SOL_SOCKET, SO_ERROR, (char *)&value, &valuelen) == 0) {
-            return std::optional<int>(value);
+            return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<int>(value));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<SockOptStatus> INTERNAL::getsockopt_O_NODELAY(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_NODELAY(PlatformSocket handle)
     {
         int value = 0;
         int valuelen = sizeof(value);
         if (::getsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, &valuelen) == 0) {
-            return std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED);
+            return std::make_tuple(StatusCode::SC_SUCCESS,
+                                   std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
         }
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
 
-    std::optional<Blocking_Options> INTERNAL::getsockopt_O_BLOCKING(Platform_Socket handle)
+    std::tuple<StatusCode, std::optional<Blocking_Options>> INTERNAL::getsockopt_O_BLOCKING(PlatformSocket handle)
     {
 #ifdef _WIN32
 
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
 #else
         long arg = 0;
         if ((arg = fcntl(handle, F_GETFL, NULL)) < 0) {
@@ -385,72 +361,72 @@ namespace NET {
         return std::optional<Blocking_Options>((arg & O_NONBLOCK) != 0 ? Blocking_Options::NON_BLOCKING : Blocking_Options::BLOCKING);
 #endif
     }
-    bool INTERNAL::setsockopt_O_DEBUG(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_DEBUG(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_BROADCAST(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_BROADCAST(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_REUSEADDR(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_REUSEADDR(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_KEEPALIVE(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_KEEPALIVE(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_LINGER(Platform_Socket handle, Linger_Option o)
+    bool INTERNAL::setsockopt_O_LINGER(PlatformSocket handle, LingerOption o)
     {
         linger value;
-        value.l_onoff = o.l_onoff == Linger_Options::LINGER_OFF ? 0 : 1;
+        value.l_onoff = o.l_onoff == LingerOptions::LINGER_OFF ? 0 : 1;
         value.l_linger = static_cast<unsigned short>(o.l_linger.count());
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_OOBINLINE(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_OOBINLINE(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_EXCLUSIVEADDRUSE(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_EXCLUSIVEADDRUSE(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_SNDBUF(Platform_Socket handle, int b)
+    bool INTERNAL::setsockopt_O_SNDBUF(PlatformSocket handle, int b)
     {
         int value = b;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_SNDBUF, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_RCVBUF(Platform_Socket handle, int b)
+    bool INTERNAL::setsockopt_O_RCVBUF(PlatformSocket handle, int b)
     {
         int value = b;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, SOL_SOCKET, SO_RCVBUF, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_SNDTIMEO(Platform_Socket handle, std::chrono::seconds sec)
+    bool INTERNAL::setsockopt_O_SNDTIMEO(PlatformSocket handle, std::chrono::seconds sec)
     {
 #ifdef _WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
@@ -463,7 +439,7 @@ namespace NET {
 #endif
     }
 
-    bool INTERNAL::setsockopt_O_RCVTIMEO(Platform_Socket handle, std::chrono::seconds sec)
+    bool INTERNAL::setsockopt_O_RCVTIMEO(PlatformSocket handle, std::chrono::seconds sec)
     {
 #ifdef WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
@@ -476,14 +452,14 @@ namespace NET {
 #endif
     }
 
-    bool INTERNAL::setsockopt_O_NODELAY(Platform_Socket handle, SockOptStatus b)
+    bool INTERNAL::setsockopt_O_NODELAY(PlatformSocket handle, SockOptStatus b)
     {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         return ::setsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, valuelen) == 0;
     }
 
-    bool INTERNAL::setsockopt_O_BLOCKING(Platform_Socket handle, Blocking_Options b)
+    bool INTERNAL::setsockopt_O_BLOCKING(PlatformSocket handle, Blocking_Options b)
     {
 
 #ifdef WIN32
@@ -493,7 +469,7 @@ namespace NET {
         }
 #else
         int flags = fcntl(handle, F_GETFL, 0);
-        if (flags == -1)
+        if (flags == 0)
             return false;
         flags = b == Blocking_Options::BLOCKING ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
         return (fcntl(handle, F_SETFL, flags) == 0) ? true : false;

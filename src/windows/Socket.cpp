@@ -7,9 +7,9 @@
 namespace SL {
 namespace NET {
 
-    Socket::Socket(Context *context, Address_Family family) : Socket(context)
+    Socket::Socket(Context *context, AddressFamily family) : Socket(context)
     {
-        if (family == Address_Family::IPV4) {
+        if (family == AddressFamily::IPV4) {
             handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
         else {
@@ -25,25 +25,22 @@ namespace NET {
             return true;
         }
         else {
-            std::cerr << "CreateIoCompletionPort() failed: " << GetLastError() << std::endl;
             return false;
         }
     }
-    template <typename T> void IOComplete(Socket *s, Bytes_Transfered bytes, T *context)
+    template <typename T> void IOComplete(Socket *s, StatusCode code, size_t bytes, T *context)
     {
-        if (bytes == -1) {
+        if (code != StatusCode::SC_SUCCESS) {
             s->close();
+            bytes = 0;
         }
         auto handler(std::move(context->completionhandler));
         context->clear();
-        handler(bytes);
+        handler(code, bytes);
     }
 
-    void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
+    void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
     {
-        if (handle == INVALID_SOCKET) {
-            handler(-1);
-        }
         Context_->PendingIO += 1;
         assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
         ReadContext.buffer = buffer;
@@ -60,18 +57,18 @@ namespace NET {
         if (auto nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(ReadContext.Overlapped), NULL);
             nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
             Context_->PendingIO -= 1;
-            return IOComplete(this, -1, &ReadContext);
+            return IOComplete(this, TranslateError(&nRet), 0, &ReadContext);
         }
     }
 
     void Socket::continue_read(bool success, Win_IO_RW_Context *sockcontext)
     {
         if (!success) {
-            return IOComplete(this, -1, sockcontext);
+            return IOComplete(this, TranslateError(), 0, sockcontext);
         }
 
         if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
-            return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
+            return IOComplete(this, TranslateError(), sockcontext->transfered_bytes, sockcontext);
         }
         else {
             Context_->PendingIO += 1;
@@ -84,23 +81,23 @@ namespace NET {
             if (auto nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
                 Context_->PendingIO -= 1;
-                return IOComplete(this, -1, sockcontext);
+                return IOComplete(this, TranslateError(&nRet), 0, sockcontext);
             }
         }
     }
 
-    void Socket::connect(sockaddr &address, const std::function<void(ConnectionAttemptStatus)> &&handler)
+    void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
         close();
         ReadContext.clear();
-        if (address.get_Family() == Address_Family::IPV4) {
+        if (address.get_Family() == AddressFamily::IPV4) {
             sockaddr_in bindaddr = {0};
             bindaddr.sin_family = AF_INET;
             bindaddr.sin_addr.s_addr = INADDR_ANY;
             bindaddr.sin_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, Address_Family::IPV4);
-            if (!bind(mytestaddr)) {
-                return handler(ConnectionAttemptStatus::FailedConnect);
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
+            if (auto b = bind(mytestaddr); b != StatusCode::SC_SUCCESS) {
+                return handler(b);
             }
         }
         else {
@@ -108,9 +105,9 @@ namespace NET {
             bindaddr.sin6_family = AF_INET6;
             bindaddr.sin6_addr = in6addr_any;
             bindaddr.sin6_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, Address_Family::IPV6);
-            if (!bind(mytestaddr)) {
-                return handler(ConnectionAttemptStatus::FailedConnect);
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
+            if (auto b = bind(mytestaddr); b != StatusCode::SC_SUCCESS) {
+                return handler(b);
             }
         }
 
@@ -119,23 +116,14 @@ namespace NET {
             DWORD bytes = 0;
             if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &Context_->ConnectEx_, sizeof(Context_->ConnectEx_), &bytes,
                          NULL, NULL) == SOCKET_ERROR) {
-                std::cerr << "failed to load ConnectEX: " << WSAGetLastError() << std::endl;
-                return handler(ConnectionAttemptStatus::FailedConnect);
+                return handler(TranslateError());
             }
         }
         if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
-            return handler(ConnectionAttemptStatus::FailedConnect);
+            return handler(TranslateError());
         }
 
-        ReadContext.completionhandler = [ihandle(std::move(handler))](Bytes_Transfered bytestransfered)
-        {
-            if (bytestransfered == -1) {
-                ihandle(ConnectionAttemptStatus::FailedConnect);
-            }
-            else {
-                ihandle(ConnectionAttemptStatus::SuccessfullConnect);
-            }
-        };
+        ReadContext.completionhandler = [ihandle(std::move(handler))](StatusCode code, size_t) { ihandle(code); };
         ;
         ReadContext.IOOperation = IO_OPERATION::IoConnect;
         Context_->PendingIO += 1;
@@ -143,34 +131,25 @@ namespace NET {
         auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
                                                (LPOVERLAPPED)&ReadContext.Overlapped);
 
-        if (!(connectres == TRUE || (connectres == FALSE && WSAGetLastError() == ERROR_IO_PENDING))) {
+        if (auto err = WSAGetLastError(); !(connectres == TRUE || (connectres == FALSE && err == ERROR_IO_PENDING))) {
             Context_->PendingIO -= 1;
             auto chandle(std::move(ReadContext.completionhandler));
-            chandle(-1);
+            chandle(TranslateError(&err), 0);
         }
     }
-    void Socket::continue_connect(ConnectionAttemptStatus connect_success, Win_IO_RW_Context *sockcontext)
+    void Socket::continue_connect(StatusCode connect_success, Win_IO_RW_Context *sockcontext)
     {
-        if (connect_success == ConnectionAttemptStatus::SuccessfullConnect &&
-            ::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
-            std::cerr << "Error setsockopt SO_UPDATE_CONNECT_CONTEXT Code: " << WSAGetLastError() << std::endl;
-            connect_success = ConnectionAttemptStatus::FailedConnect;
-        }
-
         auto chandle(std::move(sockcontext->completionhandler));
-        if (connect_success == ConnectionAttemptStatus::FailedConnect) {
-            chandle(-1);
+        sockcontext->clear();
+        if (connect_success == StatusCode::SC_SUCCESS && ::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
+            chandle(TranslateError(), 0);
         }
         else {
-            chandle(1);
+            chandle(StatusCode::SC_SUCCESS, 0);
         }
-        sockcontext->clear();
     }
-    void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(Bytes_Transfered)> &&handler)
+    void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
     {
-        if (handle == INVALID_SOCKET) {
-            handler(-1);
-        }
         assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
         WriteContext.buffer = buffer;
         WriteContext.bufferlen = buffer_size;
@@ -180,11 +159,11 @@ namespace NET {
     }
     void Socket::continue_write(bool success, Win_IO_RW_Context *sockcontext)
     {
-        if (sockcontext->transfered_bytes == -1 || !success) {
-            return IOComplete(this, -1, sockcontext);
+        if (sockcontext->transfered_bytes == 0 || !success) {
+            return IOComplete(this, TranslateError(), 0, sockcontext);
         }
         else if (sockcontext->transfered_bytes == sockcontext->bufferlen) {
-            return IOComplete(this, sockcontext->transfered_bytes, sockcontext);
+            return IOComplete(this, StatusCode::SC_SUCCESS, sockcontext->transfered_bytes, sockcontext);
         }
         else {
             Context_->PendingIO += 1;
@@ -195,7 +174,7 @@ namespace NET {
             if (auto nRet = WSASend(handle, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(sockcontext->Overlapped), NULL);
                 nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
                 Context_->PendingIO -= 1;
-                return IOComplete(this, -1, sockcontext);
+                return IOComplete(this, TranslateError(&nRet), 0, sockcontext);
             }
         }
     }

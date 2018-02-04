@@ -22,23 +22,27 @@ class asioserver {
     {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
-        for (auto &address : SL::NET::getaddrinfo(nullptr, port, SL::NET::Address_Family::IPV4)) {
+        auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, SL::NET::AddressFamily::IPV4);
+        if (code != SL::NET::StatusCode::SC_SUCCESS) {
+            std::cout << "Error code:" << code << std::endl;
+        }
+        for (auto &address : addresses) {
             auto lsock = io_context->CreateSocket();
-            if (lsock->bind(address)) {
-                if (lsock->listen(5)) {
+            if (lsock->bind(address) == SL::NET::StatusCode::SC_SUCCESS) {
+                if (lsock->listen(5) == SL::NET::StatusCode::SC_SUCCESS) {
                     listensocket = lsock;
                 }
             }
         }
-        listensocket->setsockopt<SL::NET::Socket_Options::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
+        listensocket->setsockopt<SL::NET::SocketOptions::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
         Listener = io_context->CreateListener(std::move(listensocket));
         do_accept();
     }
     ~asioserver() { close(); }
     void do_accept()
     {
-        Listener->async_accept([this](const std::shared_ptr<SL::NET::ISocket> &socket) {
-            if (socket) {
+        Listener->async_accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+            if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 do_accept();
             }
         });
@@ -53,11 +57,12 @@ std::vector<SL::NET::sockaddr> addresses;
 void connect(std::shared_ptr<SL::NET::IContext> iocontext)
 {
     auto socket_ = iocontext->CreateSocket();
-    socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::ConnectionAttemptStatus connectstatus) {
+    socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::StatusCode connectstatus) {
         connections += 1.0;
         if (keepgoing) {
             connect(iocontext);
         }
+
     });
 }
 void myconnectiontest()
@@ -66,8 +71,11 @@ void myconnectiontest()
     auto iocontext = SL::NET::CreateContext();
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asioserver s(iocontext, SL::NET::PortNumber(porttouse));
-    addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::Address_Family::IPV4);
-
+    auto[code, addrs] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+    if (code != SL::NET::StatusCode::SC_SUCCESS) {
+        std::cout << "Error code:" << code << std::endl;
+    }
+    addresses = addrs;
     iocontext->run(SL::NET::ThreadCount(2));
     connect(iocontext);
 

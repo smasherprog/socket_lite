@@ -3,7 +3,6 @@
 #include "Listener.h"
 #include "Socket.h"
 #include <assert.h>
-#include <iostream>
 
 namespace SL {
 namespace NET {
@@ -16,15 +15,14 @@ namespace NET {
 
     void Listener::close() { ListenSocket->close(); }
 
-    void Listener::async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler)
+    void Listener::async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
     {
         if (!AcceptEx_) {
             GUID acceptex_guid = WSAID_ACCEPTEX;
             DWORD bytes = 0;
             if (WSAIoctl(ListenSocket->get_handle(), SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
                          sizeof(AcceptEx_), &bytes, NULL, NULL) == SOCKET_ERROR) {
-                std::cerr << "failed to load AcceptEx: " << WSAGetLastError() << std::endl;
-                handler(std::shared_ptr<ISocket>());
+                handler(TranslateError(), std::shared_ptr<ISocket>());
             }
         }
 
@@ -32,9 +30,8 @@ namespace NET {
         assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
         Win_IO_Accept_Context_.clear();
         Win_IO_Accept_Context_.Socket_ = std::make_shared<Socket>(Context_, ListenSocketAddr.get_Family());
-        if (!Win_IO_Accept_Context_.Socket_->setsockopt<Socket_Options::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
-            std::cerr << "failed to set socket to non blocking " << WSAGetLastError() << std::endl;
-            handler(std::shared_ptr<ISocket>());
+        if (!Win_IO_Accept_Context_.Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
+            handler(TranslateError(), std::shared_ptr<ISocket>());
         }
         else {
             Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
@@ -48,10 +45,10 @@ namespace NET {
 
             if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
                 Context_->PendingIO -= 1;
-                std::cerr << "Error AcceptEx_ Code: " << wsaerr << std::endl;
+
                 auto handl(std::move(Win_IO_Accept_Context_.completionhandler));
                 Win_IO_Accept_Context_.clear();
-                handl(std::shared_ptr<ISocket>());
+                handl(TranslateError(&wsaerr), std::shared_ptr<ISocket>());
             }
         }
     }

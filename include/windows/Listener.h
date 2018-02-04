@@ -17,7 +17,7 @@ namespace NET {
         Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
         virtual ~Listener();
         virtual void close() override;
-        virtual void async_accept(const std::function<void(const std::shared_ptr<ISocket> &)> &&handler) override;
+        virtual void async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler) override;
     };
 
 } // namespace NET

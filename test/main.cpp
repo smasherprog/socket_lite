@@ -7,7 +7,7 @@
 #include "my_multithreadedecho.h"
 #include "my_transfertest.h"
 
-int main(int argc, char *argv[])
+int main()
 {
     std::srand(std::time(nullptr));
     myconnectiontest::myconnectiontest();

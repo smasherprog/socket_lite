@@ -5,7 +5,6 @@
 #include <Windows.h>
 #include <Ws2tcpip.h>
 #include <functional>
-#include <iostream>
 #include <mswsock.h>
 
 namespace SL {
@@ -38,7 +37,7 @@ namespace NET {
         IOCP()
         {
             if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0); handle == NULL) {
-                std::cerr << "CreateIoCompletionPort() failed to create I/O completion port: " << GetLastError() << std::endl;
+                //  std::cerr << "CreateIoCompletionPort() failed to create I/O completion port: " << GetLastError() << std::endl;
             }
         }
         ~IOCP()
@@ -49,6 +48,35 @@ namespace NET {
         }
         operator bool() const { return handle != NULL; }
     };
+
+#ifdef WIN32
+    inline StatusCode TranslateError(int *errcode = nullptr)
+    {
+        auto errorcode = errcode != nullptr ? *errcode : WSAGetLastError();
+        switch (errorcode) {
+        case WSAECONNRESET:
+            return StatusCode::SC_ECONNRESET;
+        case WSAETIMEDOUT:
+        case WSAECONNABORTED:
+            return StatusCode::SC_ETIMEDOUT;
+        case WSAEWOULDBLOCK:
+            return StatusCode::SC_EWOULDBLOCK;
+
+        default:
+            return StatusCode::SC_SUCCESS;
+        };
+    }
+#else
+    inline SocketErrors TranslateError(int *errcode = nullptr)
+    {
+        switch (errorcode) {
+
+        default:
+            return SocketErrors::SE_ECONNRESET;
+        };
+    }
+#endif
+
     class Socket;
     struct Win_IO_Context {
         WSAOVERLAPPED Overlapped = {0};
@@ -57,7 +85,7 @@ namespace NET {
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
-        std::function<void(const std::shared_ptr<ISocket> &)> completionhandler;
+        std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
         void clear()
         {
             Overlapped = {0};
@@ -67,10 +95,10 @@ namespace NET {
         }
     };
     struct Win_IO_RW_Context : Win_IO_Context {
-        Bytes_Transfered transfered_bytes = 0;
-        Bytes_Transfered bufferlen = 0;
+        size_t transfered_bytes = 0;
+        size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
-        std::function<void(Bytes_Transfered)> completionhandler;
+        std::function<void(StatusCode, size_t)> completionhandler;
         void clear()
         {
             Overlapped = {0};
