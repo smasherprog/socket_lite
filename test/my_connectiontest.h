@@ -18,7 +18,7 @@ auto connections = 0.0;
 
 class asioserver {
   public:
-    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) : IOContext(io_context)
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
     {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
@@ -49,7 +49,7 @@ class asioserver {
     }
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::high_resolution_clock::now();
     void close() { Listener->close(); }
-    std::shared_ptr<SL::NET::IContext> &IOContext;
+
     std::shared_ptr<SL::NET::IListener> Listener;
 };
 bool keepgoing = true;
@@ -82,6 +82,7 @@ void myconnectiontest()
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
+    s.close();
 }
 
 } // namespace myconnectiontest

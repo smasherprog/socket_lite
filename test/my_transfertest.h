@@ -26,6 +26,9 @@ class session : public std::enable_shared_from_this<session> {
             if (bytesread == writebuffer.size() && code == SL::NET::StatusCode::SC_SUCCESS) {
                 do_read();
             }
+            else {
+                std::cout << "Closing session socket" << std::endl;
+            }
         });
     }
 
@@ -34,7 +37,7 @@ class session : public std::enable_shared_from_this<session> {
 
 class asioserver {
   public:
-    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) : IOContext(io_context)
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
     {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
@@ -43,7 +46,7 @@ class asioserver {
             std::cout << "Error code:" << code << std::endl;
         }
         for (auto &address : addresses) {
-            auto lsock = IOContext->CreateSocket();
+            auto lsock = io_context->CreateSocket();
             if (lsock->bind(address) == SL::NET::StatusCode::SC_SUCCESS) {
                 if (lsock->listen(5) == SL::NET::StatusCode::SC_SUCCESS) {
                     listensocket = lsock;
@@ -58,21 +61,22 @@ class asioserver {
     void do_accept()
     {
         Listener->async_accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
-            if (socket && code == SL::NET::StatusCode::SC_SUCCESS == code) {
+            if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(socket)->start();
                 do_accept();
+            }
+            else {
+                std::cout << "Listener Closing " << std::endl;
             }
         });
     }
     void close() { Listener->close(); }
-    std::shared_ptr<SL::NET::IContext> &IOContext;
     std::shared_ptr<SL::NET::IListener> Listener;
 };
 
 class asioclient : public std::enable_shared_from_this<asioclient> {
   public:
-    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints)
-        : IOcontext(io_context), Addresses(endpoints)
+    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
     {
         socket_ = io_context->CreateSocket();
         do_connect();
@@ -97,13 +101,15 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     {
         auto self(shared_from_this());
         socket_->send(readbuffer.size(), (unsigned char *)readbuffer.data(), [self, this](SL::NET::StatusCode code, size_t bytesread) {
-            if (bytesread == readbuffer.size()) {
+            if (bytesread == readbuffer.size() && code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 do_write();
             }
+            else {
+                std::cout << "asioclient closing " << std::endl;
+            }
         });
     }
-    std::shared_ptr<SL::NET::IContext> &IOcontext;
     std::vector<SL::NET::sockaddr> Addresses;
     std::shared_ptr<SL::NET::ISocket> socket_;
 };

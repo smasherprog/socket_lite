@@ -66,9 +66,8 @@ namespace NET {
         if (!success) {
             return IOComplete(this, TranslateError(), 0, sockcontext);
         }
-
-        if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
-            return IOComplete(this, TranslateError(), sockcontext->transfered_bytes, sockcontext);
+        else if (sockcontext->bufferlen == sockcontext->transfered_bytes) {
+            return IOComplete(this, StatusCode::SC_SUCCESS, sockcontext->transfered_bytes, sockcontext);
         }
         else {
             Context_->PendingIO += 1;
@@ -88,7 +87,7 @@ namespace NET {
 
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        close();
+        ISocket::close();
         ReadContext.clear();
         if (address.get_Family() == AddressFamily::IPV4) {
             sockaddr_in bindaddr = {0};
@@ -159,7 +158,7 @@ namespace NET {
     }
     void Socket::continue_write(bool success, Win_IO_RW_Context *sockcontext)
     {
-        if (sockcontext->transfered_bytes == 0 || !success) {
+        if (!success) {
             return IOComplete(this, TranslateError(), 0, sockcontext);
         }
         else if (sockcontext->transfered_bytes == sockcontext->bufferlen) {

@@ -76,6 +76,7 @@ namespace NET {
         SC_ENOTSOCK,
         SC_EOPNOTSUPP,
         SC_ETIMEDOUT,
+        SC_CLOSED,
         SC_SUCCESS = 0
     };
     enum class LingerOptions { LINGER_OFF, LINGER_ON };

@@ -5,6 +5,7 @@
 #include <Windows.h>
 #include <Ws2tcpip.h>
 #include <functional>
+#include <iostream>
 #include <mswsock.h>
 
 namespace SL {
@@ -52,7 +53,8 @@ namespace NET {
 #ifdef WIN32
     inline StatusCode TranslateError(int *errcode = nullptr)
     {
-        auto errorcode = errcode != nullptr ? *errcode : WSAGetLastError();
+        auto originalerr = WSAGetLastError();
+        auto errorcode = errcode != nullptr ? *errcode : originalerr;
         switch (errorcode) {
         case WSAECONNRESET:
             return StatusCode::SC_ECONNRESET;
@@ -63,7 +65,7 @@ namespace NET {
             return StatusCode::SC_EWOULDBLOCK;
 
         default:
-            return StatusCode::SC_SUCCESS;
+            return StatusCode::SC_CLOSED;
         };
     }
 #else

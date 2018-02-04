@@ -51,7 +51,7 @@ namespace NET {
         auto sock(std::move(overlapped->Socket_));
         auto handle(std::move(overlapped->completionhandler));
         overlapped->clear();
-        if (success && !Socket::UpdateIOCP(sock->get_handle(), &iocp.handle, sock.get())) {
+        if (!success || (success && !Socket::UpdateIOCP(sock->get_handle(), &iocp.handle, sock.get()))) {
             sock.reset();
             handle(TranslateError(), sock);
         }
@@ -65,20 +65,15 @@ namespace NET {
     }
     void Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
-        if (trasnferedbytes == 0) {
-            success = false;
-        }
         overlapped->transfered_bytes += trasnferedbytes;
         completionkey->continue_read(success, overlapped);
     }
     void Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
-        if (trasnferedbytes == 0) {
-            success = false;
-        }
         overlapped->transfered_bytes += trasnferedbytes;
         completionkey->continue_write(success, overlapped);
     }
+
     void Context::run(ThreadCount threadcount)
     {
 
@@ -95,6 +90,7 @@ namespace NET {
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
                     if (!overlapped) {
+                        std::cout << "run" << std::endl;
                         return;
                     }
                     switch (overlapped->IOOperation) {
