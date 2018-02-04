@@ -230,7 +230,7 @@ namespace NET {
     }
     std::tuple<StatusCode, std::vector<sockaddr>> SOCKET_LITE_EXTERN getaddrinfo(char *nodename, PortNumber pServiceName, AddressFamily family);
     class IContext;
-    class SOCKET_LITE_EXTERN ISocket : std::enable_shared_from_this<ISocket> {
+    class SOCKET_LITE_EXTERN ISocket {
 
       protected:
         PlatformSocket handle;
