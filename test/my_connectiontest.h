@@ -67,6 +67,7 @@ void connect(std::shared_ptr<SL::NET::IContext> iocontext)
 }
 void myconnectiontest()
 {
+    std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
     auto iocontext = SL::NET::CreateContext();
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);

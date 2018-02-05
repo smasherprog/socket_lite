@@ -133,6 +133,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 
 void myechotest()
 {
+    std::cout << "Starting My Echo Test" << std::endl;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     auto iocontext = SL::NET::CreateContext();
     asioserver s(iocontext, SL::NET::PortNumber(porttouse));

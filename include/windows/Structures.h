@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common/Structures.h"
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
@@ -77,7 +76,7 @@ namespace NET {
         };
     }
 #endif
-
+    enum IO_OPERATION { IoNone, IoConnect, IoAccept, IoRead, IoWrite };
     class Socket;
     struct Win_IO_Context {
         WSAOVERLAPPED Overlapped = {0};

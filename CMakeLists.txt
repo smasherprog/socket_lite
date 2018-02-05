@@ -58,9 +58,6 @@ include_directories(
 )
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h
-	include/common/SpinLock.h
-	include/common/Structures.h
-	include/common/List.h
 	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )
