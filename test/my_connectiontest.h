@@ -59,10 +59,9 @@ void connect(std::shared_ptr<SL::NET::IContext> iocontext)
     auto socket_ = iocontext->CreateSocket();
     socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::StatusCode connectstatus) {
         connections += 1.0;
-        if (keepgoing) {
+        if (keepgoing && connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
             connect(iocontext);
         }
-
     });
 }
 void myconnectiontest()
