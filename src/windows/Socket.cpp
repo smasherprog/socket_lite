@@ -143,11 +143,16 @@ namespace NET {
     {
         auto chandle(std::move(sockcontext->completionhandler));
         sockcontext->clear();
-        if (connect_success == StatusCode::SC_SUCCESS && ::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
-            chandle(TranslateError(), 0);
+        if (connect_success == StatusCode::SC_SUCCESS) {
+            if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
+                chandle(TranslateError(), 0);
+            }
+            else {
+                chandle(StatusCode::SC_SUCCESS, 0);
+            }
         }
         else {
-            chandle(StatusCode::SC_SUCCESS, 0);
+            chandle(TranslateError(), 0);
         }
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
