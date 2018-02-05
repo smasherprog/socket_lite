@@ -52,14 +52,14 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
 
     std::shared_ptr<SL::NET::IListener> Listener;
 };
-bool keepgoing = true;
+
 std::vector<SL::NET::sockaddr> addresses;
 void connect(std::shared_ptr<SL::NET::IContext> iocontext)
 {
     auto socket_ = iocontext->CreateSocket();
     socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::StatusCode connectstatus) {
         connections += 1.0;
-        if (keepgoing && connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
+        if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
             connect(iocontext);
         }
     });
@@ -81,9 +81,7 @@ void myconnectiontest()
     connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    keepgoing = false;
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
     s->close();
 }
-
 } // namespace myconnectiontest

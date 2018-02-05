@@ -128,8 +128,12 @@ namespace NET {
         DWORD bytessend = 0;
         auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
                                                (LPOVERLAPPED)&ReadContext.Overlapped);
-
-        if (auto err = WSAGetLastError(); !(connectres == TRUE || (connectres == FALSE && err == ERROR_IO_PENDING))) {
+        if (connectres == TRUE) {
+            Context_->PendingIO -= 1;
+            auto chandle(std::move(ReadContext.completionhandler));
+            chandle(StatusCode::SC_SUCCESS, 0);
+        }
+        else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             Context_->PendingIO -= 1;
             auto chandle(std::move(ReadContext.completionhandler));
             chandle(TranslateError(&err), 0);
