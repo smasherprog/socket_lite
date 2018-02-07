@@ -7,23 +7,21 @@ namespace SL
 namespace NET
 {
 class Socket;
-class IO_Context;
+class Context;
 class Listener final : public IListener
 {
     std::shared_ptr<Socket> ListenSocket;
     Win_IO_Accept_Context Win_IO_Accept_Context_;
-    std::shared_ptr<IO_Context> IO_Context_;
     sockaddr ListenSocketAddr;
-    IOCP iocp;
-    std::thread AcceptThread;
+    Context* Context_;
 public:
 
 
-    Listener(const std::shared_ptr<IO_Context>& context, std::shared_ptr<ISocket> &&socket, const sockaddr& addr);
+    Listener( Context* context, std::shared_ptr<ISocket> &&socket, const sockaddr& addr);
     virtual ~Listener();
     virtual void close() override;
-    virtual void async_accept(const std::function<void(bool)> &&handler)override;
-    void handleaccept(epoll_event% ev);
+    virtual void async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket>&)> &&handler)override;
+    void handleaccept(epoll_event& ev);
 
 };
 
