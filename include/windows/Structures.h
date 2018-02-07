@@ -48,7 +48,7 @@ namespace NET {
         operator bool() const { return handle != NULL; }
     };
 
-#ifdef WIN32
+
     inline StatusCode TranslateError(int *errcode = nullptr)
     {
         auto originalerr = WSAGetLastError();
@@ -65,17 +65,7 @@ namespace NET {
         default:
             return StatusCode::SC_CLOSED;
         };
-    }
-#else
-    inline SocketErrors TranslateError(int *errcode = nullptr)
-    {
-        switch (errorcode) {
-
-        default:
-            return SocketErrors::SE_ECONNRESET;
-        };
-    }
-#endif
+    } 
     enum IO_OPERATION { IoNone, IoConnect, IoAccept, IoRead, IoWrite };
     class Socket;
     struct Win_IO_Context {
