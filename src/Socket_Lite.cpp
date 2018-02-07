@@ -351,8 +351,7 @@ namespace NET {
     std::tuple<StatusCode, std::optional<Blocking_Options>> INTERNAL::getsockopt_O_BLOCKING(PlatformSocket handle)
     {
 #ifdef _WIN32
-
-        return std::make_tuple(TranslateError(), std::nullopt);
+        return std::make_tuple(StatusCode::SC_NOTSUPPORTED, std::nullopt);
 #else
         long arg = 0;
         if ((arg = fcntl(handle, F_GETFL, NULL)) < 0) {
