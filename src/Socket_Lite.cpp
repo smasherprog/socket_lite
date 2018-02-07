@@ -7,7 +7,7 @@
 #include <Windows.h>
 #include <Ws2tcpip.h>
 #include <mswsock.h>
-
+typedef int SOCKLEN_T;
 #else
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -15,6 +15,7 @@
 #define INVALID_SOCKET 0
 #define closesocket ::close
 #define SOCKET_ERROR -1
+typedef socklen_t SOCKLEN_T;
 #endif
 #include <string>
 #include <string.h>
@@ -195,7 +196,7 @@ std::optional<SL::NET::sockaddr> ISocket::getsockname() const
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_DEBUG(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_DEBUG, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -206,7 +207,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_DEBU
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_ACCEPTCONN(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_ACCEPTCONN, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -217,7 +218,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_ACCE
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_BROADCAST(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -228,7 +229,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_BROA
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_REUSEADDR(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_REUSEADDR, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -239,7 +240,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_REUS
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_KEEPALIVE(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -250,7 +251,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_KEEP
 std::tuple<StatusCode, std::optional<LingerOption>> INTERNAL::getsockopt_O_LINGER(PlatformSocket handle)
 {
     linger value;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_LINGER, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<LingerOption>( {value.l_onoff == 0 ? LingerOptions::LINGER_OFF : LingerOptions::LINGER_ON,
@@ -263,7 +264,7 @@ std::tuple<StatusCode, std::optional<LingerOption>> INTERNAL::getsockopt_O_LINGE
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_OOBINLINE(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_OOBINLINE, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -274,7 +275,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_OOBI
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_EXCLUSIVEADDRUSE(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -285,7 +286,7 @@ std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_EXCL
 std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_SNDBUF(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_SNDBUF, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<int>(value));
     }
@@ -295,7 +296,7 @@ std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_SNDBUF(Platfor
 std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_RCVBUF(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_RCVBUF, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<int>(value));
     }
@@ -312,7 +313,7 @@ std::tuple<StatusCode, std::optional<std::chrono::seconds>> INTERNAL::getsockopt
     }
 #else
     timeval value = {0};
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<std::chrono::seconds>(value.tv_sec)); // convert from ms to seconds
     }
@@ -330,7 +331,7 @@ std::tuple<StatusCode, std::optional<std::chrono::seconds>> INTERNAL::getsockopt
     }
 #else
     timeval value = {0};
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<std::chrono::seconds>(value.tv_sec)); // convert from ms to seconds
     }
@@ -341,7 +342,7 @@ std::tuple<StatusCode, std::optional<std::chrono::seconds>> INTERNAL::getsockopt
 std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_ERROR(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, SOL_SOCKET, SO_ERROR, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS, std::optional<int>(value));
     }
@@ -351,7 +352,7 @@ std::tuple<StatusCode, std::optional<int>> INTERNAL::getsockopt_O_ERROR(Platform
 std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_NODELAY(PlatformSocket handle)
 {
     int value = 0;
-    int valuelen = sizeof(value);
+    SOCKLEN_T valuelen = sizeof(value);
     if (::getsockopt(handle, IPPROTO_TCP, TCP_NODELAY, (char *)&value, &valuelen) == 0) {
         return std::make_tuple(StatusCode::SC_SUCCESS,
                                std::optional<SockOptStatus>(value != 0 ? SockOptStatus::ENABLED : SockOptStatus::DISABLED));
@@ -367,7 +368,7 @@ std::tuple<StatusCode, std::optional<Blocking_Options>> INTERNAL::getsockopt_O_B
 #else
     long arg = 0;
     if ((arg = fcntl(handle, F_GETFL, NULL)) < 0) {
-        return std::nullopt;
+        return std::make_tuple(TranslateError(), std::nullopt);
     }
     return std::optional<Blocking_Options>((arg & O_NONBLOCK) != 0 ? Blocking_Options::NON_BLOCKING : Blocking_Options::BLOCKING);
 #endif
