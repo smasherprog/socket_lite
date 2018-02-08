@@ -30,7 +30,7 @@ sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Ho
 {
     memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
 }
-sockaddr::sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, AddressFamily family)
+sockaddr::sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family)
 {
     assert(static_cast<size_t>(len) < sizeof(SocketImpl));
     memcpy(SocketImpl, buffer, len);
@@ -60,7 +60,7 @@ AddressFamily sockaddr::get_Family() const
     return Family;
 }
 
-std::tuple<StatusCode, std::vector<SL::NET::sockaddr>> getaddrinfo(char *nodename, PortNumber pServiceName, AddressFamily family)
+std::tuple<StatusCode, std::vector<SL::NET::sockaddr>> getaddrinfo(const char *nodename, PortNumber pServiceName, AddressFamily family)
 {
     ::addrinfo hints = {0};
     ::addrinfo *result(nullptr);
@@ -382,7 +382,7 @@ bool INTERNAL::setsockopt_O_REUSEADDR(PlatformSocket handle, SockOptStatus b)
 {
     int value = b == SockOptStatus::ENABLED ? 1 : 0;
     int valuelen = sizeof(value);
-    return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
+            return ::setsockopt(handle, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0;
 }
 
 bool INTERNAL::setsockopt_O_KEEPALIVE(PlatformSocket handle, SockOptStatus b)

@@ -114,7 +114,7 @@ class SOCKET_LITE_EXTERN sockaddr
 
 public:
     sockaddr() {}
-    sockaddr(unsigned char *buffer, int len, char *host, unsigned short port, AddressFamily family);
+    sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
     sockaddr(const sockaddr &addr);
     const unsigned char *get_SocketAddr() const;
     int get_SocketAddrLen() const;
@@ -295,7 +295,7 @@ template <SocketOptions SO, typename... Args> auto setsockopt(PlatformSocket han
 {
     return INTERNAL::setsockopt_factory_impl<SO>::setsockopt_(handle, std::forward<Args>(args)...);
 }
-std::tuple<StatusCode, std::vector<sockaddr>> SOCKET_LITE_EXTERN getaddrinfo(char *nodename, PortNumber pServiceName, AddressFamily family);
+std::tuple<StatusCode, std::vector<sockaddr>> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber pServiceName, AddressFamily family);
 class IContext;
 class SOCKET_LITE_EXTERN ISocket
 {

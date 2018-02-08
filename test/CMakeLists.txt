@@ -1,6 +1,7 @@
 project(socket_lite_test)
-
-
+include_directories(
+	.
+)
 add_executable(${PROJECT_NAME} main.cpp asio_echotest.h my_echotest.h asio_transfertest.h my_connectiontest.h my_transfertest.h my_multithreadedecho.h asio_multithreadedechotest.h) 
 find_package(Threads REQUIRED)
 if(WIN32) 
