@@ -1,0 +1,107 @@
+#include "Context.h"
+#include "Listener.h"
+#include "Socket.h"
+#include <chrono>
+
+using namespace std::chrono_literals;
+namespace SL
+{
+namespace NET
+{
+std::shared_ptr<ISocket> Context::CreateSocket()
+{
+    return std::make_shared<Socket>(this);
+}
+std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
+{
+    listensocket->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
+    auto addr = listensocket->getsockname();
+    auto listenhandle = listensocket->get_handle();
+    if(!addr.has_value()) {
+        return std::shared_ptr<IListener>();
+    }
+    auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+
+    epoll_event ev;
+    ev.data.fd = listenhandle;
+    ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listenhandle, &ev)==-1) {
+        return std::shared_ptr<IListener>();
+    }
+    return listener;
+}
+std::shared_ptr<IContext> CreateContext()
+{
+    return std::make_shared<Context>();
+}
+Context::Context()
+{
+    PendingIO = 0;
+}
+
+Context::~Context()
+{
+    KeepRunning = false;
+    while (PendingIO != 0) {
+        std::this_thread::sleep_for(1ms);
+    }
+
+
+    for (auto &t : Threads) {
+
+        if (t.joinable()) {
+            // destroying myself
+            if (t.get_id() == std::this_thread::get_id()) {
+                t.detach();
+            } else {
+                t.join();
+            }
+        }
+    }
+}
+void Context::handleaccept(int socket)
+{
+    epoll_event ev = {0};
+    ev.data.fd = socket;
+    ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    epoll_ctl(iocp.handle, EPOLL_CTL_ADD, socket, &ev);
+}
+
+void Context::run(ThreadCount threadcount)
+{
+
+    Threads.reserve(threadcount.value);
+    for (auto i = 0; i < threadcount.value; i++) {
+        Threads.push_back(std::thread([&] {
+            std::vector<epoll_event> epollevents;
+            epollevents.resize(MAXEVENTS);
+            while (true) {
+                int efd =-1;
+                auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
+                for(auto i=0; i< count ; i++) {
+                    auto temp = IO_OPERATION::IoAccept;
+                    switch (temp) {
+                    case IO_OPERATION::IoConnect:
+
+                        break;
+                    case IO_OPERATION::IoAccept:
+
+                        break;
+                    case IO_OPERATION::IoRead:
+                        break;
+                    case IO_OPERATION::IoWrite:
+                        break;
+                    default:
+                        break;
+                    }
+                    if (--PendingIO == 0) {
+                        return;
+                    }
+                }
+            }
+        }));
+    }
+}
+
+}
+}

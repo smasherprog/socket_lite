@@ -10,10 +10,11 @@ class Socket;
 class Context;
 class Listener final : public IListener
 {
+    Context* Context_;
     std::shared_ptr<Socket> ListenSocket;
     Win_IO_Accept_Context Win_IO_Accept_Context_;
     sockaddr ListenSocketAddr;
-    Context* Context_;
+
 public:
 
 
