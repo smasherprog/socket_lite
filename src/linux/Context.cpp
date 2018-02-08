@@ -24,7 +24,7 @@ std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&li
 
     epoll_event ev;
     ev.data.fd = listenhandle;
-    ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
     if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listenhandle, &ev)==-1) {
         return std::shared_ptr<IListener>();
     }
@@ -45,10 +45,7 @@ Context::~Context()
     while (PendingIO != 0) {
         std::this_thread::sleep_for(1ms);
     }
-
-
     for (auto &t : Threads) {
-
         if (t.joinable()) {
             // destroying myself
             if (t.get_id() == std::this_thread::get_id()) {
@@ -63,7 +60,7 @@ void Context::handleaccept(int socket)
 {
     epoll_event ev = {0};
     ev.data.fd = socket;
-    ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
     epoll_ctl(iocp.handle, EPOLL_CTL_ADD, socket, &ev);
 }
 
@@ -76,11 +73,10 @@ void Context::run(ThreadCount threadcount)
             std::vector<epoll_event> epollevents;
             epollevents.resize(MAXEVENTS);
             while (true) {
-                int efd =-1;
                 auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
                 for(auto i=0; i< count ; i++) {
-                    auto temp = IO_OPERATION::IoAccept;
-                    switch (temp) {
+                    auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
+                    switch (ctx->IOOperation) {
                     case IO_OPERATION::IoConnect:
 
                         break;
