@@ -447,6 +447,7 @@ namespace NET {
         if (auto nRet = ioctlsocket(handle, FIONBIO, &iMode); nRet != NO_ERROR) {
             return false;
         }
+        return true;
 #else
         int flags = fcntl(handle, F_GETFL, 0);
         if (flags == 0)
@@ -454,7 +455,7 @@ namespace NET {
         flags = b == Blocking_Options::BLOCKING ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
         return (fcntl(handle, F_SETFL, flags) == 0) ? true : false;
 #endif
-        return true;
+
     } // namespace NET
 
 } // namespace NET
