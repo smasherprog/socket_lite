@@ -58,6 +58,7 @@ struct Win_IO_Accept_Context:IO_Context  {
     }
 };
 struct Win_IO_RW_Context :IO_Context  {
+    std::shared_ptr<Socket> Socket_;
     size_t transfered_bytes = 0;
     size_t bufferlen = 0;
     unsigned char *buffer = nullptr;
@@ -66,6 +67,7 @@ struct Win_IO_RW_Context :IO_Context  {
         IOOperation = IO_OPERATION::IoNone;
         transfered_bytes = 0;
         bufferlen = 0;
+        Socket_.reset();
         buffer = nullptr;
         completionhandler = nullptr;
     }

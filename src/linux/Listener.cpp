@@ -22,11 +22,12 @@ void Listener::close()
 
 void Listener::async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket>&)> &&handler)
 {
-
-
-}
-void Listener::handleaccept(epoll_event& ev)
-{
+    assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
+    epoll_event ev = {0};
+    ev.data.ptr = completionkey;
+    ev.data.fd = socket;
+    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, ListenSocket->get_handle(), &ev) != -1;
 }
 }
 }

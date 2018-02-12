@@ -56,14 +56,43 @@ Context::~Context()
         }
     }
 }
-void Context::handleaccept(int socket)
+void Context::handleaccept(bool success, Win_IO_Accept_Context* context)
 {
+    auto sock(std::move(context->Socket_));
+    auto handle(std::move(context->completionhandler));
+    
     epoll_event ev = {0};
+    ev.data.ptr = completionkey;
     ev.data.fd = socket;
     ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
-    epoll_ctl(iocp.handle, EPOLL_CTL_ADD, socket, &ev);
+    epoll_ctl(epollh, EPOLL_CTL_ADD, socket, &ev) != -1;
+    
+    if(!success || (socket && !Socket::UpdateEpoll(sock->get_handle(), iocp.handle, sock.get()))) {
+        sock.reset();
+        handle(TranslateError(), sock);
+    } else {
+        handle(StatusCode::SC_SUCCESS, sock);
+    }
 }
+void Context::handleconnect(bool success, Win_IO_RW_Context* context)
+{
+    auto sock(std::move(context->Socket_));
+    auto handle(std::move(context->completionhandler));
+    if(!success || (socket && !Socket::UpdateEpoll(sock->get_handle(), iocp.handle, sock.get()))) {
+        sock.reset();
+        handle(TranslateError(), sock);
+    } else {
+        handle(StatusCode::SC_SUCCESS, sock);
+    }
+}
+void Context::handlerecv(bool success, Win_IO_RW_Context* context)
+{
 
+}
+void Context::handlewrite(bool success, Win_IO_RW_Context* context)
+{
+
+}
 void Context::run(ThreadCount threadcount)
 {
 

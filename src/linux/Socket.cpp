@@ -8,14 +8,6 @@ namespace SL
 namespace NET
 {
 
-bool Socket::UpdateEpoll(int socket, int epollh, void* completionkey)
-{
-    epoll_event ev = {0};
-    ev.data.ptr = completionkey;
-    ev.data.fd = socket;
-    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
-    return epoll_ctl(epollh, EPOLL_CTL_ADD, socket, &ev) != -1;
-}
 Socket::Socket(Context* context, AddressFamily family) : Socket(context)
 {
     if (family == AddressFamily::IPV4) {
@@ -63,6 +55,14 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         auto chandle(std::move(ReadContext.completionhandler));
         return chandle(StatusCode::SC_SUCCESS, 0);
     }
+}
+void Socket::handlerecv(bool success, Win_IO_RW_Context* context)
+{
+
+}
+void Socket::handlewrite(bool success, Win_IO_RW_Context* context)
+{
+
 }
 void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
 {
