@@ -16,12 +16,12 @@ class Listener final : public IListener
     Context* Context_;
     std::shared_ptr<Socket> ListenSocket;
     Win_IO_Accept_Context Win_IO_Accept_Context_;
-    sockaddr ListenSocketAddr;
+    SL::NET::sockaddr ListenSocketAddr;
 
 public:
 
 
-    Listener(Context* context, std::shared_ptr<ISocket> &&socket, const sockaddr& addr);
+    Listener(Context* context, std::shared_ptr<ISocket> &&socket, const SL::NET::sockaddr& addr);
     virtual ~Listener();
     virtual void close() override;
     virtual void async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket>&)> &&handler)override;

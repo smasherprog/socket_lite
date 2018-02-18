@@ -34,9 +34,6 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
     }
     setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
 
-    if(!UpdateEpoll(handle, Context_->iocp.handle, &ReadContext)) {
-        return handler(TranslateError());
-    }
     ReadContext.completionhandler = [ihandle(std::move(handler))](StatusCode code, size_t) {
         ihandle(code);
     };
@@ -48,8 +45,22 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         if(err != EINPROGRESS) {
             Context_->PendingIO -=1;
             auto chandle(std::move(ReadContext.completionhandler));
+            ReadContext.clear();
             return chandle(TranslateError(&err), 0);
         }
+
+        epoll_event ev = {0};
+        ev.data.ptr = this;
+        ev.data.fd = handle;
+        ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+
+        if(epoll_ctl(epollh, EPOLL_CTL_ADD, socket, &ev) != -1) {
+            Context_->PendingIO -=1;
+            auto chandle(std::move(ReadContext.completionhandler));
+            ReadContext.clear();
+            return chandle(TranslateError(&err), 0);
+        }
+
     } else if(ret ==0) {//connection completed
         Context_->PendingIO -=1;
         auto chandle(std::move(ReadContext.completionhandler));
