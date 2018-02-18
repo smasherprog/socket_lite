@@ -113,8 +113,10 @@ void Context::run(ThreadCount threadcount)
 
                         break;
                     case IO_OPERATION::IoRead:
+                        handlerecv(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
                         break;
                     case IO_OPERATION::IoWrite:
+                        handlewrite(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
                         break;
                     default:
                         break;

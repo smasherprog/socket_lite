@@ -11,7 +11,6 @@ namespace NET
 class Listener;
 class Context final : public IContext
 {
-
     bool KeepRunning = true;
     std::vector<std::thread> Threads;
 
