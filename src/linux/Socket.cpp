@@ -54,7 +54,7 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         ev.data.fd = handle;
         ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
 
-        if(epoll_ctl(epollh, EPOLL_CTL_ADD, socket, &ev) != -1) {
+        if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) != -1) {
             Context_->PendingIO -=1;
             auto chandle(std::move(ReadContext.completionhandler));
             ReadContext.clear();

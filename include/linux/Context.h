@@ -24,10 +24,10 @@ public:
     virtual std::shared_ptr<ISocket> CreateSocket() override;
     virtual std::shared_ptr<IListener> CreateListener(std::shared_ptr<ISocket>&& listensocket) override;
 
-    void handleaccept(bool success, Win_IO_Accept_Context* context);
-    void handleconnect(bool success, Win_IO_RW_Context* context);
-    void handlerecv(bool success, Win_IO_RW_Context* context);
-    void handlewrite(bool success, Win_IO_RW_Context* context);
+    void handleaccept( Win_IO_Accept_Context* context);
+    void handleconnect(Win_IO_RW_Context* context);
+    void handlerecv(Win_IO_RW_Context* context);
+    void handlewrite(Win_IO_RW_Context* context);
 };
 } // namespace NET
 } // namespace SL

@@ -56,40 +56,36 @@ Context::~Context()
         }
     }
 }
-void Context::handleaccept(bool success, Win_IO_Accept_Context* context)
+void Context::handleaccept(Win_IO_Accept_Context* context)
 {
-    auto sock(std::move(context->Socket_));
     auto handle(std::move(context->completionhandler));
-    
-    epoll_event ev = {0};
-    ev.data.ptr = completionkey;
-    ev.data.fd = socket;
-    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
-    epoll_ctl(epollh, EPOLL_CTL_ADD, socket, &ev) != -1;
-    
-    if(!success || (socket && !Socket::UpdateEpoll(sock->get_handle(), iocp.handle, sock.get()))) {
-        sock.reset();
-        handle(TranslateError(), sock);
+    sockaddr_in remote= {0};
+    socklen_t len = sizeof(remote);
+    int i = accept(context->ListenSocket, reinterpret_cast<::sockaddr*>(&remote), &len);
+    if(i==-1) {
+        if(errno == EAGAIN || errno == EWOULDBLOCK) {
+            handle(StatusCode::SC_CLOSED, std::shared_ptr<ISocket>());
+        } else {
+            handle(TranslateError(), std::shared_ptr<ISocket>());
+        }
     } else {
+        auto sock(std::make_shared<Socket>(this));
+        sock->set_handle(i);
+        sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         handle(StatusCode::SC_SUCCESS, sock);
     }
 }
-void Context::handleconnect(bool success, Win_IO_RW_Context* context)
+void Context::handleconnect( Win_IO_RW_Context* context)
 {
     auto sock(std::move(context->Socket_));
     auto handle(std::move(context->completionhandler));
-    if(!success || (socket && !Socket::UpdateEpoll(sock->get_handle(), iocp.handle, sock.get()))) {
-        sock.reset();
-        handle(TranslateError(), sock);
-    } else {
-        handle(StatusCode::SC_SUCCESS, sock);
-    }
+
 }
-void Context::handlerecv(bool success, Win_IO_RW_Context* context)
+void Context::handlerecv(Win_IO_RW_Context* context)
 {
 
 }
-void Context::handlewrite(bool success, Win_IO_RW_Context* context)
+void Context::handlewrite(Win_IO_RW_Context* context)
 {
 
 }
@@ -110,13 +106,13 @@ void Context::run(ThreadCount threadcount)
 
                         break;
                     case IO_OPERATION::IoAccept:
-
+                        handleaccept(static_cast<Win_IO_Accept_Context *>(ctx));
                         break;
                     case IO_OPERATION::IoRead:
-                        handlerecv(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
+                        handlerecv(static_cast<Win_IO_RW_Context *>(ctx));
                         break;
                     case IO_OPERATION::IoWrite:
-                        handlewrite(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
+                        handlewrite(static_cast<Win_IO_RW_Context *>(ctx));
                         break;
                     default:
                         break;

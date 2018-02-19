@@ -48,12 +48,10 @@ struct IO_Context {
     IO_OPERATION IOOperation = IO_OPERATION::IoNone;
 };
 struct Win_IO_Accept_Context:IO_Context  {
-    std::shared_ptr<Socket> Socket_;
     int ListenSocket = -1;
     std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     void clear() {
         IOOperation = IO_OPERATION::IoNone;
-        Socket_.reset();
         completionhandler = nullptr;
     }
 };
