@@ -50,15 +50,15 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         }
 
         epoll_event ev = {0};
-        ev.data.ptr = this;
+        ev.data.ptr = &ReadContext;
         ev.data.fd = handle;
         ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
 
-        if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) != -1) {
+        if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
             Context_->PendingIO -=1;
             auto chandle(std::move(ReadContext.completionhandler));
             ReadContext.clear();
-            return chandle(TranslateError(&err), 0);
+            return chandle(TranslateError(), 0);
         }
 
     } else if(ret ==0) {//connection completed
@@ -67,21 +67,45 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         return chandle(StatusCode::SC_SUCCESS, 0);
     }
 }
-void Socket::handlerecv(bool success, Win_IO_RW_Context* context)
+void Socket::handlerecv()
 {
 
 }
-void Socket::handlewrite(bool success, Win_IO_RW_Context* context)
+void Socket::handlewrite()
 {
 
 }
 void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
 {
+    assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
+    epoll_event ev = {0};
+    ev.data.ptr = &ReadContext;
+    ev.data.fd = handle;
+    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
 
+    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
+        Context_->PendingIO -=1;
+        auto chandle(std::move(ReadContext.completionhandler));
+        ReadContext.clear();
+        return chandle(TranslateError(), 0);
+    }
 }
 void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
 {
+    auto ret = send(handle,);
 
+    assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
+    epoll_event ev = {0};
+    ev.data.ptr = &WriteContext;
+    ev.data.fd = handle;
+    ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
+
+    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
+        Context_->PendingIO -=1;
+        auto chandle(std::move(WriteContext.completionhandler));
+        WriteContext.clear();
+        return chandle(TranslateError(), 0);
+    }
 }
 
 } // namespace NET

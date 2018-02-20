@@ -75,23 +75,28 @@ void Context::handleaccept(Win_IO_Accept_Context* context)
         handle(StatusCode::SC_SUCCESS, sock);
     }
 }
-void Context::handleconnect( Win_IO_RW_Context* context)
+void Context::handleconnect(Win_IO_RW_Context* context)
 {
     auto sock(std::move(context->Socket_));
     auto handle(std::move(context->completionhandler));
-
+    auto [success, errocode] = sock->getsockopt<SocketOptions::O_ERROR>();
+    if(errocode.has_value()) {
+        handle(StatusCode::SC_SUCCESS, 0);
+    } else {
+        auto erval = errocode.value();
+        handle(TranslateError(&erval), 0);
+    }
 }
 void Context::handlerecv(Win_IO_RW_Context* context)
 {
-
+    context->Socket_->handlerecv();
 }
 void Context::handlewrite(Win_IO_RW_Context* context)
 {
-
+    context->Socket_->handlewrite();
 }
 void Context::run(ThreadCount threadcount)
 {
-
     Threads.reserve(threadcount.value);
     for (auto i = 0; i < threadcount.value; i++) {
         Threads.push_back(std::thread([&] {
@@ -103,7 +108,7 @@ void Context::run(ThreadCount threadcount)
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
                     switch (ctx->IOOperation) {
                     case IO_OPERATION::IoConnect:
-
+                        handleconnect(static_cast<Win_IO_RW_Context *>(ctx));
                         break;
                     case IO_OPERATION::IoAccept:
                         handleaccept(static_cast<Win_IO_Accept_Context *>(ctx));
@@ -125,6 +130,5 @@ void Context::run(ThreadCount threadcount)
         }));
     }
 }
-
 }
 }

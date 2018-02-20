@@ -25,8 +25,8 @@ public:
     virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) override;
     virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) override;
 
-    void handlerecv(bool success, Win_IO_RW_Context* context);
-    void handlewrite(bool success, Win_IO_RW_Context* context);
+    void handlerecv();
+    void handlewrite();
 };
 
 } // namespace NET
