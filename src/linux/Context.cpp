@@ -77,15 +77,7 @@ void Context::handleaccept(Win_IO_Accept_Context* context)
 }
 void Context::handleconnect(Win_IO_RW_Context* context)
 {
-    auto sock(std::move(context->Socket_));
-    auto handle(std::move(context->completionhandler));
-    auto [success, errocode] = sock->getsockopt<SocketOptions::O_ERROR>();
-    if(errocode.has_value()) {
-        handle(StatusCode::SC_SUCCESS, 0);
-    } else {
-        auto erval = errocode.value();
-        handle(TranslateError(&erval), 0);
-    }
+    context->Socket_->handleconnect();
 }
 void Context::handlerecv(Win_IO_RW_Context* context)
 {

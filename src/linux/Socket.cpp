@@ -69,11 +69,43 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 }
 void Socket::handlerecv()
 {
-
+    int done = 0;
+    while (true) {
+        auto count = read (handle, ReadContext.buffer + ReadContext.transfered_bytes, ReadContext.bufferlen - ReadContext.transfered_bytes);
+        if (count == -1) {
+            /* If errno == EAGAIN, that means we have read all
+               data. So go back to the main loop. */
+            if (errno != EAGAIN) {
+                break;
+            }
+            break;
+        } else if (count == 0) {
+            /* End of file. The remote has closed the
+               connection. */
+            ISocket::close();
+            auto chandle(std::move(ReadContext.completionhandler));
+            return chandle(StatusCode::SC_CLOSED, 0);
+        }
+    }
+    if(ReadContext.transfered_bytes == ReadContext.bufferlen) {
+        auto chandle(std::move(ReadContext.completionhandler));
+        return chandle(StatusCode::SC_SUCCESS, ReadContext.bufferlen);
+    }
 }
 void Socket::handlewrite()
 {
 
+}
+void Socket::handleconnect()
+{
+    auto handle(std::move(ReadContext->completionhandler));
+    auto [success, errocode] = getsockopt<SocketOptions::O_ERROR>();
+    if(errocode.has_value()) {
+        handle(StatusCode::SC_SUCCESS, 0);
+    } else {
+        auto erval = errocode.value();
+        handle(TranslateError(&erval), 0);
+    }
 }
 void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
 {
@@ -82,7 +114,7 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function
     ev.data.ptr = &ReadContext;
     ev.data.fd = handle;
     ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
-
+    Context_->PendingIO +=1;
     if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
         Context_->PendingIO -=1;
         auto chandle(std::move(ReadContext.completionhandler));
@@ -99,7 +131,7 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function
     ev.data.ptr = &WriteContext;
     ev.data.fd = handle;
     ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
-
+    Context_->PendingIO +=1;
     if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
         Context_->PendingIO -=1;
         auto chandle(std::move(WriteContext.completionhandler));
