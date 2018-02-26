@@ -75,7 +75,19 @@ void Socket::handlerecv()
         if (count == -1) {
             /* If errno == EAGAIN, that means we have read all
                data. So go back to the main loop. */
-            if (errno != EAGAIN) {
+            if (errno == EAGAIN) {
+                epoll_event ev = {0};
+                ev.data.ptr = &ReadContext;
+                ev.data.fd = handle;
+                ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+                ReadContext.IOOperation = IO_OPERATION::IoRead;
+                Context_->PendingIO +=1;
+                if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
+                    Context_->PendingIO -=1;
+                    auto chandle(std::move(ReadContext.completionhandler));
+                    ReadContext.clear();
+                    return chandle(TranslateError(), 0);
+                }
                 break;
             }
             break;
@@ -114,9 +126,14 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function
     ev.data.ptr = &ReadContext;
     ev.data.fd = handle;
     ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    ReadContext.buffer = buffer;
+    ReadContext.bufferlen = buffer_size;
+    ReadContext.IOOperation = IO_OPERATION::IoRead;
+    ReadContext.Socket_ =  this;
     Context_->PendingIO +=1;
     if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
         Context_->PendingIO -=1;
+        ISocket::close();
         auto chandle(std::move(ReadContext.completionhandler));
         ReadContext.clear();
         return chandle(TranslateError(), 0);
@@ -124,16 +141,43 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function
 }
 void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
 {
-    auto ret = send(handle,);
-
     assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
+    WriteContext.buffer = buffer;
+    WriteContext.bufferlen = buffer_size;
+    WriteContext.IOOperation = IO_OPERATION::IoWrite;
+    WriteContext.Socket_ =  this;
+
+    auto count = send (handle, WriteContext.buffer + WriteContext.transfered_bytes, WriteContext.bufferlen - WriteContext.transfered_bytes);
+    if (count == -1) {
+        /* If errno == EAGAIN, that means we have read all
+           data. So go back to the main loop. */
+        if (errno != EAGAIN) {
+            epoll_event ev = {0};
+            ev.data.ptr = &ReadContext;
+            ev.data.fd = handle;
+            ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+            ReadContext.IOOperation = IO_OPERATION::IoRead;
+            Context_->PendingIO +=1;
+            if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
+                Context_->PendingIO -=1;
+                auto chandle(std::move(ReadContext.completionhandler));
+                ReadContext.clear();
+                return chandle(TranslateError(), 0);
+            }
+            break;
+        }
+        break;
+    }
+
     epoll_event ev = {0};
     ev.data.ptr = &WriteContext;
     ev.data.fd = handle;
     ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
+
     Context_->PendingIO +=1;
     if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
         Context_->PendingIO -=1;
+        ISocket::close();
         auto chandle(std::move(WriteContext.completionhandler));
         WriteContext.clear();
         return chandle(TranslateError(), 0);
