@@ -22,9 +22,9 @@ std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&li
     }
     auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
 
-    epoll_event ev;
+    epoll_event ev = {0};
     ev.data.fd = listenhandle;
-    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    ev.events = EPOLLIN | EPOLLONESHOT;
     if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listenhandle, &ev)==-1) {
         return std::shared_ptr<IListener>();
     }
