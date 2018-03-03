@@ -25,11 +25,12 @@ public:
     virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) override;
     virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) override;
 
-
     void handleconnect();
-    void handlerecv();
+
+    void onRecvReady();
+    void continue_recv();
+
     void onSendReady();
-    void send();
     void continue_send();
 };
 
