@@ -20,6 +20,16 @@ Socket::Socket(Context* context) : Context_(context) {}
 Socket::~Socket()
 {
 }
+template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, T* context)
+{
+    if(code != StatusCode::SC_SUCCESS) {
+        s->close();
+        bytes=0;
+    }
+    auto handler(std::move(context->completionhandler));
+    context->clear();
+    handler(code, bytes);
+}
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     ISocket::close();
@@ -104,13 +114,10 @@ void Socket::handlerecv()
         return chandle(StatusCode::SC_SUCCESS, ReadContext.bufferlen);
     }
 }
-void Socket::handlewrite()
-{
 
-}
 void Socket::handleconnect()
 {
-    auto handle(std::move(ReadContext->completionhandler));
+    auto handle(std::move(ReadContext.completionhandler));
     auto [success, errocode] = getsockopt<SocketOptions::O_ERROR>();
     if(errocode.has_value()) {
         handle(StatusCode::SC_SUCCESS, 0);
@@ -139,6 +146,39 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function
         return chandle(TranslateError(), 0);
     }
 }
+
+
+void Socket::onSendReady()
+{
+    auto bytestowrite = WriteContext.bufferlen - WriteContext.transfered_bytes;
+    auto count = ::write (handle, WriteContext.buffer + WriteContext.transfered_bytes, bytestowrite);
+    if ( count == <0) {//possible error or continue
+        if(errno == EAGAIN || errno == EINTR) {
+            continue_write();
+        } else {
+            return IOComplete(this, StatusCode::SC_CLOSED, 0, WriteContext);
+        }
+    } else {
+        WriteContext.transfered_bytes += count;
+        continue_write();
+    }
+}
+void Socket::continue_send()
+{
+    if(WriteContext.transfered_bytes == WriteContext.bufferlen) {
+        //done writing
+        return IOComplete(this, StatusCode::SC_SUCCESS, WriteContext.transfered_bytes, WriteContext);
+    }
+    epoll_event ev = {0};
+    ev.data.ptr = &WriteContext;
+    ev.data.fd = handle;
+    ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    Context_->PendingIO +=1;
+    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
+        Context_->PendingIO -=1;
+        IOComplete(this, StatusCode::SC_CLOSED, 0, WriteContext);
+    }
+}
 void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
 {
     assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
@@ -146,43 +186,8 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function
     WriteContext.bufferlen = buffer_size;
     WriteContext.IOOperation = IO_OPERATION::IoWrite;
     WriteContext.Socket_ =  this;
+    onSendReady();
 
-    auto count = send (handle, WriteContext.buffer + WriteContext.transfered_bytes, WriteContext.bufferlen - WriteContext.transfered_bytes);
-    if (count == -1) {
-        /* If errno == EAGAIN, that means we have read all
-           data. So go back to the main loop. */
-        if (errno != EAGAIN) {
-            epoll_event ev = {0};
-            ev.data.ptr = &ReadContext;
-            ev.data.fd = handle;
-            ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
-            ReadContext.IOOperation = IO_OPERATION::IoRead;
-            Context_->PendingIO +=1;
-            if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
-                Context_->PendingIO -=1;
-                auto chandle(std::move(ReadContext.completionhandler));
-                ReadContext.clear();
-                return chandle(TranslateError(), 0);
-            }
-            break;
-        }
-        break;
-    }
-
-    epoll_event ev = {0};
-    ev.data.ptr = &WriteContext;
-    ev.data.fd = handle;
-    ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
-
-    Context_->PendingIO +=1;
-    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
-        Context_->PendingIO -=1;
-        ISocket::close();
-        auto chandle(std::move(WriteContext.completionhandler));
-        WriteContext.clear();
-        return chandle(TranslateError(), 0);
-    }
 }
-
 } // namespace NET
 } // namespace SL

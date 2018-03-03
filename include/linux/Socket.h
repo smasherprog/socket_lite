@@ -28,7 +28,9 @@ public:
 
     void handleconnect();
     void handlerecv();
-    void handlewrite();
+    void onSendReady();
+    void send();
+    void continue_send();
 };
 
 } // namespace NET
