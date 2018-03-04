@@ -28,10 +28,10 @@ public:
 
     void handleconnect();
 
-    void onRecvReady();
+    void handlerecv();
     void continue_recv();
 
-    void onSendReady();
+    void handlewrite();
     void continue_send();
 };
 

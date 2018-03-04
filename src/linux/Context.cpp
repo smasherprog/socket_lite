@@ -84,11 +84,11 @@ void Context::handleconnect(Win_IO_RW_Context* context)
 }
 void Context::handlerecv(Win_IO_RW_Context* context)
 {
-    context->Socket_->onRecvReady();
+    context->Socket_->handlerecv();
 }
 void Context::handlewrite(Win_IO_RW_Context* context)
 {
-    context->Socket_->onSendReady();
+    context->Socket_->handlewrite();
 }
 
 void Context::run(ThreadCount threadcount)

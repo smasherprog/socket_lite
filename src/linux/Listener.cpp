@@ -1,7 +1,6 @@
 #include "Listener.h"
 #include "Socket.h"
 #include <assert.h>
-#include <iostream>
 #include "Context.h"
 namespace SL
 {
