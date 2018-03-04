@@ -39,9 +39,10 @@ Context::Context()
 Context::~Context()
 {
     KeepRunning = false;
-    while (PendingIO != 0) {
+    while (PendingIO <= 0) {
         std::this_thread::sleep_for(1ms);
     }
+    iocp.close();
     for (auto &t : Threads) {
         if (t.joinable()) {
             // destroying myself
@@ -97,8 +98,15 @@ void Context::run(ThreadCount threadcount)
             std::vector<epoll_event> epollevents;
             epollevents.resize(MAXEVENTS);
             while (true) {
-                memset(epollevents.data(), 0, sizeof(epoll_event)*MAXEVENTS);
                 auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
+                if(count==-1) {
+                    //spurrious error
+                    if(errno == EINTR) {
+                        printf("Fake wake up!");
+                        continue;
+                    }
+                    return;
+                }
                 for(auto i=0; i< count ; i++) {
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
                     switch (ctx->IOOperation) {
@@ -117,7 +125,7 @@ void Context::run(ThreadCount threadcount)
                     default:
                         break;
                     }
-                    if (--PendingIO == 0) {
+                    if (--PendingIO <= 0) {
                         return;
                     }
                 }

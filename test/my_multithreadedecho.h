@@ -25,18 +25,18 @@ void myechotest()
     if (code != SL::NET::StatusCode::SC_SUCCESS) {
         std::cout << "Error code:" << code << std::endl;
     }
-    auto c = std::make_shared<myechomodels::asioclient>(iocontext, addresses);
-    auto c1 = std::make_shared<myechomodels::asioclient>(iocontext, addresses);
-    auto c2 = std::make_shared<myechomodels::asioclient>(iocontext, addresses);
-    c->do_connect();
-    c1->do_connect();
-    c2->do_connect();
+    myechomodels::asioclient c(iocontext, addresses);
+    myechomodels::asioclient c1(iocontext, addresses);
+    myechomodels::asioclient c2(iocontext, addresses);
+    c.do_connect();
+    c1.do_connect();
+    c2.do_connect();
 
     iocontext->run(SL::NET::ThreadCount(4));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    c->socket_->close();
-    c1->socket_->close();
-    c2->socket_->close();
+    c.close();
+    c1.close();
+    c2.close();
     s->close();
     std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
 }

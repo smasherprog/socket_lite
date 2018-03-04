@@ -25,13 +25,13 @@ void myechotest()
     if (code != SL::NET::StatusCode::SC_SUCCESS) {
         std::cout << "Error code:" << code << std::endl;
     }
-    auto c = std::make_shared<myechomodels::asioclient>(iocontext, addresses);
-    c->do_connect();
+    myechomodels::asioclient c(iocontext, addresses);
+    c.do_connect();
     iocontext->run(SL::NET::ThreadCount(2));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    c->socket_->close();
+    c.close();
     s->close();
-    std::cout << "My Echo per Second " << myechomodels::writeechos / 10 << std::endl;
+    std::cout << "My Echo per Second " << myechomodels::writeechos / 20 << std::endl;
 }
 
 } // namespace myechotest

@@ -17,13 +17,15 @@ struct IOCP {
 
     int handle = -1;
     IOCP() {
-        if (handle = epoll_create1(0); handle == -1) {
-
-        }
+        handle = epoll_create1(0);
     }
     ~IOCP() {
+        close();
+    }
+    void close() {
         if (operator bool()) {
-            close(handle);
+            ::close(handle);
+            handle = -1;
         }
     }
     operator bool() const {
