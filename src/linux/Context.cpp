@@ -2,6 +2,7 @@
 #include "Listener.h"
 #include "Socket.h"
 #include <chrono>
+#include <string.h>
 
 using namespace std::chrono_literals;
 namespace SL
@@ -16,19 +17,10 @@ std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&li
 {
     listensocket->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
     auto addr = listensocket->getsockname();
-    auto listenhandle = listensocket->get_handle();
     if(!addr.has_value()) {
         return std::shared_ptr<IListener>();
     }
-    auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
-
-    epoll_event ev = {0};
-    ev.data.fd = listenhandle;
-    ev.events = EPOLLIN | EPOLLONESHOT;
-    if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listenhandle, &ev)==-1) {
-        return std::shared_ptr<IListener>();
-    }
-    return listener;
+    return std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
 }
 std::shared_ptr<IContext> CreateContext()
 {
@@ -95,6 +87,7 @@ void Context::run(ThreadCount threadcount)
             std::vector<epoll_event> epollevents;
             epollevents.resize(MAXEVENTS);
             while (true) {
+                memset(epollevents.data(), 0, sizeof(epoll_event)*MAXEVENTS);
                 auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
                 for(auto i=0; i< count ; i++) {
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);

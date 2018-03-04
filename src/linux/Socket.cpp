@@ -59,15 +59,13 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 
         epoll_event ev = {0};
         ev.data.ptr = &ReadContext;
-        ev.data.fd = handle;
-        ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
-
+        ev.events = EPOLLIN | EPOLLOUT;
         if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
             Context_->PendingIO -=1;
             return IOComplete(this, TranslateError(), 0, &ReadContext);
         }
 
-    } else if(ret ==0) {//connection completed
+    } else {//connection completed
         Context_->PendingIO -=1;
         return IOComplete(this, StatusCode::SC_SUCCESS, 0, &ReadContext);
     }
@@ -107,7 +105,6 @@ void Socket::continue_recv()
     }
     epoll_event ev = {0};
     ev.data.ptr = &ReadContext;
-    ev.data.fd = handle;
     ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
     Context_->PendingIO +=1;
     if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
@@ -149,7 +146,6 @@ void Socket::continue_send()
     }
     epoll_event ev = {0};
     ev.data.ptr = &WriteContext;
-    ev.data.fd = handle;
     ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
     Context_->PendingIO +=1;
     if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
