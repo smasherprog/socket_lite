@@ -15,7 +15,6 @@ int main()
     myechotest::myechotest();
     asio_multithreadedechotest::asioechotest();
     mymultithreadedechotest::myechotest();
-
     asiotransfertest::asiotransfertest();
     mytransfertest::mytransfertest();
 
