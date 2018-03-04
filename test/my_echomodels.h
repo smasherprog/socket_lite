@@ -27,7 +27,7 @@ public:
             if (bytesread == sizeof(writeecho) && code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_write();
             } else {
-                std::cout<<"Closing From Session::do_read()"<<std::endl;
+                //std::cout<<"Closing From Session::do_read()"<<std::endl;
             }
         });
     }
@@ -39,7 +39,7 @@ public:
                 writeechos+=1.0;
                 self->do_read();
             } else {
-                std::cout<<"Closing From Session::do_write()"<<std::endl;
+                // std::cout<<"Closing From Session::do_write()"<<std::endl;
             }
         });
     }
@@ -76,7 +76,7 @@ public:
             if (socket && SL::NET::StatusCode::SC_SUCCESS == code) {
                 std::make_shared<session>(socket)->do_read();
                 self->do_accept();
-                
+
             } else {
                 std::cout<<"Closing From asioserver::do_accept()"<<std::endl;
             }

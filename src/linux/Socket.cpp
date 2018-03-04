@@ -106,7 +106,7 @@ void Socket::onRecvReady()
     auto bytestowrite = ReadContext.bufferlen - ReadContext.transfered_bytes;
     auto count = ::read (handle, ReadContext.buffer + ReadContext.transfered_bytes, bytestowrite);
     if (count <= 0) {//possible error or continue
-        if(errno == EAGAIN || errno == EINTR) {
+        if(count == -1 && (errno == EAGAIN || errno == EINTR)) {
             continue_recv();
         } else {
             return IOComplete(this, StatusCode::SC_CLOSED, 0, &ReadContext);

@@ -29,9 +29,9 @@ void myechotest()
     c.do_connect();
     iocontext->run(SL::NET::ThreadCount(2));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    std::cout << "My Echo per Second " << myechomodels::writeechos / 20 << std::endl;
     c.close();
     s->close();
-    std::cout << "My Echo per Second " << myechomodels::writeechos / 20 << std::endl;
 }
 
 } // namespace myechotest

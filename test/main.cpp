@@ -13,13 +13,12 @@ int main()
     myconnectiontest::myconnectiontest();
     asiotest::asioechotest();
     myechotest::myechotest();
-
-
-    //mymultithreadedechotest::myechotest();
-    // asio_multithreadedechotest::asioechotest();
-    /*    myechotest::myechotest();
-
-    asiotransfertest::asiotransfertest();
-    mytransfertest::mytransfertest();*/
+    asio_multithreadedechotest::asioechotest();
+    mymultithreadedechotest::myechotest();
+    /*
+      asiotransfertest::asiotransfertest();
+      mytransfertest::mytransfertest();*/
+    int k=6;
+    std::cin>>k;
     return 0;
 }

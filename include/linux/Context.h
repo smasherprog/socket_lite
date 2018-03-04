@@ -16,7 +16,7 @@ class Context final : public IContext
 
 public:
     IOCP iocp;
-    std::atomic<size_t> PendingIO;
+    std::atomic<int> PendingIO;
 
     Context();
     ~Context();

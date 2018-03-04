@@ -39,10 +39,10 @@ Context::Context()
 Context::~Context()
 {
     KeepRunning = false;
-    while (PendingIO <= 0) {
-        std::this_thread::sleep_for(1ms);
-    }
     iocp.close();
+    while (PendingIO > 0) {
+        std::this_thread::sleep_for(5ms);
+    }
     for (auto &t : Threads) {
         if (t.joinable()) {
             // destroying myself
@@ -90,6 +90,7 @@ void Context::handlewrite(Win_IO_RW_Context* context)
 {
     context->Socket_->onSendReady();
 }
+
 void Context::run(ThreadCount threadcount)
 {
     Threads.reserve(threadcount.value);
@@ -98,17 +99,17 @@ void Context::run(ThreadCount threadcount)
             std::vector<epoll_event> epollevents;
             epollevents.resize(MAXEVENTS);
             while (true) {
-                auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS, -1 );
+                auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS,500);
                 if(count==-1) {
                     //spurrious error
-                    if(errno == EINTR) {
-                        printf("Fake wake up!");
+                    if(errno == EINTR && PendingIO > 0) {
                         continue;
                     }
                     return;
                 }
                 for(auto i=0; i< count ; i++) {
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
+
                     switch (ctx->IOOperation) {
                     case IO_OPERATION::IoConnect:
                         handleconnect(static_cast<Win_IO_RW_Context *>(ctx));
