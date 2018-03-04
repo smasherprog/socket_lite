@@ -23,9 +23,9 @@ namespace NET {
         virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) override;
         virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) override;
 
-        void continue_write(bool success, Win_IO_RW_Context *sockcontext);
-        void continue_read(bool success, Win_IO_RW_Context *sockcontext);
-        void continue_connect(StatusCode connect_success, Win_IO_RW_Context *sockcontext);
+        void continue_write(bool success);
+        void continue_read(bool success);
+        void continue_connect(StatusCode connect_success);
     };
 
 } // namespace NET

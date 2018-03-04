@@ -12,8 +12,8 @@ namespace NET {
     Context::~Context()
     {
         KeepRunning = false;
-        while (PendingIO != 0) {
-            std::this_thread::sleep_for(1ms);
+        while (PendingIO > 0) {
+            std::this_thread::sleep_for(5ms);
         }
         for (size_t i = 0; i < Threads.size(); i++) {
             PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
@@ -59,9 +59,9 @@ namespace NET {
             handle(StatusCode::SC_SUCCESS, sock);
         }
     }
-    void Context::handleconnect(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped)
+    void Context::handleconnect(bool success, Socket *completionkey)
     {
-        completionkey->continue_connect(success ? StatusCode::SC_SUCCESS : TranslateError(), overlapped);
+        completionkey->continue_connect(success ? StatusCode::SC_SUCCESS : TranslateError());
     }
     void Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
@@ -69,7 +69,7 @@ namespace NET {
             success = WSAGetLastError() == WSA_IO_PENDING;
         }
         overlapped->transfered_bytes += trasnferedbytes;
-        completionkey->continue_read(success, overlapped);
+        completionkey->continue_read(success);
     }
     void Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
     {
@@ -77,7 +77,7 @@ namespace NET {
             success = WSAGetLastError() == WSA_IO_PENDING;
         }
         overlapped->transfered_bytes += trasnferedbytes;
-        completionkey->continue_write(success, overlapped);
+        completionkey->continue_write(success);
     }
 
     void Context::run(ThreadCount threadcount)
@@ -100,7 +100,7 @@ namespace NET {
                     }
                     switch (overlapped->IOOperation) {
                     case IO_OPERATION::IoConnect:
-                        handleconnect(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped));
+                        handleconnect(bSuccess, completionkey);
                         break;
                     case IO_OPERATION::IoAccept:
                         handleaccept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
@@ -114,7 +114,7 @@ namespace NET {
                     default:
                         break;
                     }
-                    if (--PendingIO == 0) {
+                    if (--PendingIO <= 0) {
                         return;
                     }
                 }
