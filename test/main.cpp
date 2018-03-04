@@ -18,7 +18,5 @@ int main()
     /*
       asiotransfertest::asiotransfertest();
       mytransfertest::mytransfertest();*/
-    int k=6;
-    std::cin>>k;
     return 0;
 }

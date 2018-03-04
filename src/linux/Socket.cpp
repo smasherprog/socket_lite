@@ -90,7 +90,6 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 }
 void Socket::handleconnect()
 {
-    assert(ReadContext.completionhandler);
     auto handle(std::move(ReadContext.completionhandler));
     ReadContext.clear();
     auto [success, errocode] = getsockopt<SocketOptions::O_ERROR>();
@@ -101,7 +100,7 @@ void Socket::handleconnect()
         handle(TranslateError(&erval), 0);
     }
 }
-void Socket::onRecvReady()
+void Socket::handlerecv()
 {
     auto bytestowrite = ReadContext.bufferlen - ReadContext.transfered_bytes;
     auto count = ::read (handle, ReadContext.buffer + ReadContext.transfered_bytes, bytestowrite);
@@ -140,11 +139,11 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function
     ReadContext.IOOperation = IO_OPERATION::IoRead;
     ReadContext.Socket_ =  this;
     ReadContext.completionhandler = std::move(handler);
-    onRecvReady();
+    handlerecv();
 }
 
 
-void Socket::onSendReady()
+void Socket::handlewrite()
 {
     auto bytestowrite = WriteContext.bufferlen - WriteContext.transfered_bytes;
     auto count = ::write (handle, WriteContext.buffer + WriteContext.transfered_bytes, bytestowrite);
@@ -183,7 +182,7 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function
     WriteContext.IOOperation = IO_OPERATION::IoWrite;
     WriteContext.Socket_ =  this;
     WriteContext.completionhandler = std::move(handler);
-    onSendReady();
+    handlewrite();
 
 }
 } // namespace NET
