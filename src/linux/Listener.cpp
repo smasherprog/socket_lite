@@ -31,7 +31,8 @@ void Listener::async_accept(const std::function<void(StatusCode, const std::shar
     ev.data.ptr = &Win_IO_Accept_Context_;
     ev.events = EPOLLIN | EPOLLONESHOT;
     Context_->PendingIO +=1;
-    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, ListenSocket->get_handle(), &ev)  == -1) {
+    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, ListenSocket->get_handle(), &ev)  == -1) {
+        auto e = errno;
         Context_->PendingIO -=1;
         auto chandle(std::move(Win_IO_Accept_Context_.completionhandler));
         Win_IO_Accept_Context_.clear();

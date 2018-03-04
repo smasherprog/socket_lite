@@ -17,9 +17,8 @@ class Listener final : public IListener
     std::shared_ptr<Socket> ListenSocket;
     Win_IO_Accept_Context Win_IO_Accept_Context_;
     SL::NET::sockaddr ListenSocketAddr;
-
+    bool Started = false;
 public:
-
 
     Listener(Context* context, std::shared_ptr<ISocket> &&socket, const SL::NET::sockaddr& addr);
     virtual ~Listener();

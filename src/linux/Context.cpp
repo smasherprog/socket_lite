@@ -20,7 +20,12 @@ std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&li
     if(!addr.has_value()) {
         return std::shared_ptr<IListener>();
     }
-    return std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+    auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+    epoll_event ev = {0};
+    if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listensocket->get_handle(), &ev)  == -1) {
+        return std::shared_ptr<Listener>();
+    }
+    return listener;
 }
 std::shared_ptr<IContext> CreateContext()
 {
@@ -51,6 +56,7 @@ Context::~Context()
 void Context::handleaccept(Win_IO_Accept_Context* context)
 {
     auto handle(std::move(context->completionhandler));
+    context->clear();
     sockaddr_in remote= {0};
     socklen_t len = sizeof(remote);
     int i = accept(context->ListenSocket, reinterpret_cast<::sockaddr*>(&remote), &len);
@@ -64,6 +70,10 @@ void Context::handleaccept(Win_IO_Accept_Context* context)
         auto sock(std::make_shared<Socket>(this));
         sock->set_handle(i);
         sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
+        epoll_event ev = {0};
+        if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, i, &ev)  == -1) {
+            handle(TranslateError(), std::shared_ptr<ISocket>());
+        }
         handle(StatusCode::SC_SUCCESS, sock);
     }
 }

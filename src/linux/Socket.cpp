@@ -30,7 +30,7 @@ template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, 
     context->clear();
     handler(code, bytes);
 }
-        void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
+void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     ISocket::close();
     ReadContext.clear();
@@ -48,7 +48,9 @@ template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, 
         ihandle(code);
     };
     ReadContext.IOOperation = IO_OPERATION::IoConnect;
+    ReadContext.Socket_ = this;
     Context_->PendingIO +=1;
+
     auto ret = ::connect(handle, (::sockaddr*)address.get_SocketAddr(), address.get_SocketAddrLen());
     if(ret ==-1) {//will complete some time later
         auto err = errno;
@@ -56,7 +58,6 @@ template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, 
             Context_->PendingIO -=1;
             return IOComplete(this, TranslateError(&err), 0, &ReadContext);
         }
-
         epoll_event ev = {0};
         ev.data.ptr = &ReadContext;
         ev.events = EPOLLIN | EPOLLOUT | EPOLLONESHOT;
@@ -72,8 +73,8 @@ template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, 
 }
 void Socket::handleconnect()
 {
-    assert(ReadContext.completionhandler);
     auto handle(std::move(ReadContext.completionhandler));
+    ReadContext.clear();
     auto [success, errocode] = getsockopt<SocketOptions::O_ERROR>();
     if(errocode.has_value()) {
         handle(StatusCode::SC_SUCCESS, 0);
@@ -85,7 +86,7 @@ void Socket::handleconnect()
 void Socket::onRecvReady()
 {
     auto bytestowrite = ReadContext.bufferlen - ReadContext.transfered_bytes;
-    auto count = read (handle, ReadContext.buffer + ReadContext.transfered_bytes, bytestowrite);
+    auto count = ::read (handle, ReadContext.buffer + ReadContext.transfered_bytes, bytestowrite);
     if (count < 0) {//possible error or continue
         if(errno == EAGAIN || errno == EINTR) {
             continue_recv();
@@ -106,9 +107,9 @@ void Socket::continue_recv()
     }
     epoll_event ev = {0};
     ev.data.ptr = &ReadContext;
-    ev.events = EPOLLIN | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    ev.events = EPOLLIN | EPOLLONESHOT;
     Context_->PendingIO +=1;
-    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
+    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
         Context_->PendingIO -=1;
         IOComplete(this, StatusCode::SC_CLOSED, 0, &ReadContext);
     }
@@ -148,9 +149,10 @@ void Socket::continue_send()
     }
     epoll_event ev = {0};
     ev.data.ptr = &WriteContext;
-    ev.events = EPOLLOUT | EPOLLEXCLUSIVE | EPOLLONESHOT;
+    ev.events = EPOLLOUT | EPOLLONESHOT;
+
     Context_->PendingIO +=1;
-    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
+    if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_MOD, handle, &ev) == -1) {
         Context_->PendingIO -=1;
         IOComplete(this, StatusCode::SC_CLOSED, 0, &WriteContext);
     }
