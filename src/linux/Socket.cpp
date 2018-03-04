@@ -30,7 +30,7 @@ template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, 
     context->clear();
     handler(code, bytes);
 }
-void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
+        void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     ISocket::close();
     ReadContext.clear();
@@ -59,7 +59,7 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 
         epoll_event ev = {0};
         ev.data.ptr = &ReadContext;
-        ev.events = EPOLLIN | EPOLLOUT;
+        ev.events = EPOLLIN | EPOLLOUT | EPOLLONESHOT;
         if(epoll_ctl(Context_->iocp.handle, EPOLL_CTL_ADD, handle, &ev) == -1) {
             Context_->PendingIO -=1;
             return IOComplete(this, TranslateError(), 0, &ReadContext);
@@ -72,6 +72,7 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 }
 void Socket::handleconnect()
 {
+    assert(ReadContext.completionhandler);
     auto handle(std::move(ReadContext.completionhandler));
     auto [success, errocode] = getsockopt<SocketOptions::O_ERROR>();
     if(errocode.has_value()) {
@@ -119,6 +120,7 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function
     ReadContext.bufferlen = buffer_size;
     ReadContext.IOOperation = IO_OPERATION::IoRead;
     ReadContext.Socket_ =  this;
+    ReadContext.completionhandler = std::move(handler);
     onRecvReady();
 }
 
@@ -160,6 +162,7 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function
     WriteContext.bufferlen = buffer_size;
     WriteContext.IOOperation = IO_OPERATION::IoWrite;
     WriteContext.Socket_ =  this;
+    WriteContext.completionhandler = std::move(handler);
     onSendReady();
 
 }
