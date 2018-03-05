@@ -46,38 +46,17 @@ namespace NET {
         }
         return listener;
     }
-    void Context::handleaccept(bool success, Win_IO_Accept_Context *overlapped)
+    void handleaccept(bool success, Win_IO_Accept_Context *overlapped, IOCP &iocp)
     {
         auto sock(std::move(overlapped->Socket_));
         auto handle(std::move(overlapped->completionhandler));
         overlapped->clear();
         if (!success || (success && !Socket::UpdateIOCP(sock->get_handle(), &iocp.handle, sock.get()))) {
-            sock.reset();
-            handle(TranslateError(), sock);
+            handle(TranslateError(), std::shared_ptr<Socket>());
         }
         else {
             handle(StatusCode::SC_SUCCESS, sock);
         }
-    }
-    void Context::handleconnect(bool success, Socket *completionkey)
-    {
-        completionkey->continue_connect(success ? StatusCode::SC_SUCCESS : TranslateError());
-    }
-    void Context::handlerecv(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
-    {
-        if (trasnferedbytes == 0 && overlapped->bufferlen != 0 && success) {
-            success = WSAGetLastError() == WSA_IO_PENDING;
-        }
-        overlapped->transfered_bytes += trasnferedbytes;
-        completionkey->continue_read(success);
-    }
-    void Context::handlewrite(bool success, Socket *completionkey, Win_IO_RW_Context *overlapped, DWORD trasnferedbytes)
-    {
-        if (trasnferedbytes == 0 && overlapped->bufferlen != 0 && success) {
-            success = WSAGetLastError() == WSA_IO_PENDING;
-        }
-        overlapped->transfered_bytes += trasnferedbytes;
-        completionkey->continue_write(success);
     }
 
     void Context::run(ThreadCount threadcount)
@@ -100,16 +79,24 @@ namespace NET {
                     }
                     switch (overlapped->IOOperation) {
                     case IO_OPERATION::IoConnect:
-                        handleconnect(bSuccess, completionkey);
+                        completionkey->continue_connect(bSuccess ? StatusCode::SC_SUCCESS : TranslateError());
                         break;
                     case IO_OPERATION::IoAccept:
-                        handleaccept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
+                        handleaccept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped), iocp);
                         break;
                     case IO_OPERATION::IoRead:
-                        handlerecv(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
+                        completionkey->increment_readbytes(numberofbytestransfered);
+                        if (numberofbytestransfered == 0 && completionkey->ReadContext.bufferlen != 0 && bSuccess) {
+                            bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                        }
+                        completionkey->continue_read(bSuccess);
                         break;
                     case IO_OPERATION::IoWrite:
-                        handlewrite(bSuccess, completionkey, static_cast<Win_IO_RW_Context *>(overlapped), numberofbytestransfered);
+                        completionkey->increment_writebytes(numberofbytestransfered);
+                        if (numberofbytestransfered == 0 && completionkey->WriteContext.bufferlen != 0 && bSuccess) {
+                            bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                        }
+                        completionkey->continue_write(bSuccess);
                         break;
                     default:
                         break;
