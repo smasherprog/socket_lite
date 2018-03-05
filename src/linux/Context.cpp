@@ -38,8 +38,6 @@ Context::Context()
 
 Context::~Context()
 {
-    KeepRunning = false;
-    iocp.close();
     while (PendingIO > 0) {
         std::this_thread::sleep_for(5ms);
     }
@@ -54,7 +52,7 @@ Context::~Context()
         }
     }
 }
-void Context::handleaccept(Win_IO_Accept_Context* context)
+void handleaccept(Win_IO_Accept_Context* context, Context* cont, IOCP& iocp)
 {
     auto handle(std::move(context->completionhandler));
     context->clear();
@@ -68,7 +66,7 @@ void Context::handleaccept(Win_IO_Accept_Context* context)
             handle(TranslateError(), std::shared_ptr<ISocket>());
         }
     } else {
-        auto sock(std::make_shared<Socket>(this));
+        auto sock(std::make_shared<Socket>(cont));
         sock->set_handle(i);
         sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         epoll_event ev = {0};
@@ -77,18 +75,6 @@ void Context::handleaccept(Win_IO_Accept_Context* context)
         }
         handle(StatusCode::SC_SUCCESS, sock);
     }
-}
-void Context::handleconnect(Win_IO_RW_Context* context)
-{
-    context->Socket_->handleconnect();
-}
-void Context::handlerecv(Win_IO_RW_Context* context)
-{
-    context->Socket_->handlerecv();
-}
-void Context::handlewrite(Win_IO_RW_Context* context)
-{
-    context->Socket_->handlewrite();
 }
 
 void Context::run(ThreadCount threadcount)
@@ -112,16 +98,16 @@ void Context::run(ThreadCount threadcount)
 
                     switch (ctx->IOOperation) {
                     case IO_OPERATION::IoConnect:
-                        handleconnect(static_cast<Win_IO_RW_Context *>(ctx));
+                        static_cast<Win_IO_RW_Context *>(ctx)->Socket_->handleconnect();
                         break;
                     case IO_OPERATION::IoAccept:
-                        handleaccept(static_cast<Win_IO_Accept_Context *>(ctx));
+                        handleaccept(static_cast<Win_IO_Accept_Context *>(ctx), this, iocp);
                         break;
                     case IO_OPERATION::IoRead:
-                        handlerecv(static_cast<Win_IO_RW_Context *>(ctx));
+                        static_cast<Win_IO_RW_Context *>(ctx)->Socket_->handlerecv();
                         break;
                     case IO_OPERATION::IoWrite:
-                        handlewrite(static_cast<Win_IO_RW_Context *>(ctx));
+                        static_cast<Win_IO_RW_Context *>(ctx)->Socket_->handlewrite();
                         break;
                     default:
                         break;
