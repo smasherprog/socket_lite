@@ -36,8 +36,7 @@ elseif(APPLE)
 		include/ios 
     )
 else()
-	set(SOCKET_LITE_PLATFORM_SRC 
-		include/linux/Context.h 
+	set(SOCKET_LITE_PLATFORM_SRC  
 		src/linux/Context.cpp
 		include/linux/Socket.h
 		src/linux/Socket.cpp
