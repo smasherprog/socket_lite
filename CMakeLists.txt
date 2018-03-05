@@ -17,7 +17,6 @@ endif()
 
 if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
-		include/windows/Context.h 
 		src/windows/Context.cpp
 		include/windows/Socket.h
 		src/windows/Socket.cpp
@@ -26,7 +25,7 @@ if(WIN32)
 		include/windows/Structures.h
     )
     set(SOCKET_LITE_PLATFORM_INC  
-	include/windows 
+		include/windows
     )
 
 elseif(APPLE)
@@ -54,10 +53,12 @@ endif()
 	
 include_directories(
 	include
+	include/Internal
 	${SOCKET_LITE_PLATFORM_INC}
 )
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h
+	include/Internal/Context.h 
 	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )

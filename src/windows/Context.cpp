@@ -11,7 +11,6 @@ namespace NET {
 
     Context::~Context()
     {
-        KeepRunning = false;
         while (PendingIO > 0) {
             std::this_thread::sleep_for(5ms);
         }
