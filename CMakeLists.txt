@@ -20,7 +20,6 @@ if(WIN32)
 		src/windows/Context.cpp
 		include/windows/Socket.h
 		src/windows/Socket.cpp
-		include/windows/Listener.h
 		src/windows/Listener.cpp
 		include/windows/Structures.h
     )
@@ -39,8 +38,7 @@ else()
 	set(SOCKET_LITE_PLATFORM_SRC  
 		src/linux/Context.cpp
 		include/linux/Socket.h
-		src/linux/Socket.cpp
-		include/linux/Listener.h
+		src/linux/Socket.cpp 
 		src/linux/Listener.cpp
 		include/linux/Structures.h
     )
@@ -58,6 +56,7 @@ include_directories(
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h
 	include/Internal/Context.h 
+	include/Internal/Listener.h
 	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )
