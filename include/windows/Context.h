@@ -6,16 +6,15 @@
 
 namespace SL {
 namespace NET {
-    class Listener;
     class Context final : public IContext {
 
-        bool KeepRunning = true;
         std::vector<std::thread> Threads;
 
       public:
+#if WIN32
         WSARAII wsa;
         LPFN_CONNECTEX ConnectEx_ = nullptr;
-
+#endif
         IOCP iocp;
         std::atomic<int> PendingIO;
 
