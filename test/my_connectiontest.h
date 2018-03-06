@@ -46,8 +46,6 @@ public:
         Listener->async_accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_accept();
-            } else {
-                int k=6;
             }
         });
     }
@@ -67,8 +65,6 @@ void connect(std::shared_ptr<SL::NET::IContext> iocontext)
         connections += 1.0;
         if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
             connect(iocontext);
-        } else {
-            int k=6;
         }
     });
 }

@@ -13,9 +13,11 @@ int main()
     myconnectiontest::myconnectiontest();
     asiotest::asioechotest();
     myechotest::myechotest();
+
     asio_multithreadedechotest::asioechotest();
     mymultithreadedechotest::myechotest();
     asiotransfertest::asiotransfertest();
     mytransfertest::mytransfertest();
+
     return 0;
 }
