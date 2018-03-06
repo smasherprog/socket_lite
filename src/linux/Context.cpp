@@ -42,6 +42,9 @@ Context::~Context()
         std::this_thread::sleep_for(5ms);
     }
     for (auto &t : Threads) {
+        if(EventWakeFd!= -1) {
+            eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
+        }
         if (t.joinable()) {
             // destroying myself
             if (t.get_id() == std::this_thread::get_id()) {
@@ -50,6 +53,9 @@ Context::~Context()
                 t.join();
             }
         }
+    }
+    if(EventWakeFd!= -1) {
+        close(EventWakeFd);
     }
 }
 void handleaccept(Win_IO_Accept_Context* context, Context* cont, IOCP& iocp)
@@ -79,6 +85,14 @@ void handleaccept(Win_IO_Accept_Context* context, Context* cont, IOCP& iocp)
 
 void Context::run(ThreadCount threadcount)
 {
+    EventWakeFd = eventfd(0, EFD_NONBLOCK);
+    epoll_event ev = {0};
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = EventWakeFd;
+    if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, EventWakeFd, &ev)==1) {
+        //ERROR
+    }
+
     Threads.reserve(threadcount.value);
     for (auto i = 0; i < threadcount.value; i++) {
         Threads.push_back(std::thread([&] {
@@ -87,13 +101,15 @@ void Context::run(ThreadCount threadcount)
             while (true) {
                 auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS,500);
                 if(count==-1) {
-                    //spurrious error
                     if(errno == EINTR && PendingIO > 0) {
                         continue;
                     }
                     return;
                 }
                 for(auto i=0; i< count ; i++) {
+                    if(epollevents[i].data.fd == EventWakeFd) {
+                        continue;//keep going
+                    }
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
 
                     switch (ctx->IOOperation) {
