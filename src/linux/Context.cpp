@@ -108,6 +108,10 @@ void Context::run(ThreadCount threadcount)
                 }
                 for(auto i=0; i< count ; i++) {
                     if(epollevents[i].data.fd == EventWakeFd) {
+                        printf("Wake up received!");
+                        if (PendingIO <= 0) {
+                            return;
+                        }
                         continue;//keep going
                     }
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
