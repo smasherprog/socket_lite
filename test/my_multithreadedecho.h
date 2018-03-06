@@ -34,7 +34,7 @@ void myechotest()
 
     iocontext->run(SL::NET::ThreadCount(4));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
+    std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 20 << std::endl;
     c.close();
     c1.close();
     c2.close();
