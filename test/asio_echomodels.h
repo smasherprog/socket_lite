@@ -58,7 +58,6 @@ class asioserver {
             if (!ec) {
                 std::make_shared<session>(std::move(socket))->start();
             }
-
             do_accept();
         });
     }

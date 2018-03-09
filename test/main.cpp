@@ -1,4 +1,5 @@
 ﻿
+#include "asio_connectiontest.h"
 #include "asio_echotest.h"
 #include "asio_multithreadedechotest.h"
 #include "asio_transfertest.h"
@@ -10,6 +11,7 @@
 int main()
 {
     std::srand(std::time(nullptr));
+    asioconnectiontest::connectiontest();
     myconnectiontest::myconnectiontest();
     asiotest::asioechotest();
     myechotest::myechotest();
