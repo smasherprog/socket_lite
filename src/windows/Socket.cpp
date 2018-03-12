@@ -6,6 +6,7 @@
 namespace SL {
 namespace NET {
 
+    LPFN_CONNECTEX ConnectEx_ = nullptr;
     Socket::Socket(Context *context, AddressFamily family) : Socket(context)
     {
         if (family == AddressFamily::IPV4) {
@@ -86,8 +87,6 @@ namespace NET {
 
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        ISocket::close();
-        ReadContext.clear();
         if (address.get_Family() == AddressFamily::IPV4) {
             sockaddr_in bindaddr = {0};
             bindaddr.sin_family = AF_INET;
@@ -109,14 +108,6 @@ namespace NET {
             }
         }
 
-        if (!Context_->ConnectEx_) {
-            GUID guid = WSAID_CONNECTEX;
-            DWORD bytes = 0;
-            if (WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &Context_->ConnectEx_, sizeof(Context_->ConnectEx_), &bytes,
-                         NULL, NULL) == SOCKET_ERROR) {
-                return handler(TranslateError());
-            }
-        }
         if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
             return handler(TranslateError());
         }
@@ -126,8 +117,8 @@ namespace NET {
         ReadContext.IOOperation = IO_OPERATION::IoConnect;
         Context_->PendingIO += 1;
         DWORD bytessend = 0;
-        auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
-                                               (LPOVERLAPPED)&ReadContext.Overlapped);
+        auto connectres = ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
+                                     (LPOVERLAPPED)&ReadContext.Overlapped);
         if (connectres == TRUE) {
             Context_->PendingIO -= 1;
             auto chandle(std::move(ReadContext.completionhandler));
@@ -175,7 +166,7 @@ namespace NET {
         else {
             Context_->PendingIO += 1;
             WSABUF wsabuf;
-            wsabuf.buf = (char *)WriteContext.buffer + ReadContext.transfered_bytes;
+            wsabuf.buf = (char *)WriteContext.buffer + WriteContext.transfered_bytes;
             wsabuf.len = static_cast<decltype(wsabuf.len)>(WriteContext.bufferlen - WriteContext.transfered_bytes);
             DWORD dwSendNumBytes(0), dwFlags(0);
             if (auto nRet = WSASend(handle, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(WriteContext.Overlapped), NULL);

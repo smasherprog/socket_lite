@@ -10,6 +10,12 @@ namespace NET {
     Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr)
         : Context_(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
     {
+        if (!AcceptEx_) {
+            GUID acceptex_guid = WSAID_ACCEPTEX;
+            DWORD bytes = 0;
+            WSAIoctl(ListenSocket->get_handle(), SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
+                     sizeof(AcceptEx_), &bytes, NULL, NULL);
+        }
     }
     Listener::~Listener() {}
 
@@ -17,15 +23,6 @@ namespace NET {
 
     void Listener::async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
     {
-        if (!AcceptEx_) {
-            GUID acceptex_guid = WSAID_ACCEPTEX;
-            DWORD bytes = 0;
-            if (WSAIoctl(ListenSocket->get_handle(), SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
-                         sizeof(AcceptEx_), &bytes, NULL, NULL) == SOCKET_ERROR) {
-                handler(TranslateError(), std::shared_ptr<ISocket>());
-            }
-        }
-
         DWORD recvbytes = 0;
         assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
         Win_IO_Accept_Context_.clear();

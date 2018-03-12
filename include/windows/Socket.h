@@ -9,6 +9,7 @@
 namespace SL {
 namespace NET {
 
+    extern LPFN_CONNECTEX ConnectEx_;
     class Socket final : public ISocket {
       public:
         Context *Context_;

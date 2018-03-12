@@ -1,4 +1,7 @@
 ﻿
+#define WINVER 0x0601
+#define _WIN32_WINNT 0x0601
+
 #include "asio_connectiontest.h"
 #include "asio_echotest.h"
 #include "asio_multithreadedechotest.h"
@@ -11,8 +14,10 @@
 int main()
 {
     std::srand(std::time(nullptr));
+
     asioconnectiontest::connectiontest();
     myconnectiontest::myconnectiontest();
+
     asiotest::asioechotest();
     myechotest::myechotest();
 

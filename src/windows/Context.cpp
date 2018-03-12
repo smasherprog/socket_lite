@@ -7,7 +7,19 @@ using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
     std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
-    Context::Context() { PendingIO = 0; }
+    Context::Context()
+    {
+        PendingIO = 0;
+
+        if (!ConnectEx_) {
+            auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+            GUID guid = WSAID_CONNECTEX;
+            DWORD bytes = 0;
+            WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
+
+            closesocket(handle);
+        }
+    }
 
     Context::~Context()
     {
