@@ -11,16 +11,15 @@
 
 using namespace std::chrono_literals;
 
-namespace myconnectiontest
-{
+namespace myconnectiontest {
 
 const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 
-class asioserver : public std::enable_shared_from_this<asioserver>
-{
-public:
-    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) {
+class asioserver : public std::enable_shared_from_this<asioserver> {
+  public:
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
+    {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
         auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, SL::NET::AddressFamily::IPV4);
@@ -38,10 +37,9 @@ public:
         listensocket->setsockopt<SL::NET::SocketOptions::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
         Listener = io_context->CreateListener(std::move(listensocket));
     }
-    ~asioserver() {
-        close();
-    }
-    void do_accept() {
+    ~asioserver() { close(); }
+    void do_accept()
+    {
         auto self(shared_from_this());
         Listener->async_accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
@@ -49,10 +47,7 @@ public:
             }
         });
     }
-    std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
-    void close() {
-        Listener->close();
-    }
+    void close() { Listener->close(); }
 
     std::shared_ptr<SL::NET::IListener> Listener;
 };
@@ -82,10 +77,13 @@ void myconnectiontest()
     }
     addresses = addrs;
     iocontext->run(SL::NET::ThreadCount(2));
-    connect(iocontext);
+    std::thread t([&iocontext]() { connect(iocontext); });
+    std::thread t1([&iocontext]() { connect(iocontext); });
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
     s->close();
+    t.join();
+    t1.join();
 }
 } // namespace myconnectiontest

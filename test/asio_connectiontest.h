@@ -64,6 +64,9 @@ void connectiontest()
     std::thread t([iocontext]() { iocontext->run(); });
     std::thread t2([iocontext]() { iocontext->run(); });
 
+    std::thread t3([&iocontext]() { connect(iocontext); });
+    std::thread t4([&iocontext]() { connect(iocontext); });
+
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "Asio Connections per Second " << connections / 10 << std::endl;
     iocontext->stop();
@@ -72,5 +75,7 @@ void connectiontest()
 
     t.join();
     t2.join();
+    t3.join();
+    t4.join();
 }
 } // namespace asioconnectiontest
