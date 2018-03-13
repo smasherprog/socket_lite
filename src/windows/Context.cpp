@@ -8,31 +8,7 @@ using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
     std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
-    SOCKET BuildSocket(AddressFamily family)
-    {
-        SOCKET sock = INVALID_SOCKET;
-        if (family == AddressFamily::IPV4) {
-            sockaddr_in bindaddr = {0};
-            bindaddr.sin_family = AF_INET;
-            bindaddr.sin_addr.s_addr = INADDR_ANY;
-            bindaddr.sin_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
-            INTERNAL::bind(sock, mytestaddr);
-        }
-        else {
-            sockaddr_in6 bindaddr = {0};
-            bindaddr.sin6_family = AF_INET6;
-            bindaddr.sin6_addr = in6addr_any;
-            bindaddr.sin6_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
-            INTERNAL::bind(sock, mytestaddr);
-        }
-        if (!INTERNAL::setsockopt_O_BLOCKING(sock, Blocking_Options::NON_BLOCKING)) {
-            closesocket(sock);
-            sock = INVALID_SOCKET;
-        }
-        return sock;
-    }
+
     SOCKET Context::getSocket(AddressFamily family)
     {
         SOCKET sock = INVALID_SOCKET;
@@ -44,16 +20,7 @@ namespace NET {
             }
         }
         if (sock == INVALID_SOCKET) {
-            sock = BuildSocket(family);
-        }
-
-        PendingIO += 1;
-        auto sockcreate = new Win_IO_BuildConnectSocket_Context();
-        sockcreate->IOOperation = IO_OPERATION::IoBuildConnectSocket;
-        sockcreate->AddressFamily_ = family;
-        if (PostQueuedCompletionStatus(iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&sockcreate->Overlapped) == FALSE) {
-            PendingIO -= 1;
-            delete sockcreate;
+            sock = INTERNAL::Socket(family);
         }
         return sock;
     }
@@ -66,7 +33,6 @@ namespace NET {
             GUID guid = WSAID_CONNECTEX;
             DWORD bytes = 0;
             WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
-
             closesocket(handle);
         }
     }
@@ -108,16 +74,6 @@ namespace NET {
             return std::shared_ptr<IListener>();
         }
         return listener;
-    }
-    void Context::handle_buildconnectionsocket(bool success, Win_IO_BuildConnectSocket_Context *context)
-    {
-        if (success) {
-
-            auto newsock = BuildSocket(context->AddressFamily_);
-            std::lock_guard<std::mutex> lock(ConnectionSocketsLock);
-            ConnectionSockets.push_back(newsock);
-        }
-        delete context;
     }
     void Context::run(ThreadCount threadcount)
     {
@@ -166,15 +122,24 @@ namespace NET {
                         }
                         static_cast<Socket *>(completionkey)->continue_write(bSuccess);
                         break;
-                    case IO_OPERATION::IoBuildConnectSocket:
-                        handle_buildconnectionsocket(bSuccess, static_cast<Win_IO_BuildConnectSocket_Context *>(overlapped));
-                        break;
                     default:
                         break;
                     }
+
                     if (--PendingIO <= 0) {
                         PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
+                    }
+                    if (ConnectionSockets.empty()) {
+                        const auto MAXBUFFERSOCKETS = 4;
+                        SOCKET arr[MAXBUFFERSOCKETS];
+                        for (auto &a : arr) {
+                            a = INTERNAL::Socket(AddressFamily::IPV4);
+                        }
+                        std::lock_guard<std::mutex> lock(ConnectionSocketsLock);
+                        for (auto &a : arr) {
+                            ConnectionSockets.push_back(a);
+                        }
                     }
                 }
             }));

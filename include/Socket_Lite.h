@@ -215,6 +215,7 @@ namespace NET {
             static auto setsockopt_(PlatformSocket handle, Blocking_Options b) { return setsockopt_O_BLOCKING(handle, b); }
         };
         SOCKET_LITE_EXTERN StatusCode bind(PlatformSocket &handle, sockaddr addr);
+        SOCKET_LITE_EXTERN PlatformSocket Socket(AddressFamily family);
     } // namespace INTERNAL
     template <SocketOptions SO> auto getsockopt(PlatformSocket handle) { return INTERNAL::getsockopt_factory_impl<SO>::getsockopt_(handle); }
     template <SocketOptions SO, typename... Args> auto setsockopt(PlatformSocket handle, Args &&... args)

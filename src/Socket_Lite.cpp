@@ -101,34 +101,32 @@ namespace NET {
         }
         handle = INVALID_SOCKET;
     }
-    StatusCode INTERNAL::bind(PlatformSocket &handle, sockaddr addr)
+    PlatformSocket INTERNAL::Socket(AddressFamily family)
     {
+        PlatformSocket handle = INVALID_SOCKET;
 #if _WIN32
-        if (handle == INVALID_SOCKET) {
-            if (addr.get_Family() == AddressFamily::IPV4) {
-                handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-            }
-            else {
-                handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-            }
+        if (family == AddressFamily::IPV4) {
+            handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
-        if (handle == INVALID_SOCKET) {
-            return TranslateError();
+        else {
+            handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         }
+
 #else
-        if (handle == INVALID_SOCKET) {
-            if (addr.get_Family() == AddressFamily::IPV4) {
-                handle = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-            }
-            else {
-                handle = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-            }
+        if (family == AddressFamily::IPV4) {
+            handle = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         }
-        if (handle == INVALID_SOCKET) {
-            return TranslateError();
+        else {
+            handle = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
         }
 #endif
-
+        return handle;
+    }
+    StatusCode INTERNAL::bind(PlatformSocket &handle, sockaddr addr)
+    {
+        if (handle == INVALID_SOCKET) {
+            handle = Socket(addr.get_Family());
+        }
         if (::bind(handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen()) == SOCKET_ERROR) {
             return TranslateError();
         }

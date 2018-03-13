@@ -7,17 +7,8 @@ namespace SL {
 namespace NET {
 
     LPFN_CONNECTEX ConnectEx_ = nullptr;
-    Socket::Socket(Context *context, AddressFamily family) : Socket(context)
-    {
-        if (family == AddressFamily::IPV4) {
-            handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        }
-        else {
-            handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        }
-    }
+    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = context->getSocket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
-
     Socket::~Socket() {}
 
     bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
@@ -97,11 +88,25 @@ namespace NET {
             return iodone(TranslateError(), context);
         }
         ISocket::close();
-        if (auto sock = Context_->getSocket(context->address.get_Family()); sock == INVALID_SOCKET) {
-            return iodone(TranslateError(), context);
+        handle = Context_->getSocket(context->address.get_Family());
+        if (context->address.get_Family() == AddressFamily::IPV4) {
+            sockaddr_in bindaddr = {0};
+            bindaddr.sin_family = AF_INET;
+            bindaddr.sin_addr.s_addr = INADDR_ANY;
+            bindaddr.sin_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
+            INTERNAL::bind(handle, mytestaddr);
         }
         else {
-            handle = sock;
+            sockaddr_in6 bindaddr = {0};
+            bindaddr.sin6_family = AF_INET6;
+            bindaddr.sin6_addr = in6addr_any;
+            bindaddr.sin6_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
+            INTERNAL::bind(handle, mytestaddr);
+        }
+        if (!INTERNAL::setsockopt_O_BLOCKING(handle, Blocking_Options::NON_BLOCKING)) {
+            return iodone(TranslateError(), context);
         }
 
         if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {

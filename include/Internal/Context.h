@@ -17,7 +17,6 @@ namespace NET {
 #if WIN32
         WSARAII wsa;
         SOCKET getSocket(AddressFamily family);
-        void handle_buildconnectionsocket(bool success, Win_IO_BuildConnectSocket_Context *context);
 #else
         int EventWakeFd = -1;
 #endif
