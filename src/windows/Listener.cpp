@@ -8,7 +8,7 @@ namespace SL {
 namespace NET {
 
     Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr)
-        : PendingIO(context->PendingIO), iocp(context->iocp), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
+        : Context_(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
     {
         if (!AcceptEx_) {
             GUID acceptex_guid = WSAID_ACCEPTEX;
@@ -31,15 +31,20 @@ namespace NET {
             return iofailed(TranslateError(), context);
         }
         DWORD recvbytes = 0;
-        context->Socket_ = std::make_shared<Socket>(PendingIO, iocp, ListenSocketAddr.get_Family());
+        context->Socket_ = std::make_shared<Socket>(Context_, ListenSocketAddr.get_Family());
         context->IOOperation = IO_OPERATION::IoAccept;
+        context->Overlapped = {0};
         context->ListenSocket = ListenSocket->get_handle();
-        PendingIO += 1;
+        Context_->PendingIO += 1;
         auto nRet = AcceptEx_(ListenSocket->get_handle(), context->Socket_->get_handle(), (LPVOID)(Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
                               sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (context->Overlapped));
-        if (auto wsaerr = WSAGetLastError(); nRet == SOCKET_ERROR && (ERROR_IO_PENDING != wsaerr)) {
-            PendingIO -= 1;
-            iofailed(TranslateError(&wsaerr), context);
+        if (nRet == TRUE) {
+            Context_->PendingIO -= 1;
+            handle_accept(true, context);
+        }
+        else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
+            Context_->PendingIO -= 1;
+            iofailed(TranslateError(&err), context);
         }
     }
     void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
@@ -49,8 +54,8 @@ namespace NET {
             delete context;
             chandle(code, sock);
         };
-        if (!success || (success && !context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING) &&
-                         !Socket::UpdateIOCP(context->Socket_->get_handle(), &iocp.handle, context->Socket_.get()))) {
+        context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
+        if (!success || (success && !Socket::UpdateIOCP(context->Socket_->get_handle(), &Context_->iocp.handle, context->Socket_.get()))) {
             iodone(TranslateError(), context, std::shared_ptr<Socket>());
         }
         else {
@@ -67,10 +72,15 @@ namespace NET {
         auto context = new Win_IO_Accept_Context();
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoStartAccept;
-        PendingIO += 1;
-        if (PostQueuedCompletionStatus(iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
-            PendingIO -= 1;
-            iofailed(TranslateError(), context);
+        if (Context_->inWorkerThread()) {
+            start_accept(true, context);
+        }
+        else {
+            Context_->PendingIO += 1;
+            if (PostQueuedCompletionStatus(Context_->iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
+                Context_->PendingIO -= 1;
+                iofailed(TranslateError(), context);
+            }
         }
     }
 } // namespace NET

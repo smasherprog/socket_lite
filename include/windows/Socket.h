@@ -12,13 +12,11 @@ namespace NET {
     extern LPFN_CONNECTEX ConnectEx_;
     class Socket final : public ISocket {
       public:
-        std::atomic<int> &PendingIO;
-        IOCP &Iocp;
+        Context *Context_;
         Win_IO_RW_Context ReadContext;
         Win_IO_RW_Context WriteContext;
 
         Socket(Context *context);
-        Socket(std::atomic<int> &pendingio, IOCP &iocp, AddressFamily family);
         Socket(Context *context, AddressFamily family);
         virtual ~Socket();
         static bool UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey);

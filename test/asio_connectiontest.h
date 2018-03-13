@@ -19,7 +19,7 @@ namespace asioconnectiontest {
 
 const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
-
+auto keepgoing = true;
 using asio::ip::tcp;
 class asioserver {
   public:
@@ -28,7 +28,7 @@ class asioserver {
     void do_accept()
     {
         acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
-            if (!ec) {
+            if (keepgoing) {
                 do_accept();
             }
         });
@@ -43,7 +43,7 @@ void connect(std::shared_ptr<asio::io_context> io_context)
     auto socket = std::make_shared<tcp::socket>(*io_context);
     asio::async_connect(*socket, endpoints, [socket, io_context](std::error_code ec, tcp::endpoint) {
         connections += 1.0;
-        if (!ec) {
+        if (keepgoing) {
             connect(io_context);
         }
     });
@@ -63,11 +63,12 @@ void connectiontest()
     connect(iocontext);
     std::thread t([iocontext]() { iocontext->run(); });
     std::thread t2([iocontext]() { iocontext->run(); });
-
-    std::thread t3([&iocontext]() { connect(iocontext); });
-    std::thread t4([&iocontext]() { connect(iocontext); });
+    // std::thread t3([iocontext]() { iocontext->run(); });
+    // std::thread t4([iocontext]() { iocontext->run(); });
+    connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    keepgoing = false;
     std::cout << "Asio Connections per Second " << connections / 10 << std::endl;
     iocontext->stop();
     s->acceptor_.cancel();
@@ -75,7 +76,7 @@ void connectiontest()
 
     t.join();
     t2.join();
-    t3.join();
-    t4.join();
+    // t3.join();
+    // t4.join();
 }
 } // namespace asioconnectiontest

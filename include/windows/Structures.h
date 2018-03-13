@@ -65,12 +65,15 @@ namespace NET {
             return StatusCode::SC_CLOSED;
         };
     }
-    enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
+    enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite, IoBuildConnectSocket };
     class Socket;
 
     struct Win_IO_Context {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
+    };
+    struct Win_IO_BuildConnectSocket_Context : Win_IO_Context {
+        AddressFamily AddressFamily_;
     };
     struct Win_IO_Connect_Context : Win_IO_Context {
         SL::NET::sockaddr address;

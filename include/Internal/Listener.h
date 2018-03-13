@@ -15,8 +15,7 @@ namespace NET {
         void handle_accept(bool success, Win_IO_Accept_Context *context);
 #endif //  WIN32
 
-        std::atomic<int> &PendingIO;
-        IOCP &iocp;
+        Context *Context_;
         std::shared_ptr<Socket> ListenSocket;
         SL::NET::sockaddr ListenSocketAddr;
 

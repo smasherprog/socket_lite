@@ -1,16 +1,66 @@
 #include "Context.h"
 #include "Listener.h"
 #include "Socket.h"
+#include <algorithm>
 #include <chrono>
 
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
     std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
+    SOCKET BuildSocket(AddressFamily family)
+    {
+        SOCKET sock = INVALID_SOCKET;
+        if (family == AddressFamily::IPV4) {
+            sockaddr_in bindaddr = {0};
+            bindaddr.sin_family = AF_INET;
+            bindaddr.sin_addr.s_addr = INADDR_ANY;
+            bindaddr.sin_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
+            INTERNAL::bind(sock, mytestaddr);
+        }
+        else {
+            sockaddr_in6 bindaddr = {0};
+            bindaddr.sin6_family = AF_INET6;
+            bindaddr.sin6_addr = in6addr_any;
+            bindaddr.sin6_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
+            INTERNAL::bind(sock, mytestaddr);
+        }
+        if (!INTERNAL::setsockopt_O_BLOCKING(sock, Blocking_Options::NON_BLOCKING)) {
+            closesocket(sock);
+            sock = INVALID_SOCKET;
+        }
+        return sock;
+    }
+    SOCKET Context::getSocket(AddressFamily family)
+    {
+        SOCKET sock = INVALID_SOCKET;
+        {
+            std::lock_guard<std::mutex> lock(ConnectionSocketsLock);
+            if (!ConnectionSockets.empty()) {
+                sock = ConnectionSockets.back();
+                ConnectionSockets.pop_back();
+            }
+        }
+        if (sock == INVALID_SOCKET) {
+            sock = BuildSocket(family);
+        }
+
+        PendingIO += 1;
+        auto sockcreate = new Win_IO_BuildConnectSocket_Context();
+        sockcreate->IOOperation = IO_OPERATION::IoBuildConnectSocket;
+        sockcreate->AddressFamily_ = family;
+        if (PostQueuedCompletionStatus(iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&sockcreate->Overlapped) == FALSE) {
+            PendingIO -= 1;
+            delete sockcreate;
+        }
+        return sock;
+    }
+
     Context::Context()
     {
         PendingIO = 0;
-
         if (!ConnectEx_) {
             auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
             GUID guid = WSAID_CONNECTEX;
@@ -26,9 +76,8 @@ namespace NET {
         while (PendingIO > 0) {
             std::this_thread::sleep_for(5ms);
         }
-        for (size_t i = 0; i < Threads.size(); i++) {
-            PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
-        }
+
+        PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
 
         for (auto &t : Threads) {
 
@@ -42,6 +91,9 @@ namespace NET {
                 }
             }
         }
+        for (auto &a : ConnectionSockets) {
+            closesocket(a);
+        }
     }
     std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
     std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
@@ -52,12 +104,21 @@ namespace NET {
         }
         auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
 
-        if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &iocp.handle, listener->ListenSocket.get())) {
+        if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &iocp.handle, listener.get())) {
             return std::shared_ptr<IListener>();
         }
         return listener;
     }
+    void Context::handle_buildconnectionsocket(bool success, Win_IO_BuildConnectSocket_Context *context)
+    {
+        if (success) {
 
+            auto newsock = BuildSocket(context->AddressFamily_);
+            std::lock_guard<std::mutex> lock(ConnectionSocketsLock);
+            ConnectionSockets.push_back(newsock);
+        }
+        delete context;
+    }
     void Context::run(ThreadCount threadcount)
     {
 
@@ -74,9 +135,11 @@ namespace NET {
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
                     if (!overlapped) {
+                        PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
                     }
                     switch (overlapped->IOOperation) {
+
                     case IO_OPERATION::IoInitConnect:
                         static_cast<Socket *>(completionkey)->init_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
@@ -103,10 +166,14 @@ namespace NET {
                         }
                         static_cast<Socket *>(completionkey)->continue_write(bSuccess);
                         break;
+                    case IO_OPERATION::IoBuildConnectSocket:
+                        handle_buildconnectionsocket(bSuccess, static_cast<Win_IO_BuildConnectSocket_Context *>(overlapped));
+                        break;
                     default:
                         break;
                     }
                     if (--PendingIO <= 0) {
+                        PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
                     }
                 }

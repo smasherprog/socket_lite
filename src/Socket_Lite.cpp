@@ -101,7 +101,7 @@ namespace NET {
         }
         handle = INVALID_SOCKET;
     }
-    StatusCode ISocket::bind(sockaddr addr)
+    StatusCode INTERNAL::bind(PlatformSocket &handle, sockaddr addr)
     {
 #if _WIN32
         if (handle == INVALID_SOCKET) {
@@ -134,6 +134,7 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
+    StatusCode ISocket::bind(sockaddr addr) { return INTERNAL::bind(handle, addr); }
 
     std::optional<SL::NET::sockaddr> ISocket::getpeername() const
     {
