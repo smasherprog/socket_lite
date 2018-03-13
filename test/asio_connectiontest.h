@@ -42,7 +42,7 @@ void connect(std::shared_ptr<asio::io_context> io_context)
     auto socket = std::make_shared<tcp::socket>(*io_context);
     asio::async_connect(*socket, endpoints, [socket, io_context](std::error_code ec, tcp::endpoint) {
         connections += 1.0;
-        if (!ec) {
+        if (keepgoing) {
             connect(io_context);
         }
         else if (keepgoing) {

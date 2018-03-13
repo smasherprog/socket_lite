@@ -57,7 +57,7 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     void do_accept()
     {
         auto self(shared_from_this());
-        Listener->async_accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(socket)->start();
                 self->do_accept();

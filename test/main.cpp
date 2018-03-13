@@ -17,10 +17,8 @@ int main()
 
     asioconnectiontest::connectiontest();
     myconnectiontest::myconnectiontest();
-
     asiotest::asioechotest();
     myechotest::myechotest();
-
     asio_multithreadedechotest::asioechotest();
     mymultithreadedechotest::myechotest();
     asiotransfertest::asiotransfertest();

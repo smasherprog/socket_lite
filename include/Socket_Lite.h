@@ -97,6 +97,7 @@ namespace NET {
         sockaddr() {}
         sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
         sockaddr(const sockaddr &addr);
+
         const unsigned char *get_SocketAddr() const;
         int get_SocketAddrLen() const;
         std::string get_Host() const;
@@ -213,7 +214,7 @@ namespace NET {
         template <> struct setsockopt_factory_impl<SocketOptions::O_BLOCKING> {
             static auto setsockopt_(PlatformSocket handle, Blocking_Options b) { return setsockopt_O_BLOCKING(handle, b); }
         };
-
+        SOCKET_LITE_EXTERN StatusCode bind(PlatformSocket &handle, sockaddr addr);
     } // namespace INTERNAL
     template <SocketOptions SO> auto getsockopt(PlatformSocket handle) { return INTERNAL::getsockopt_factory_impl<SO>::getsockopt_(handle); }
     template <SocketOptions SO, typename... Args> auto setsockopt(PlatformSocket handle, Args &&... args)
@@ -252,7 +253,7 @@ namespace NET {
       public:
         virtual ~IListener() {}
         virtual void close() = 0;
-        virtual void async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler) = 0;
+        virtual void accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler) = 0;
     };
     class SOCKET_LITE_EXTERN IContext {
       public:
