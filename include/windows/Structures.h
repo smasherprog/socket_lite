@@ -48,7 +48,6 @@ namespace NET {
         operator bool() const { return handle != NULL; }
     };
 
-
     inline StatusCode TranslateError(int *errcode = nullptr)
     {
         auto originalerr = WSAGetLastError();
@@ -65,24 +64,23 @@ namespace NET {
         default:
             return StatusCode::SC_CLOSED;
         };
-    } 
-    enum IO_OPERATION { IoNone, IoConnect, IoAccept, IoRead, IoWrite };
+    }
+    enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
     class Socket;
+
     struct Win_IO_Context {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
+    };
+    struct Win_IO_Connect_Context : Win_IO_Context {
+        SL::NET::sockaddr address;
+        std::function<void(StatusCode)> completionhandler;
+        Socket *Socket_;
     };
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
-        void clear()
-        {
-            Overlapped = {0};
-            IOOperation = IO_OPERATION::IoNone;
-            Socket_.reset();
-            completionhandler = nullptr;
-        }
     };
     struct Win_IO_RW_Context : Win_IO_Context {
         size_t transfered_bytes = 0;

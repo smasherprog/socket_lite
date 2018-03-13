@@ -41,7 +41,7 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     void do_accept()
     {
         auto self(shared_from_this());
-        Listener->async_accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_accept();
             }
@@ -77,13 +77,10 @@ void myconnectiontest()
     }
     addresses = addrs;
     iocontext->run(SL::NET::ThreadCount(2));
-    std::thread t([&iocontext]() { connect(iocontext); });
-    std::thread t1([&iocontext]() { connect(iocontext); });
+    connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
     s->close();
-    t.join();
-    t1.join();
 }
 } // namespace myconnectiontest

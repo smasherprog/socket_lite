@@ -57,18 +57,6 @@ namespace NET {
         }
         return listener;
     }
-    void handleaccept(bool success, Win_IO_Accept_Context *overlapped, IOCP &iocp)
-    {
-        auto sock(std::move(overlapped->Socket_));
-        auto handle(std::move(overlapped->completionhandler));
-        overlapped->clear();
-        if (!success || (success && !Socket::UpdateIOCP(sock->get_handle(), &iocp.handle, sock.get()))) {
-            handle(TranslateError(), std::shared_ptr<Socket>());
-        }
-        else {
-            handle(StatusCode::SC_SUCCESS, sock);
-        }
-    }
 
     void Context::run(ThreadCount threadcount)
     {
@@ -80,7 +68,7 @@ namespace NET {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
                     Win_IO_Context *overlapped = nullptr;
-                    Socket *completionkey = nullptr;
+                    void *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
@@ -89,25 +77,31 @@ namespace NET {
                         return;
                     }
                     switch (overlapped->IOOperation) {
+                    case IO_OPERATION::IoInitConnect:
+                        static_cast<Socket *>(completionkey)->init_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        break;
                     case IO_OPERATION::IoConnect:
-                        completionkey->continue_connect(bSuccess ? StatusCode::SC_SUCCESS : TranslateError());
+                        static_cast<Socket *>(completionkey)->continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        break;
+                    case IO_OPERATION::IoStartAccept:
+                        static_cast<Listener *>(completionkey)->start_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoAccept:
-                        handleaccept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped), iocp);
+                        static_cast<Listener *>(completionkey)->handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoRead:
-                        completionkey->increment_readbytes(numberofbytestransfered);
-                        if (numberofbytestransfered == 0 && completionkey->ReadContext.bufferlen != 0 && bSuccess) {
+                        static_cast<Socket *>(completionkey)->increment_readbytes(numberofbytestransfered);
+                        if (numberofbytestransfered == 0 && static_cast<Socket *>(completionkey)->ReadContext.bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        completionkey->continue_read(bSuccess);
+                        static_cast<Socket *>(completionkey)->continue_read(bSuccess);
                         break;
                     case IO_OPERATION::IoWrite:
-                        completionkey->increment_writebytes(numberofbytestransfered);
-                        if (numberofbytestransfered == 0 && completionkey->WriteContext.bufferlen != 0 && bSuccess) {
+                        static_cast<Socket *>(completionkey)->increment_writebytes(numberofbytestransfered);
+                        if (numberofbytestransfered == 0 && static_cast<Socket *>(completionkey)->WriteContext.bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        completionkey->continue_write(bSuccess);
+                        static_cast<Socket *>(completionkey)->continue_write(bSuccess);
                         break;
                     default:
                         break;

@@ -97,6 +97,7 @@ namespace NET {
         sockaddr() {}
         sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
         sockaddr(const sockaddr &addr);
+
         const unsigned char *get_SocketAddr() const;
         int get_SocketAddrLen() const;
         std::string get_Host() const;
@@ -252,7 +253,7 @@ namespace NET {
       public:
         virtual ~IListener() {}
         virtual void close() = 0;
-        virtual void async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler) = 0;
+        virtual void accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler) = 0;
     };
     class SOCKET_LITE_EXTERN IContext {
       public:
