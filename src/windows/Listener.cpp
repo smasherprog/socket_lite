@@ -36,6 +36,7 @@ namespace NET {
         context->Overlapped = {0};
         context->ListenSocket = ListenSocket->get_handle();
         Context_->PendingIO += 1;
+
         auto nRet = AcceptEx_(ListenSocket->get_handle(), context->Socket_->get_handle(), (LPVOID)(Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
                               sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (context->Overlapped));
         if (nRet == TRUE) {
@@ -49,17 +50,23 @@ namespace NET {
     }
     void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
     {
-        static auto iodone = [](auto code, auto context, auto sock) {
+        static auto iodone = [](auto code, auto context) {
+            auto sock(std::move(context->Socket_));
             auto chandle(std::move(context->completionhandler));
             delete context;
             chandle(code, sock);
         };
+
+        if (::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket,
+                         sizeof(context->ListenSocket)) == SOCKET_ERROR) {
+            return iodone(TranslateError(), context);
+        }
         context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         if (!success || (success && !Socket::UpdateIOCP(context->Socket_->get_handle(), &Context_->iocp.handle, context->Socket_.get()))) {
-            iodone(TranslateError(), context, std::shared_ptr<Socket>());
+            iodone(TranslateError(), context);
         }
         else {
-            iodone(StatusCode::SC_SUCCESS, context, std::move(context->Socket_));
+            iodone(StatusCode::SC_SUCCESS, context);
         }
     }
     void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
