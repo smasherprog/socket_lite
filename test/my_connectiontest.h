@@ -15,7 +15,7 @@ namespace myconnectiontest {
 
 const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
-
+auto keepgoing = true;
 class asioserver : public std::enable_shared_from_this<asioserver> {
   public:
     asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
@@ -41,8 +41,8 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     void do_accept()
     {
         auto self(shared_from_this());
-        Listener->async_accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
-            if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
+        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+            if (keepgoing) {
                 self->do_accept();
             }
         });
@@ -58,7 +58,7 @@ void connect(std::shared_ptr<SL::NET::IContext> iocontext)
     auto socket_ = iocontext->CreateSocket();
     socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::StatusCode connectstatus) {
         connections += 1.0;
-        if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
+        if (keepgoing) {
             connect(iocontext);
         }
     });
@@ -77,13 +77,11 @@ void myconnectiontest()
     }
     addresses = addrs;
     iocontext->run(SL::NET::ThreadCount(2));
-    std::thread t([&iocontext]() { connect(iocontext); });
-    std::thread t1([&iocontext]() { connect(iocontext); });
+    connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    keepgoing = false;
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
     s->close();
-    t.join();
-    t1.join();
 }
 } // namespace myconnectiontest

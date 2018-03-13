@@ -29,7 +29,8 @@ namespace NET {
 
         void continue_write(bool success);
         void continue_read(bool success);
-        void continue_connect(StatusCode connect_success);
+        void init_connect(bool success, Win_IO_Connect_Context *context);
+        void continue_connect(bool success, Win_IO_Connect_Context *context);
     };
 
 } // namespace NET

@@ -17,6 +17,7 @@ namespace NET {
         }
     }
     Socket::Socket(Context *context) : Context_(context) {}
+
     Socket::~Socket() {}
 
     bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
@@ -85,65 +86,84 @@ namespace NET {
         }
     }
 
-    void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
+    void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
     {
-        if (address.get_Family() == AddressFamily::IPV4) {
-            sockaddr_in bindaddr = {0};
-            bindaddr.sin_family = AF_INET;
-            bindaddr.sin_addr.s_addr = INADDR_ANY;
-            bindaddr.sin_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
-            if (auto b = bind(mytestaddr); b != StatusCode::SC_SUCCESS) {
-                return handler(b);
-            }
+        static auto iodone = [](auto code, auto context) {
+            auto chandle(std::move(context->completionhandler));
+            delete context;
+            chandle(code);
+        };
+        if (!success) {
+            return iodone(TranslateError(), context);
+        }
+        ISocket::close();
+        if (auto sock = Context_->getSocket(context->address.get_Family()); sock == INVALID_SOCKET) {
+            return iodone(TranslateError(), context);
         }
         else {
-            sockaddr_in6 bindaddr = {0};
-            bindaddr.sin6_family = AF_INET6;
-            bindaddr.sin6_addr = in6addr_any;
-            bindaddr.sin6_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
-            if (auto b = bind(mytestaddr); b != StatusCode::SC_SUCCESS) {
-                return handler(b);
-            }
+            handle = sock;
         }
 
         if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
-            return handler(TranslateError());
+            return iodone(TranslateError(), context);
         }
 
-        ReadContext.completionhandler = [ihandle(std::move(handler))](StatusCode code, size_t) { ihandle(code); };
-        ;
-        ReadContext.IOOperation = IO_OPERATION::IoConnect;
+        context->IOOperation = IO_OPERATION::IoConnect;
+        context->Overlapped = {0};
         Context_->PendingIO += 1;
         DWORD bytessend = 0;
-        auto connectres = ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), NULL, 0, &bytessend,
-                                     (LPOVERLAPPED)&ReadContext.Overlapped);
+        auto connectres = ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), NULL, 0,
+                                     &bytessend, (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             Context_->PendingIO -= 1;
-            auto chandle(std::move(ReadContext.completionhandler));
-            chandle(StatusCode::SC_SUCCESS, 0);
+            iodone(StatusCode::SC_SUCCESS, context);
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             Context_->PendingIO -= 1;
-            auto chandle(std::move(ReadContext.completionhandler));
-            chandle(TranslateError(&err), 0);
+            iodone(TranslateError(&err), context);
         }
     }
-    void Socket::continue_connect(StatusCode connect_success)
+
+    void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
     {
-        auto chandle(std::move(ReadContext.completionhandler));
-        ReadContext.clear();
-        if (connect_success == StatusCode::SC_SUCCESS) {
+        static auto iodone = [](auto code, auto context) {
+            auto chandle(std::move(context->completionhandler));
+            delete context;
+            chandle(code);
+        };
+        if (success) {
             if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
-                chandle(TranslateError(), 0);
+                iodone(TranslateError(), context);
             }
             else {
-                chandle(StatusCode::SC_SUCCESS, 0);
+                iodone(StatusCode::SC_SUCCESS, context);
             }
         }
         else {
-            chandle(TranslateError(), 0);
+            iodone(TranslateError(), context);
+        }
+    }
+    void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
+    {
+        auto iofailed = [](auto code, auto context) {
+            auto chandle(std::move(context->completionhandler));
+            delete context;
+            chandle(code);
+        };
+        auto context = new Win_IO_Connect_Context();
+        context->completionhandler = std::move(handler);
+        context->IOOperation = IO_OPERATION::IoInitConnect;
+        context->Socket_ = this;
+        context->address = address;
+        if (Context_->inWorkerThread()) {
+            init_connect(true, context);
+        }
+        else {
+            Context_->PendingIO += 1;
+            if (PostQueuedCompletionStatus(Context_->iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
+                Context_->PendingIO -= 1;
+                iofailed(TranslateError(), context);
+            }
         }
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
