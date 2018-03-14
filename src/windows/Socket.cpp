@@ -36,11 +36,11 @@ namespace NET {
 
         if (!success) {
             close();
-            context->completionhandler->handle(TranslateError(), 0, true);
+            context->completionhandler->handle(TranslateError(), 0, false);
             delete context;
         }
         else if (context->bufferlen == context->transfered_bytes) {
-            context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
+            context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, false);
             delete context;
         }
         else {
@@ -53,10 +53,10 @@ namespace NET {
             Context_->PendingIO += 1;
             DWORD nRet = 0;
             if (context->IOOperation == IO_OPERATION::IoRead) {
-                nRet = WSARecv(handle, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
+                nRet = WSARecv(handle, &wsabuf, 1, NULL, &dwFlags, &(context->Overlapped), NULL);
             }
             else {
-                nRet = WSASend(handle, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
+                nRet = WSASend(handle, &wsabuf, 1, NULL, dwFlags, &(context->Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
@@ -64,10 +64,10 @@ namespace NET {
                 close();
                 context->completionhandler->handle(TranslateError(&lasterr), 0, false);
                 delete context;
-            }
-            else if (nRet == 0 && dwSendNumBytes == bytesleft) {
-                func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
-            }
+            } /*
+             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
+                 func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
+             }*/
         }
     }
     SOCKET BindSocket(SOCKET sock, AddressFamily family)
@@ -101,14 +101,13 @@ namespace NET {
         }
         ISocket::close();
         handle = BindSocket(INTERNAL::Socket(context->address.get_Family()), context->address.get_Family());
-        if (!INTERNAL::setsockopt_O_BLOCKING(handle, Blocking_Options::NON_BLOCKING)) {
+        if (!setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
             return iodone(TranslateError(), context);
         }
 
         if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
             return iodone(TranslateError(), context);
         }
-
         context->IOOperation = IO_OPERATION::IoConnect;
         context->Overlapped = {0};
         Context_->PendingIO += 1;

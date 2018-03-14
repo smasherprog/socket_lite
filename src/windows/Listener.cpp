@@ -61,7 +61,9 @@ namespace NET {
                          sizeof(context->ListenSocket)) == SOCKET_ERROR) {
             return iodone(TranslateError(), context);
         }
-        context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
+        if (!context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
+            return iodone(TranslateError(), context);
+        }
         if (!success || (success && !Socket::UpdateIOCP(context->Socket_->get_handle(), &Context_->iocp.handle, context->Socket_.get()))) {
             iodone(TranslateError(), context);
         }
