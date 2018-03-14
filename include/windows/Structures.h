@@ -110,6 +110,11 @@ namespace NET {
                 completionhandler(code, bytes);
             }
         }
+        void clear()
+        {
+            Completed = false;
+            completionhandler = nullptr;
+        }
     };
     struct Win_IO_RW_Context : Win_IO_Context {
         size_t transfered_bytes = 0;

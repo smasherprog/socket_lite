@@ -23,7 +23,14 @@ namespace NET {
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->RW_ContextPool.newObject();
+        Win_IO_RW_Context *context = nullptr;
+        if (!Win_IO_RW_ContextBuffer.empty()) {
+            context = Win_IO_RW_ContextBuffer.back();
+            Win_IO_RW_ContextBuffer.pop_back();
+        }
+        if (context == nullptr) {
+            context = new Win_IO_RW_Context();
+        }
         context->buffer = buffer;
         context->bufferlen = buffer_size;
         context->completionhandler = std::make_shared<RW_CompletionHandler>(std::forward<std::function<void(StatusCode, size_t)>>(handler));
@@ -37,11 +44,13 @@ namespace NET {
         if (!success) {
             close();
             context->completionhandler->handle(TranslateError(), 0, true);
-            Context_->RW_ContextPool.deleteObject(context);
+            context->clear();
+            Win_IO_RW_ContextBuffer.push_back(context);
         }
         else if (context->bufferlen == context->transfered_bytes) {
             context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
-            Context_->RW_ContextPool.deleteObject(context);
+            context->clear();
+            Win_IO_RW_ContextBuffer.push_back(context);
         }
         else {
             auto func = context->completionhandler;
@@ -63,7 +72,8 @@ namespace NET {
                 Context_->PendingIO -= 1;
                 close();
                 context->completionhandler->handle(TranslateError(&lasterr), 0, false);
-                Context_->RW_ContextPool.deleteObject(context);
+                context->clear();
+                Win_IO_RW_ContextBuffer.push_back(context);
             }
             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
                 func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
@@ -166,7 +176,14 @@ namespace NET {
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->RW_ContextPool.newObject();
+        Win_IO_RW_Context *context = nullptr;
+        if (!Win_IO_RW_ContextBuffer.empty()) {
+            context = Win_IO_RW_ContextBuffer.back();
+            Win_IO_RW_ContextBuffer.pop_back();
+        }
+        if (context == nullptr) {
+            context = new Win_IO_RW_Context();
+        }
         context->buffer = buffer;
         context->bufferlen = buffer_size;
         context->completionhandler = std::make_shared<RW_CompletionHandler>(std::forward<std::function<void(StatusCode, size_t)>>(handler));

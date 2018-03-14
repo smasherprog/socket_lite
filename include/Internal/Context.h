@@ -1,11 +1,13 @@
 #pragma once
 #include "Socket_Lite.h"
 #include "Structures.h"
-#include "memorypool.h"
 #include <algorithm>
 #include <thread>
 namespace SL {
 namespace NET {
+
+    extern thread_local std::vector<Win_IO_RW_Context *> Win_IO_RW_ContextBuffer;
+
     class Context final : public IContext {
         std::vector<std::thread> Threads;
 
@@ -18,7 +20,6 @@ namespace NET {
 
         IOCP iocp;
         std::atomic<int> PendingIO;
-        MemoryPool<Win_IO_RW_Context> RW_ContextPool;
 
         Context();
         ~Context();
