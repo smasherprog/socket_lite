@@ -8,7 +8,7 @@ namespace NET {
     template <class T> class MemoryPool {
 
         std::vector<T *> RW_ContextBuffer;
-        // spinlock RW_ContextBufferLock;
+        spinlock RW_ContextBufferLock;
 
       public:
         ~MemoryPool()
