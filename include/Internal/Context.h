@@ -19,7 +19,6 @@ namespace NET {
         IOCP iocp;
         std::atomic<int> PendingIO;
         MemoryPool<Win_IO_RW_Context> RW_ContextPool;
-        MemoryPool<RW_CompletionHandler> RW_CompletionHandlerPool;
 
         Context();
         ~Context();
