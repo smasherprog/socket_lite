@@ -10,8 +10,8 @@ namespace SL {
 namespace NET {
     class Context final : public IContext {
         std::vector<std::thread> Threads;
-        std::vector<SOCKET> ConnectionSockets;
-        std::mutex ConnectionSocketsLock;
+        std::vector<SOCKET> SocketBuffer;
+        std::mutex SocketBufferLock;
 
       public:
 #if WIN32

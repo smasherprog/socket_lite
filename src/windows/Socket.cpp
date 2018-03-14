@@ -76,7 +76,26 @@ namespace NET {
             }
         }
     }
-
+    SOCKET BindSocket(SOCKET sock, AddressFamily family)
+    {
+        if (family == AddressFamily::IPV4) {
+            sockaddr_in bindaddr = {0};
+            bindaddr.sin_family = AF_INET;
+            bindaddr.sin_addr.s_addr = INADDR_ANY;
+            bindaddr.sin_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
+            INTERNAL::bind(sock, mytestaddr);
+        }
+        else {
+            sockaddr_in6 bindaddr = {0};
+            bindaddr.sin6_family = AF_INET6;
+            bindaddr.sin6_addr = in6addr_any;
+            bindaddr.sin6_port = 0;
+            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
+            INTERNAL::bind(sock, mytestaddr);
+        }
+        return sock;
+    }
     void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
     {
         static auto iodone = [](auto code, auto context) {
@@ -88,23 +107,7 @@ namespace NET {
             return iodone(TranslateError(), context);
         }
         ISocket::close();
-        handle = Context_->getSocket(context->address.get_Family());
-        if (context->address.get_Family() == AddressFamily::IPV4) {
-            sockaddr_in bindaddr = {0};
-            bindaddr.sin_family = AF_INET;
-            bindaddr.sin_addr.s_addr = INADDR_ANY;
-            bindaddr.sin_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
-            INTERNAL::bind(handle, mytestaddr);
-        }
-        else {
-            sockaddr_in6 bindaddr = {0};
-            bindaddr.sin6_family = AF_INET6;
-            bindaddr.sin6_addr = in6addr_any;
-            bindaddr.sin6_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
-            INTERNAL::bind(handle, mytestaddr);
-        }
+        handle = BindSocket(Context_->getSocket(context->address.get_Family()), context->address.get_Family());
         if (!INTERNAL::setsockopt_O_BLOCKING(handle, Blocking_Options::NON_BLOCKING)) {
             return iodone(TranslateError(), context);
         }
@@ -116,9 +119,8 @@ namespace NET {
         context->IOOperation = IO_OPERATION::IoConnect;
         context->Overlapped = {0};
         Context_->PendingIO += 1;
-        DWORD bytessend = 0;
-        auto connectres = ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), NULL, 0,
-                                     &bytessend, (LPOVERLAPPED)&context->Overlapped);
+        auto connectres = ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), 0, 0, 0,
+                                     (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             Context_->PendingIO -= 1;
             iodone(StatusCode::SC_SUCCESS, context);

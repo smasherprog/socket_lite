@@ -72,6 +72,7 @@ namespace NET {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
     };
+
     struct Win_IO_Connect_Context : Win_IO_Context {
         SL::NET::sockaddr address;
         std::function<void(StatusCode)> completionhandler;
