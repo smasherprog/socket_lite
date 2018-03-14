@@ -87,11 +87,7 @@ namespace NET {
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
     struct RW_CompletionHandler {
-        RW_CompletionHandler(std::function<void(StatusCode, size_t)> &&func)
-            : completionhandler(std::forward<std::function<void(StatusCode, size_t)>>(func))
-        {
-            Completed = false;
-        }
+        RW_CompletionHandler() { Completed = false; }
         std::function<void(StatusCode, size_t)> completionhandler;
         std::atomic<bool> Completed;
         void handle(StatusCode code, size_t bytes, bool lockneeded)
@@ -110,12 +106,26 @@ namespace NET {
                 completionhandler(code, bytes);
             }
         }
+        void clear()
+        {
+            Completed = false;
+            completionhandler = nullptr;
+        }
     };
     struct Win_IO_RW_Context : Win_IO_Context {
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
         std::shared_ptr<RW_CompletionHandler> completionhandler;
+        void clear()
+        {
+            transfered_bytes = 0;
+            bufferlen = 0;
+            buffer = nullptr;
+            completionhandler.reset();
+            Overlapped = {0};
+            IOOperation = IO_OPERATION::IoNone;
+        }
     };
 } // namespace NET
 } // namespace SL

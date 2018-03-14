@@ -22,13 +22,11 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
+        //  std::cout << "1recv" << std::endl;
         socket_->recv(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (bytesread == sizeof(writeecho) && code == SL::NET::StatusCode::SC_SUCCESS) {
+            //  std::cout << "2recv" << std::endl;
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_write();
-                // std::cout << "recv" << std::endl;
-            }
-            else {
-                // std::cout << "Closing From Session::do_read()" << std::endl;
             }
         });
     }
@@ -36,14 +34,12 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
+        // std::cout << "1send" << std::endl;
         socket_->send(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (bytesread == sizeof(writeecho) && code == SL::NET::StatusCode::SC_SUCCESS) {
+            //  std::cout << "send" << std::endl;
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
-                //  std::cout << "send" << std::endl;
                 self->do_read();
-            }
-            else {
-                //  std::cout << "Closing From Session::do_write()" << std::endl;
             }
         });
     }
@@ -79,9 +75,6 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
             if (socket && SL::NET::StatusCode::SC_SUCCESS == code) {
                 std::make_shared<session>(socket)->do_read();
                 self->do_accept();
-            }
-            else {
-                //     std::cout << "Closing From asioserver::do_accept()" << std::endl;
             }
         });
     }

@@ -16,13 +16,14 @@ int main()
     std::srand(std::time(nullptr));
 
     myconnectiontest::myconnectiontest();
-
     asiotest::asioechotest();
     myechotest::myechotest();
-    asio_multithreadedechotest::asioechotest();
-    mymultithreadedechotest::myechotest();
-    mytransfertest::mytransfertest();
     asiotransfertest::asiotransfertest();
+    asio_multithreadedechotest::asioechotest();
+
+    mymultithreadedechotest::myechotest();
+
+    mytransfertest::mytransfertest();
     asioconnectiontest::connectiontest();
     return 0;
 }

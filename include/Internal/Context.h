@@ -1,11 +1,9 @@
 #pragma once
 #include "Socket_Lite.h"
 #include "Structures.h"
+#include "memorypool.h"
 #include <algorithm>
-#include <atomic>
-#include <mutex>
 #include <thread>
-
 namespace SL {
 namespace NET {
     class Context final : public IContext {
@@ -20,6 +18,8 @@ namespace NET {
 
         IOCP iocp;
         std::atomic<int> PendingIO;
+        MemoryPool<Win_IO_RW_Context> RW_ContextPool;
+        MemoryPool<RW_CompletionHandler> RW_CompletionHandlerPool;
 
         Context();
         ~Context();

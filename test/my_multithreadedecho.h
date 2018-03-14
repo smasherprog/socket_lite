@@ -10,13 +10,12 @@
 
 using namespace std::chrono_literals;
 
-namespace mymultithreadedechotest
-{
+namespace mymultithreadedechotest {
 
 void myechotest()
 {
     std::cout << "Starting My 4 thread Echos Test" << std::endl;
-    myechomodels::writeechos=0;
+    myechomodels::writeechos = 0;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     auto iocontext = SL::NET::CreateContext();
     auto s(std::make_shared<myechomodels::asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
@@ -34,7 +33,7 @@ void myechotest()
 
     iocontext->run(SL::NET::ThreadCount(4));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 20 << std::endl;
+    std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
     c.close();
     c1.close();
     c2.close();
