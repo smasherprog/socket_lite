@@ -80,7 +80,7 @@ void myconnectiontest()
         std::cout << "Error code:" << code << std::endl;
     }
     addresses = addrs;
-    iocontext->run(SL::NET::ThreadCount(2));
+    iocontext->run(SL::NET::ThreadCount(1));
     connect(iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;

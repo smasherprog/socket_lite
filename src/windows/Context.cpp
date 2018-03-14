@@ -11,19 +11,19 @@ namespace NET {
 
     SOCKET Context::getSocket(AddressFamily family)
     {
-        // return INTERNAL::Socket(family);
-        SOCKET sock = INVALID_SOCKET;
-        {
-            std::lock_guard<std::mutex> lock(SocketBufferLock);
-            if (!SocketBuffer.empty()) {
-                sock = SocketBuffer.back();
-                SocketBuffer.pop_back();
-            }
-        }
-        if (sock == INVALID_SOCKET) {
-            sock = INTERNAL::Socket(family);
-        }
-        return sock;
+        return INTERNAL::Socket(family);
+        /*   SOCKET sock = INVALID_SOCKET;
+           {
+               std::lock_guard<std::mutex> lock(SocketBufferLock);
+               if (!SocketBuffer.empty()) {
+                   sock = SocketBuffer.back();
+                   SocketBuffer.pop_back();
+               }
+           }
+           if (sock == INVALID_SOCKET) {
+               sock = INTERNAL::Socket(family);
+           }
+           return sock;*/
     }
 
     Context::Context()
@@ -130,20 +130,20 @@ namespace NET {
                     if (--PendingIO <= 0) {
                         PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
-                    }
-                    if (SocketBuffer.empty()) {
+                    } /*
+                     if (SocketBuffer.empty()) {
 
-                        for (auto i = 0; i < threadcount.value; i++) {
-                            socketbuffer.push_back(INTERNAL::Socket(AddressFamily::IPV4));
-                        }
-                        {
-                            std::lock_guard<std::mutex> lock(SocketBufferLock);
-                            for (auto &a : socketbuffer) {
-                                SocketBuffer.push_back(a);
-                            }
-                        }
-                        socketbuffer.clear();
-                    }
+                         for (auto i = 0; i < threadcount.value; i++) {
+                             socketbuffer.push_back(INTERNAL::Socket(AddressFamily::IPV4));
+                         }
+                         {
+                             std::lock_guard<std::mutex> lock(SocketBufferLock);
+                             for (auto &a : socketbuffer) {
+                                 SocketBuffer.push_back(a);
+                             }
+                         }
+                         socketbuffer.clear();
+                     }*/
                 }
             }));
         }

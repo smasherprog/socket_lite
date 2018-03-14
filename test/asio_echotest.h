@@ -25,7 +25,6 @@ void asioechotest()
     asiomodels::asioclient c(iocontext);
     c.do_connect(endpoints);
     std::thread t([&iocontext]() { iocontext.run(); });
-    std::thread t2([&iocontext]() { iocontext.run(); });
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "ASIO Echo per Second " << asiomodels::writeechos / 20 << std::endl;
@@ -34,7 +33,6 @@ void asioechotest()
     s.acceptor_.close();
     c.close();
     t.join();
-    t2.join();
 }
 
 } // namespace asiotest

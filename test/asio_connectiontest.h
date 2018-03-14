@@ -64,7 +64,7 @@ void connectiontest()
 
     connect(iocontext);
     std::thread t([iocontext]() { iocontext->run(); });
-    std::thread t2([iocontext]() { iocontext->run(); });
+    //   std::thread t2([iocontext]() { iocontext->run(); });
     connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
@@ -75,6 +75,6 @@ void connectiontest()
     s->acceptor_.close();
 
     t.join();
-    t2.join();
+    //   t2.join();
 }
 } // namespace asioconnectiontest
