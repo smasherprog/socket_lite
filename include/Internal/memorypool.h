@@ -23,6 +23,8 @@ namespace NET {
             if (RW_ContextBuffer.empty())
                 return new T();
             std::lock_guard<spinlock> lock(RW_ContextBufferLock);
+            if (RW_ContextBuffer.empty())
+                return new T();
             auto p = RW_ContextBuffer.back();
             RW_ContextBuffer.pop_back();
             return p;
