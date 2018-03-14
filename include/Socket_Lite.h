@@ -244,8 +244,8 @@ namespace NET {
 
         virtual void connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&) = 0;
 
-        virtual void recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) = 0;
-        virtual void send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler) = 0;
+        virtual void recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
+        virtual void send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
         virtual void close();
         PlatformSocket get_handle() const { return handle; }
         void set_handle(PlatformSocket h);

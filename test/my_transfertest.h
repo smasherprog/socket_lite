@@ -23,8 +23,11 @@ class session : public std::enable_shared_from_this<session> {
     {
         auto self(shared_from_this());
         socket_->recv(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (bytesread == writebuffer.size() && code == SL::NET::StatusCode::SC_SUCCESS) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
+            }
+            else {
+                int k = 6;
             }
         });
     }
@@ -77,8 +80,6 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     ~asioclient() {}
     void do_connect()
     {
-        if (Addresses.empty())
-            return;
         auto self(shared_from_this());
         socket_->connect(Addresses.back(), [self](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
@@ -94,9 +95,12 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     {
         auto self(shared_from_this());
         socket_->send(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (bytesread == readbuffer.size() && code == SL::NET::StatusCode::SC_SUCCESS) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();
+            }
+            else {
+                int k = 6;
             }
         });
     }
@@ -120,7 +124,7 @@ void mytransfertest()
     }
     auto c = std::make_shared<asioclient>(iocontext, addresses);
     c->do_connect();
-    iocontext->run(SL::NET::ThreadCount(2));
+    iocontext->run(SL::NET::ThreadCount(1));
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     c->socket_->close();
     s->close();

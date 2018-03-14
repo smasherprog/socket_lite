@@ -48,7 +48,7 @@ class asioserver {
                 std::make_shared<session>(std::move(socket))->start();
             }
 
-            do_accept();
+            //  do_accept();
         });
     }
 
@@ -57,10 +57,7 @@ class asioserver {
 
 class asioclient : public std::enable_shared_from_this<asioclient> {
   public:
-    asioclient(asio::io_context &io_context, const tcp::resolver::results_type &endpoints) : io_context_(io_context), socket_(io_context)
-    {
-        do_connect(endpoints);
-    }
+    asioclient(asio::io_context &io_context, const tcp::resolver::results_type &endpoints) : socket_(io_context) { do_connect(endpoints); }
     void do_connect(const tcp::resolver::results_type &endpoints)
     {
         asio::async_connect(socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
@@ -81,7 +78,6 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
         });
     }
 
-    asio::io_context &io_context_;
     tcp::socket socket_;
 };
 
@@ -92,15 +88,12 @@ void asiotransfertest()
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
     asio::io_context iocontext;
-
     asioserver s(iocontext, porttouse);
-
     tcp::resolver resolver(iocontext);
     auto endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
     auto c = std::make_shared<asioclient>(iocontext, endpoints);
 
     std::thread t([&iocontext]() { iocontext.run(); });
-    std::thread t2([&iocontext]() { iocontext.run(); });
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "ASIO MB per Second " << (writeechos / 10) * 8 << std::endl;
@@ -109,7 +102,6 @@ void asiotransfertest()
     s.acceptor_.close();
     c->socket_.close();
     t.join();
-    t2.join();
 }
 
 } // namespace asiotransfertest

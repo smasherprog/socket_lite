@@ -15,15 +15,15 @@ int main()
 {
     std::srand(std::time(nullptr));
 
-    myconnectiontest::myconnectiontest();
     asioconnectiontest::connectiontest();
+    myconnectiontest::myconnectiontest();
 
     asiotest::asioechotest();
     myechotest::myechotest();
     asio_multithreadedechotest::asioechotest();
     mymultithreadedechotest::myechotest();
-    asiotransfertest::asiotransfertest();
     mytransfertest::mytransfertest();
+    asiotransfertest::asiotransfertest();
 
     return 0;
 }

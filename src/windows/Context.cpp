@@ -9,23 +9,6 @@ namespace SL {
 namespace NET {
     std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
 
-    SOCKET Context::getSocket(AddressFamily family)
-    {
-        return INTERNAL::Socket(family);
-        /*   SOCKET sock = INVALID_SOCKET;
-           {
-               std::lock_guard<std::mutex> lock(SocketBufferLock);
-               if (!SocketBuffer.empty()) {
-                   sock = SocketBuffer.back();
-                   SocketBuffer.pop_back();
-               }
-           }
-           if (sock == INVALID_SOCKET) {
-               sock = INTERNAL::Socket(family);
-           }
-           return sock;*/
-    }
-
     Context::Context()
     {
         PendingIO = 0;
@@ -57,9 +40,6 @@ namespace NET {
                     t.join();
                 }
             }
-        }
-        for (auto &a : SocketBuffer) {
-            closesocket(a);
         }
     }
     std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
@@ -110,18 +90,12 @@ namespace NET {
                         static_cast<Listener *>(completionkey)->handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoRead:
-                        static_cast<Socket *>(completionkey)->increment_readbytes(numberofbytestransfered);
-                        if (numberofbytestransfered == 0 && static_cast<Socket *>(completionkey)->ReadContext.bufferlen != 0 && bSuccess) {
-                            bSuccess = WSAGetLastError() == WSA_IO_PENDING;
-                        }
-                        static_cast<Socket *>(completionkey)->continue_read(bSuccess);
-                        break;
                     case IO_OPERATION::IoWrite:
-                        static_cast<Socket *>(completionkey)->increment_writebytes(numberofbytestransfered);
-                        if (numberofbytestransfered == 0 && static_cast<Socket *>(completionkey)->WriteContext.bufferlen != 0 && bSuccess) {
+                        static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
+                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        static_cast<Socket *>(completionkey)->continue_write(bSuccess);
+                        static_cast<Socket *>(completionkey)->continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:
                         break;
@@ -130,20 +104,7 @@ namespace NET {
                     if (--PendingIO <= 0) {
                         PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
-                    } /*
-                     if (SocketBuffer.empty()) {
-
-                         for (auto i = 0; i < threadcount.value; i++) {
-                             socketbuffer.push_back(INTERNAL::Socket(AddressFamily::IPV4));
-                         }
-                         {
-                             std::lock_guard<std::mutex> lock(SocketBufferLock);
-                             for (auto &a : socketbuffer) {
-                                 SocketBuffer.push_back(a);
-                             }
-                         }
-                         socketbuffer.clear();
-                     }*/
+                    }
                 }
             }));
         }

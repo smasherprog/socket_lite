@@ -10,13 +10,10 @@ namespace SL {
 namespace NET {
     class Context final : public IContext {
         std::vector<std::thread> Threads;
-        std::vector<SOCKET> SocketBuffer;
-        std::mutex SocketBufferLock;
 
       public:
 #if WIN32
         WSARAII wsa;
-        SOCKET getSocket(AddressFamily family);
 #else
         int EventWakeFd = -1;
 #endif

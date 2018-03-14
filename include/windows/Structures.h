@@ -3,8 +3,11 @@
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
+#include <atomic>
 #include <functional>
+#include <iostream>
 #include <mswsock.h>
+#include <mutex>
 
 namespace SL {
 namespace NET {
@@ -65,7 +68,7 @@ namespace NET {
             return StatusCode::SC_CLOSED;
         };
     }
-    enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite, IoBuildConnectSocket };
+    enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
     class Socket;
 
     struct Win_IO_Context {
@@ -76,27 +79,43 @@ namespace NET {
     struct Win_IO_Connect_Context : Win_IO_Context {
         SL::NET::sockaddr address;
         std::function<void(StatusCode)> completionhandler;
-        Socket *Socket_;
+        Socket *Socket_ = nullptr;
     };
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
+    struct RW_CompletionHandler {
+        RW_CompletionHandler(std::function<void(StatusCode, size_t)> &&func)
+            : completionhandler(std::forward<std::function<void(StatusCode, size_t)>>(func))
+        {
+            Completed = false;
+        }
+        std::function<void(StatusCode, size_t)> completionhandler;
+        std::atomic<bool> Completed;
+        void handle(StatusCode code, size_t bytes, bool lockneeded)
+        {
+            if (lockneeded) {
+                auto handled = Completed.load(std::memory_order_relaxed);
+                if (!handled && Completed.compare_exchange_strong(handled, true)) {
+                    //  std::cout << "Not Handled" << std::endl;
+                    completionhandler(code, bytes);
+                }
+                else {
+                    //  std::cout << "Already Handled" << std::endl;
+                }
+            }
+            else {
+                completionhandler(code, bytes);
+            }
+        }
+    };
     struct Win_IO_RW_Context : Win_IO_Context {
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
-        std::function<void(StatusCode, size_t)> completionhandler;
-        void clear()
-        {
-            Overlapped = {0};
-            IOOperation = IO_OPERATION::IoNone;
-            transfered_bytes = 0;
-            bufferlen = 0;
-            buffer = nullptr;
-            completionhandler = nullptr;
-        }
+        std::shared_ptr<RW_CompletionHandler> completionhandler;
     };
 } // namespace NET
 } // namespace SL
