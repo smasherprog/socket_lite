@@ -17,7 +17,7 @@ CpuUsage::CpuUsage() : m_nCpuUsage(-1), m_dwLastRun(0), m_lRunCount(0)
  * If the method is recalled to quickly, the previous value
  * is returned.
  ***********************************************/
-short CpuUsage::GetUsage()
+float CpuUsage::GetUsage()
 {
     // create a local copy to protect against race conditions in setting the
     // member variable
@@ -58,7 +58,7 @@ short CpuUsage::GetUsage()
             ULONGLONG nTotalProc = ftProcKernelDiff + ftProcUserDiff;
 
             if (nTotalSys > 0) {
-                m_nCpuUsage = (short)((100.0 * nTotalProc) / nTotalSys);
+                m_nCpuUsage = ((100.0 * nTotalProc) / nTotalSys);
             }
         }
 
