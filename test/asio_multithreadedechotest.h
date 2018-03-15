@@ -19,46 +19,54 @@ auto writeechos = 0.0;
 using asio::ip::tcp;
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(tcp::socket socket) : socket_(std::move(socket)) {}
-    session(asio::io_context &socket) : socket_(socket) {}
+    session(tcp::socket &&socket, asio::io_context &context) : socket_(std::move(socket)), strand_(context) {}
+    session(asio::io_context &context) : socket_(context), strand_(context) {}
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.async_read_some(asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t) {
-            if (!ec) {
-                do_write();
-            }
+        strand_.post([self]() {
+            asio::async_read(self->socket_, asio::buffer(readecho, sizeof(readecho)), [self](std::error_code ec, std::size_t) {
+                if (!ec) {
+                    self->do_write();
+                }
+            });
         });
     }
 
     void do_write()
     {
         auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t /*length*/) {
-            writeechos += 1.0;
-            if (!ec) {
-                do_read();
-            }
+        strand_.post([self]() {
+            asio::async_write(self->socket_, asio::buffer(readecho, sizeof(readecho)), [self](std::error_code ec, std::size_t /*length*/) {
+                writeechos += 1.0;
+                if (!ec) {
+                    self->do_read();
+                }
+            });
         });
     }
-
+    asio::io_service::strand strand_;
     tcp::socket socket_;
 };
 
 class asioserver {
   public:
-    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) { do_accept(); }
+    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), io_context_(io_context)
+    {
+        do_accept();
+    }
 
     void do_accept()
     {
         acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
             if (!ec) {
-                std::make_shared<session>(std::move(socket))->do_read();
+                std::make_shared<session>(std::move(socket), io_context_)->do_read();
                 do_accept();
             }
         });
     }
     tcp::acceptor acceptor_;
+    asio::io_context &io_context_;
 };
 
 class asioclient : public std::enable_shared_from_this<asioclient> {
