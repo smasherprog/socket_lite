@@ -104,7 +104,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 
 void mytransfertest()
 {
-    std::cout << "Starting MB per Second Test" << std::endl;
+    std::cout << "Starting My MB per Second Test" << std::endl;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     writeechos = 0.0;
     writebuffer.resize(1024 * 1024 * 8);

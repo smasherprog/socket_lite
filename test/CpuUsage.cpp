@@ -74,7 +74,7 @@ short CpuUsage::GetUsage()
 
     ::InterlockedDecrement(&m_lRunCount);
 
-    return nCpuCopy;
+    return nCpuCopy < 0 ? 0 : nCpuCopy;
 }
 
 ULONGLONG CpuUsage::SubtractTimes(const FILETIME &ftA, const FILETIME &ftB)
