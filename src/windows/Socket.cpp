@@ -39,7 +39,7 @@ namespace NET {
             close();
             context->completionhandler->handle(TranslateError(), 0, true);
             auto c = Context_; // take a copy
-            if (context->completionhandler->RefCount.fetch_sub(1) == 1) {
+            if (context->completionhandler->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
                 Context_->RW_CompletionHandlerBuffer.deleteObject(context->completionhandler);
             }
             c->Win_IO_RW_ContextBuffer.deleteObject(context);
@@ -47,14 +47,14 @@ namespace NET {
         else if (context->bufferlen == context->transfered_bytes) {
             context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
             auto c = Context_; // take a copy
-            if (context->completionhandler->RefCount.fetch_sub(1) == 1) {
+            if (context->completionhandler->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
                 Context_->RW_CompletionHandlerBuffer.deleteObject(context->completionhandler);
             }
             c->Win_IO_RW_ContextBuffer.deleteObject(context);
         }
         else {
             auto func = context->completionhandler;
-            func->RefCount.fetch_add(1);
+            func->RefCount.fetch_add(1, std::memory_order_relaxed);
             WSABUF wsabuf;
             auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
             wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
@@ -79,12 +79,12 @@ namespace NET {
             }
             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
                 func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
-                if (func->RefCount.fetch_sub(1) == 1) {
+                if (func->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
                     Context_->RW_CompletionHandlerBuffer.deleteObject(func);
                 }
             }
             else {
-                if (func->RefCount.fetch_sub(1) == 1) {
+                if (func->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
                     Context_->RW_CompletionHandlerBuffer.deleteObject(func);
                 }
             }
