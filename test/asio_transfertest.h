@@ -27,9 +27,9 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.async_read_some(asio::buffer(writebuffer.data(), writebuffer.size()), [this, self](std::error_code ec, std::size_t) {
+        asio::async_read(self->socket_, asio::buffer(writebuffer.data(), writebuffer.size()), [self](std::error_code ec, std::size_t) {
             if (!ec) {
-                do_read();
+                self->do_read();
             }
         });
     }
