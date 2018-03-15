@@ -85,7 +85,7 @@ namespace NET {
     }
     SOCKET Context::getSocket(AddressFamily family)
     {
-        return INTERNAL::Socket(family);
+        // return INTERNAL::Socket(family);
         if (family == AddressFamily::IPV4) {
             if (Ipv4SocketBuffer.empty()) {
                 return INTERNAL::Socket(AddressFamily::IPV4);
