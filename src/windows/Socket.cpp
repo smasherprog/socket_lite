@@ -73,8 +73,9 @@ namespace NET {
                 Context_->PendingIO -= 1;
                 close();
                 func->handle(TranslateError(&lasterr), 0, false);
-                Context_->RW_CompletionHandlerBuffer.deleteObject(func);
-                Context_->Win_IO_RW_ContextBuffer.deleteObject(context);
+                auto c = Context_; // take a copy
+                c->RW_CompletionHandlerBuffer.deleteObject(func);
+                c->Win_IO_RW_ContextBuffer.deleteObject(context);
             }
             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
                 func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
