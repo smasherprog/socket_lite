@@ -8,6 +8,7 @@ using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
     thread_local std::vector<Win_IO_RW_Context *> Win_IO_RW_ContextBuffer;
+    thread_local std::vector<Win_IO_Connect_Context *> Win_IO_Connect_ContextBuffer;
     std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
 
     Context::Context()

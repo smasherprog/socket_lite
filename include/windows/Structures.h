@@ -80,6 +80,11 @@ namespace NET {
         SL::NET::sockaddr address;
         std::function<void(StatusCode)> completionhandler;
         Socket *Socket_ = nullptr;
+        void clear()
+        {
+            completionhandler = nullptr;
+            Socket_ = nullptr;
+        }
     };
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;

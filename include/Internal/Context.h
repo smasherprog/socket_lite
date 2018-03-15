@@ -7,6 +7,7 @@ namespace SL {
 namespace NET {
 
     extern thread_local std::vector<Win_IO_RW_Context *> Win_IO_RW_ContextBuffer;
+    extern thread_local std::vector<Win_IO_Connect_Context *> Win_IO_Connect_ContextBuffer;
 
     class Context final : public IContext {
         std::vector<std::thread> Threads;
