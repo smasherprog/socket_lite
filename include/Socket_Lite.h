@@ -259,11 +259,11 @@ namespace NET {
     class SOCKET_LITE_EXTERN IContext {
       public:
         virtual ~IContext() {}
-        virtual void run(ThreadCount threadcount) = 0;
+        virtual void run() = 0;
         virtual std::shared_ptr<ISocket> CreateSocket() = 0;
         virtual std::shared_ptr<IListener> CreateListener(std::shared_ptr<ISocket> &&listensocket) = 0; // listener steals the socket
     };
-    std::shared_ptr<IContext> SOCKET_LITE_EXTERN CreateContext();
+    std::shared_ptr<IContext> SOCKET_LITE_EXTERN CreateContext(ThreadCount threadcount);
 
 } // namespace NET
 } // namespace SL

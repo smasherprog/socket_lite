@@ -26,9 +26,6 @@ class session : public std::enable_shared_from_this<session> {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             }
-            else {
-                int k = 6;
-            }
         });
     }
 
@@ -99,9 +96,6 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
                 writeechos += 1.0;
                 self->do_write();
             }
-            else {
-                int k = 6;
-            }
         });
     }
     std::vector<SL::NET::sockaddr> Addresses;
@@ -115,7 +109,7 @@ void mytransfertest()
     writeechos = 0.0;
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
-    auto iocontext = SL::NET::CreateContext();
+    auto iocontext = SL::NET::CreateContext(SL::NET::ThreadCount(1));
     auto s(std::make_shared<asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
     s->do_accept();
     auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
@@ -124,7 +118,7 @@ void mytransfertest()
     }
     auto c = std::make_shared<asioclient>(iocontext, addresses);
     c->do_connect();
-    iocontext->run(SL::NET::ThreadCount(1));
+    iocontext->run();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     c->socket_->close();
     s->close();

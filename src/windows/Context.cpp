@@ -7,10 +7,10 @@
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
-    thread_local std::vector<Win_IO_RW_Context *> Win_IO_RW_ContextBuffer;
-    std::shared_ptr<IContext> CreateContext() { return std::make_shared<Context>(); }
+    std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
 
-    Context::Context()
+    Context::Context(ThreadCount threadcount)
+        : ThreadCount_(threadcount), Win_IO_RW_ContextBuffer(threadcount.value), RW_CompletionHandlerBuffer(threadcount.value)
     {
         PendingIO = 0;
         if (!ConnectEx_) {
@@ -57,11 +57,10 @@ namespace NET {
         }
         return listener;
     }
-    void Context::run(const ThreadCount threadcount)
+    void Context::run()
     {
-        Threads.reserve(threadcount.value);
-
-        for (auto i = 0; i < threadcount.value; i++) {
+        Threads.reserve(ThreadCount_.value);
+        for (auto i = 0; i < ThreadCount_.value; i++) {
             Threads.push_back(std::thread([&] {
                 std::vector<SOCKET> socketbuffer;
                 while (true) {
@@ -72,7 +71,7 @@ namespace NET {
                     auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
-                    if (!overlapped) {
+                    if (PendingIO <= 0) {
                         PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
                     }

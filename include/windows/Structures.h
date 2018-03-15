@@ -38,7 +38,7 @@ namespace NET {
         HANDLE handle = NULL;
         IOCP()
         {
-            if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0); handle == NULL) {
+            if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 4); handle == NULL) {
                 //  std::cerr << "CreateIoCompletionPort() failed to create I/O completion port: " << GetLastError() << std::endl;
             }
         }
@@ -92,13 +92,14 @@ namespace NET {
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
     struct RW_CompletionHandler {
-        RW_CompletionHandler(std::function<void(StatusCode, size_t)> &&func)
-            : completionhandler(std::forward<std::function<void(StatusCode, size_t)>>(func))
+        RW_CompletionHandler()
         {
             Completed = false;
+            RefCount = 0;
         }
         std::function<void(StatusCode, size_t)> completionhandler;
         std::atomic<bool> Completed;
+        std::atomic<int> RefCount;
         void handle(StatusCode code, size_t bytes, bool lockneeded)
         {
             if (lockneeded) {
@@ -117,6 +118,7 @@ namespace NET {
         }
         void clear()
         {
+            RefCount = 0;
             Completed = false;
             completionhandler = nullptr;
         }
@@ -125,16 +127,26 @@ namespace NET {
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
-        std::shared_ptr<RW_CompletionHandler> completionhandler;
+        RW_CompletionHandler *completionhandler = nullptr;
         void clear()
         {
             transfered_bytes = 0;
             bufferlen = 0;
             buffer = nullptr;
-            completionhandler.reset();
+            completionhandler = nullptr;
             Overlapped = {0};
             IOOperation = IO_OPERATION::IoNone;
         }
+    };
+    struct Win_IO_RW_ContextCRUD {
+        Win_IO_RW_Context *newObj() { return new Win_IO_RW_Context(); }
+        void deleteObj(Win_IO_RW_Context *p) { delete p; }
+        void clearObj(Win_IO_RW_Context *p) { p->clear(); }
+    };
+    struct RW_CompletionHandlerCRUD {
+        RW_CompletionHandler *newObj() { return new RW_CompletionHandler(); }
+        void deleteObj(RW_CompletionHandler *p) { delete p; }
+        void clearObj(RW_CompletionHandler *p) { p->clear(); }
     };
 } // namespace NET
 } // namespace SL

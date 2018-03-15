@@ -62,16 +62,13 @@ void connect(std::shared_ptr<SL::NET::IContext> iocontext)
         if (keepgoing) {
             connect(iocontext);
         }
-        else if (keepgoing) {
-            connect(iocontext);
-        }
     });
 }
 void myconnectiontest()
 {
     std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
-    auto iocontext = SL::NET::CreateContext();
+    auto iocontext = SL::NET::CreateContext(SL::NET::ThreadCount(1));
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     auto s(std::make_shared<asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
     s->do_accept();
@@ -80,7 +77,7 @@ void myconnectiontest()
         std::cout << "Error code:" << code << std::endl;
     }
     addresses = addrs;
-    iocontext->run(SL::NET::ThreadCount(1));
+    iocontext->run();
     connect(iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;

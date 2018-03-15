@@ -56,6 +56,7 @@ include_directories(
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h
 	include/Internal/Context.h 
+	include/Internal/memorypool.h
 	include/Internal/spinlock.h  
 	include/Internal/Listener.h
 	src/Socket_Lite.cpp

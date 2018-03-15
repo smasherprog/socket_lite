@@ -45,9 +45,6 @@ void connect(std::shared_ptr<asio::io_context> io_context)
         if (keepgoing) {
             connect(io_context);
         }
-        else if (keepgoing) {
-            connect(io_context);
-        }
     });
 }
 void connectiontest()
