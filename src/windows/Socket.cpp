@@ -7,7 +7,7 @@ namespace SL {
 namespace NET {
 
     LPFN_CONNECTEX ConnectEx_ = nullptr;
-    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = context->getSocket(family); }
+    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
     Socket::~Socket() {}
 
@@ -89,7 +89,7 @@ namespace NET {
             }
         }
     }
-    SOCKET BindSocket(SOCKET sock, AddressFamily family)
+    void BindSocket(SOCKET sock, AddressFamily family)
     {
         if (family == AddressFamily::IPV4) {
             sockaddr_in bindaddr = {0};
@@ -107,7 +107,6 @@ namespace NET {
             sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV6);
             INTERNAL::bind(sock, mytestaddr);
         }
-        return sock;
     }
     void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
     {
@@ -119,8 +118,8 @@ namespace NET {
             return iodone(TranslateError(), context);
         }
         ISocket::close();
-        handle = Context_->getSocket(context->address.get_Family());
-        handle = BindSocket(handle, context->address.get_Family());
+        handle = INTERNAL::Socket(context->address.get_Family());
+        BindSocket(handle, context->address.get_Family());
         if (!setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
             return iodone(TranslateError(), context);
         }

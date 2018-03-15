@@ -9,12 +9,7 @@ namespace NET {
 
     class Context final : public IContext {
         std::vector<std::thread> Threads;
-
         ThreadCount ThreadCount_;
-        std::thread SocketBuiler;
-        std::vector<SOCKET> Ipv4SocketBuffer, Ipv6SocketBuffer;
-        spinlock SocketBufferLock;
-        bool StopBuildingSockets = false;
 
       public:
         MemoryPool<Win_IO_RW_Context *, Win_IO_RW_ContextCRUD> Win_IO_RW_ContextBuffer;
@@ -29,7 +24,6 @@ namespace NET {
         IOCP iocp;
         std::atomic<int> PendingIO;
 
-        SOCKET getSocket(AddressFamily family);
         Context(ThreadCount threadcount);
         ~Context();
         virtual void run() override;
