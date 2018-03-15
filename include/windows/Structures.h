@@ -94,22 +94,17 @@ namespace NET {
     struct RW_CompletionHandler {
         RW_CompletionHandler()
         {
-            Completed = false;
+            Completed = 1;
             RefCount = 0;
         }
         std::function<void(StatusCode, size_t)> completionhandler;
-        std::atomic<bool> Completed;
+        std::atomic<int> Completed;
         std::atomic<int> RefCount;
         void handle(StatusCode code, size_t bytes, bool lockneeded)
         {
             if (lockneeded) {
-                auto handled = Completed.load(std::memory_order_relaxed);
-                if (!handled && Completed.compare_exchange_strong(handled, true)) {
-                    //  std::cout << "Not Handled" << std::endl;
+                if (Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
                     completionhandler(code, bytes);
-                }
-                else {
-                    //  std::cout << "Already Handled" << std::endl;
                 }
             }
             else {
@@ -119,7 +114,7 @@ namespace NET {
         void clear()
         {
             RefCount = 0;
-            Completed = false;
+            Completed = 1;
             completionhandler = nullptr;
         }
     };
