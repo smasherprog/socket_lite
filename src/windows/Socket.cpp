@@ -104,8 +104,7 @@ namespace NET {
     {
         static auto iodone = [](auto code, auto context) {
             context->completionhandler(code);
-            context->clear();
-            Win_IO_Connect_ContextBuffer.push_back(context);
+            delete context;
         };
         if (!success) {
             return iodone(TranslateError(), context);
@@ -138,8 +137,7 @@ namespace NET {
     {
         static auto iodone = [](auto code, auto context) {
             context->completionhandler(code);
-            context->clear();
-            Win_IO_Connect_ContextBuffer.push_back(context);
+            delete context;
         };
         if (success) {
             if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
@@ -155,14 +153,12 @@ namespace NET {
     }
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        Win_IO_Connect_Context *context = nullptr;
-        if (!Win_IO_Connect_ContextBuffer.empty()) {
-            context = Win_IO_Connect_ContextBuffer.back();
-            Win_IO_Connect_ContextBuffer.pop_back();
-        }
-        if (context == nullptr) {
-            context = new Win_IO_Connect_Context();
-        }
+        auto iofailed = [](auto code, auto context) {
+            auto chandle(std::move(context->completionhandler));
+            delete context;
+            chandle(code);
+        };
+        auto context = new Win_IO_Connect_Context();
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoInitConnect;
         context->Socket_ = this;
@@ -174,9 +170,7 @@ namespace NET {
             Context_->PendingIO += 1;
             if (PostQueuedCompletionStatus(Context_->iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
-                context->completionhandler(TranslateError());
-                context->clear();
-                Win_IO_Connect_ContextBuffer.push_back(context);
+                iofailed(TranslateError(), context);
             }
         }
     }
