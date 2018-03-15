@@ -22,8 +22,10 @@ typedef socklen_t SOCKLEN_T;
 #endif
 #include <string.h>
 #include <string>
+
 namespace SL {
 namespace NET {
+
     sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
     {
         memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));

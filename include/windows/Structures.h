@@ -36,9 +36,9 @@ namespace NET {
     struct IOCP {
 
         HANDLE handle = NULL;
-        IOCP()
+        IOCP(DWORD numberOfConcurrentThreads)
         {
-            if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 4); handle == NULL) {
+            if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, numberOfConcurrentThreads); handle == NULL) {
                 //  std::cerr << "CreateIoCompletionPort() failed to create I/O completion port: " << GetLastError() << std::endl;
             }
         }

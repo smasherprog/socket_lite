@@ -7,7 +7,7 @@ namespace SL {
 namespace NET {
 
     LPFN_CONNECTEX ConnectEx_ = nullptr;
-    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
+    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = context->getSocket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
     Socket::~Socket() {}
 
@@ -119,7 +119,8 @@ namespace NET {
             return iodone(TranslateError(), context);
         }
         ISocket::close();
-        handle = BindSocket(INTERNAL::Socket(context->address.get_Family()), context->address.get_Family());
+        handle = Context_->getSocket(context->address.get_Family());
+        handle = BindSocket(handle, context->address.get_Family());
         if (!setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
             return iodone(TranslateError(), context);
         }

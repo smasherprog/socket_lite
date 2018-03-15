@@ -16,8 +16,10 @@ int main()
     std::srand(std::time(nullptr));
 
     myconnectiontest::myconnectiontest();
+
     asiotest::asioechotest();
     myechotest::myechotest();
+
     asiotransfertest::asiotransfertest();
 
     asio_multithreadedechotest::asioechotest();

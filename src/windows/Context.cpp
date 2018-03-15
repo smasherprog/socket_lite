@@ -10,7 +10,7 @@ namespace NET {
     std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
 
     Context::Context(ThreadCount threadcount)
-        : ThreadCount_(threadcount), Win_IO_RW_ContextBuffer(threadcount.value), RW_CompletionHandlerBuffer(threadcount.value)
+        : ThreadCount_(threadcount), Win_IO_RW_ContextBuffer(), RW_CompletionHandlerBuffer(), iocp(threadcount.value)
     {
         PendingIO = 0;
         if (!ConnectEx_) {
@@ -20,10 +20,50 @@ namespace NET {
             WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
             closesocket(handle);
         }
+
+        SocketBuiler = std::thread([&] {
+            std::vector<SOCKET> tmpipv4;
+            std::vector<SOCKET> tmpipv6;
+
+            while (!StopBuildingSockets) {
+                auto ipv4socks = Ipv4SocketBuffer.size();
+                auto ipv6socks = Ipv6SocketBuffer.size();
+                auto waittime = std::min(ipv4socks, ipv6socks) * 10;
+                for (auto i = ipv4socks; i < 10; i++) {
+                    tmpipv4.push_back(INTERNAL::Socket(AddressFamily::IPV4));
+                }
+                for (auto i = ipv6socks; i < 10; i++) {
+                    tmpipv6.push_back(INTERNAL::Socket(AddressFamily::IPV6));
+                }
+                {
+                    std::lock_guard<spinlock> lock(SocketBufferLock);
+                    for (auto a : tmpipv4) {
+                        Ipv4SocketBuffer.push_back(a);
+                    }
+                    for (auto a : tmpipv6) {
+                        Ipv6SocketBuffer.push_back(a);
+                    }
+                }
+                tmpipv6.clear();
+                tmpipv4.clear();
+                std::this_thread::sleep_for(std::chrono::milliseconds(waittime));
+            }
+        });
     }
 
     Context::~Context()
     {
+        StopBuildingSockets = true;
+        SocketBuiler.join();
+        {
+            std::lock_guard<spinlock> lock(SocketBufferLock);
+            for (auto a : Ipv6SocketBuffer) {
+                closesocket(a);
+            }
+            for (auto a : Ipv4SocketBuffer) {
+                closesocket(a);
+            }
+        }
         while (PendingIO > 0) {
             std::this_thread::sleep_for(5ms);
         }
@@ -41,6 +81,44 @@ namespace NET {
                     t.join();
                 }
             }
+        }
+    }
+    SOCKET Context::getSocket(AddressFamily family)
+    {
+        return INTERNAL::Socket(family);
+        if (family == AddressFamily::IPV4) {
+            if (Ipv4SocketBuffer.empty()) {
+                return INTERNAL::Socket(AddressFamily::IPV4);
+            }
+            SOCKET s = INVALID_SOCKET;
+            {
+                std::lock_guard<spinlock> lock(SocketBufferLock);
+                if (!Ipv4SocketBuffer.empty()) {
+                    s = Ipv4SocketBuffer.back();
+                    Ipv4SocketBuffer.pop_back();
+                }
+            }
+            if (s == INVALID_SOCKET) {
+                s = INTERNAL::Socket(AddressFamily::IPV4);
+            }
+            return s;
+        }
+        else {
+            if (Ipv6SocketBuffer.empty()) {
+                return INTERNAL::Socket(AddressFamily::IPV6);
+            }
+            SOCKET s = INVALID_SOCKET;
+            {
+                std::lock_guard<spinlock> lock(SocketBufferLock);
+                if (!Ipv6SocketBuffer.empty()) {
+                    s = Ipv6SocketBuffer.back();
+                    Ipv6SocketBuffer.pop_back();
+                }
+            }
+            if (s == INVALID_SOCKET) {
+                s = INTERNAL::Socket(AddressFamily::IPV6);
+            }
+            return s;
         }
     }
     std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
