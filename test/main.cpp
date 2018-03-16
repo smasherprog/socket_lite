@@ -7,6 +7,7 @@
 #include "asio_echotest.h"
 #include "asio_multithreadedechotest.h"
 #include "asio_transfertest.h"
+#include "my_connectWRtest.h"
 #include "my_connectiontest.h"
 #include "my_echotest.h"
 #include "my_multithreadedecho.h"
@@ -33,7 +34,7 @@ int main()
             std::this_thread::sleep_for(200ms);
         }
     });
-
+    // myconnectwrtest::myconnectiontest();
     myconnectiontest::myconnectiontest();
     std::cout << std::fixed;
     std::cout << std::setprecision(2);

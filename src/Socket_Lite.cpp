@@ -1,27 +1,21 @@
 
 #include "Socket_Lite.h"
-#include "Structures.h"
 #include <assert.h>
-#ifdef _WIN32
-#include <WinSock2.h>
-#include <Windows.h>
-#include <Ws2tcpip.h>
-#include <mswsock.h>
-typedef int SOCKLEN_T;
-#else
+#include <string.h>
+#include <string>
+
+#if !defined(_WIN32)
+
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#define INVALID_SOCKET 0
-#define closesocket ::close
-#define SOCKET_ERROR -1
-typedef socklen_t SOCKLEN_T;
 #endif
-#include <string.h>
-#include <string>
 
 namespace SL {
 namespace NET {

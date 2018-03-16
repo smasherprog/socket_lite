@@ -1,9 +1,9 @@
 #pragma once
 #include "Socket_Lite.h"
-#include "Structures.h"
 #include "memorypool.h"
 #include <algorithm>
 #include <thread>
+
 namespace SL {
 namespace NET {
 
@@ -17,6 +17,7 @@ namespace NET {
 
 #if WIN32
         WSARAII wsa;
+        LPFN_CONNECTEX ConnectEx_;
 #else
         int EventWakeFd = -1;
 #endif

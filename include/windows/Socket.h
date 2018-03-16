@@ -1,19 +1,14 @@
 #pragma once
 #include "Socket_Lite.h"
-#include "Structures.h"
-#include <atomic>
 #include <functional>
 #include <memory>
-#include <vector>
 
 namespace SL {
 namespace NET {
 
-    extern LPFN_CONNECTEX ConnectEx_;
     class Socket final : public ISocket {
       public:
         Context *Context_;
-        std::mutex Lock;
         Socket(Context *context);
         Socket(Context *context, AddressFamily family);
         virtual ~Socket();

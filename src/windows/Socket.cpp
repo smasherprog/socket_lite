@@ -6,7 +6,6 @@
 namespace SL {
 namespace NET {
 
-    LPFN_CONNECTEX ConnectEx_ = nullptr;
     Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
     Socket::~Socket() {}
@@ -131,8 +130,8 @@ namespace NET {
         context->IOOperation = IO_OPERATION::IoConnect;
         context->Overlapped = {0};
         Context_->PendingIO += 1;
-        auto connectres = ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), 0, 0, 0,
-                                     (LPOVERLAPPED)&context->Overlapped);
+        auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), 0, 0, 0,
+                                               (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             Context_->PendingIO -= 1;
             iodone(StatusCode::SC_SUCCESS, context);

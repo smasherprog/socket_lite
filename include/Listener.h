@@ -1,6 +1,5 @@
 #pragma once
 #include "Socket_Lite.h"
-#include "Structures.h"
 #include <memory>
 namespace SL {
 namespace NET {

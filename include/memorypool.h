@@ -1,10 +1,6 @@
 #pragma once
-#include "Structures.h"
 #include "spinlock.h"
-#include <atomic>
-#include <functional>
-#include <thread>
-
+#include <mutex>
 namespace SL {
 namespace NET {
     template <class T, class C> class MemoryPool {

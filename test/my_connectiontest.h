@@ -13,7 +13,6 @@ using namespace std::chrono_literals;
 
 namespace myconnectiontest {
 
-const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 bool keepgoing = true;
 class asioserver : public std::enable_shared_from_this<asioserver> {
