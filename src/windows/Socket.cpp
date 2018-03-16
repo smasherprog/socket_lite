@@ -1,14 +1,9 @@
 
-#include "Context.h"
-#include "Socket.h"
+#include "Socket_Lite.h"
 #include <assert.h>
 
 namespace SL {
 namespace NET {
-
-    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
-    Socket::Socket(Context *context) : Context_(context) {}
-    Socket::~Socket() {}
 
     bool Socket::UpdateIOCP(SOCKET socket, HANDLE *iocp, void *completionkey)
     {
@@ -32,6 +27,17 @@ namespace NET {
         continue_io(true, context);
     }
 
+    void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        auto context = Context_->Win_IO_RW_ContextBuffer.newObject();
+        context->buffer = buffer;
+        context->bufferlen = buffer_size;
+        context->completionhandler = Context_->RW_CompletionHandlerBuffer.newObject();
+        context->completionhandler->completionhandler = std::move(handler);
+        context->completionhandler->RefCount = 1;
+        context->IOOperation = IO_OPERATION::IoWrite;
+        continue_io(true, context);
+    }
     void Socket::continue_io(bool success, Win_IO_RW_Context *context)
     {
         if (!success) {
@@ -117,7 +123,7 @@ namespace NET {
         if (!success) {
             return iodone(TranslateError(), context);
         }
-        ISocket::close();
+        Socket::close();
         handle = INTERNAL::Socket(context->address.get_Family());
         BindSocket(handle, context->address.get_Family());
         if (!setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
@@ -182,17 +188,6 @@ namespace NET {
                 iofailed(TranslateError(), context);
             }
         }
-    }
-    void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-    {
-        auto context = Context_->Win_IO_RW_ContextBuffer.newObject();
-        context->buffer = buffer;
-        context->bufferlen = buffer_size;
-        context->completionhandler = Context_->RW_CompletionHandlerBuffer.newObject();
-        context->completionhandler->completionhandler = std::move(handler);
-        context->completionhandler->RefCount = 1;
-        context->IOOperation = IO_OPERATION::IoWrite;
-        continue_io(true, context);
     }
 
 } // namespace NET

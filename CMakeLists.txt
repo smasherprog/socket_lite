@@ -17,8 +17,7 @@ endif()
 
 if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
-		src/windows/Context.cpp
-		include/windows/Socket.h
+		src/windows/Context.cpp 
 		src/windows/Socket.cpp
 		src/windows/Listener.cpp 
     )
@@ -55,7 +54,6 @@ add_library(${PROJECT_NAME}
 	include/Socket_Lite.h
 	include/defs.h
 	include/defs.cpp
-	include/Context.h 
 	include/memorypool.h
 	include/sockfuncs.h
 	include/spinlock.h  

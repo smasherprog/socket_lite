@@ -73,8 +73,23 @@ namespace NET {
         freeaddrinfo(result);
         return std::make_tuple(StatusCode::SC_SUCCESS, ret);
     } // namespace NET
-
-    StatusCode ISocket::listen(int backlog) const
+    Socket::Socket(Socket &&s) : handle(s.handle), Context_(s.Context_)
+    {
+        s.handle = INVALID_SOCKET;
+        s.Context_ = nullptr;
+    }
+    Socket &Socket::operator=(Socket &&s)
+    {
+        handle = s.handle;
+        Context_ = s.Context_;
+        s.handle = INVALID_SOCKET;
+        s.Context_ = nullptr;
+        return *this;
+    }
+    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
+    Socket::Socket(Context *context) : Context_(context), handle(INVALID_SOCKET) {}
+    Socket::~Socket() { close(); }
+    StatusCode Socket::listen(int backlog) const
     {
         if (::listen(handle, backlog) == SOCKET_ERROR) {
             return TranslateError();
@@ -82,15 +97,14 @@ namespace NET {
         return StatusCode::SC_SUCCESS;
     }
 
-    void ISocket::set_handle(PlatformSocket h)
+    void Socket::set_handle(PlatformSocket h)
     {
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
         }
         handle = h;
     }
-    ISocket::ISocket() { handle = INVALID_SOCKET; }
-    void ISocket::close()
+    void Socket::close()
     {
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
@@ -128,9 +142,9 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    StatusCode ISocket::bind(sockaddr addr) { return INTERNAL::bind(handle, addr); }
+    StatusCode Socket::bind(sockaddr addr) { return INTERNAL::bind(handle, addr); }
 
-    std::optional<SL::NET::sockaddr> ISocket::getpeername() const
+    std::optional<SL::NET::sockaddr> Socket::getpeername() const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -153,7 +167,7 @@ namespace NET {
         }
         return std::nullopt;
     }
-    std::optional<SL::NET::sockaddr> ISocket::getsockname() const
+    std::optional<SL::NET::sockaddr> Socket::getsockname() const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);

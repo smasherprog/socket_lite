@@ -18,10 +18,10 @@ namespace NET {
         std::shared_ptr<Socket> ListenSocket;
         SL::NET::sockaddr ListenSocketAddr;
 
-        Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
+        Listener(Context *context, std::shared_ptr<Socket> &&socket, const sockaddr &addr);
         virtual ~Listener();
         virtual void close() override;
-        virtual void accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler) override;
+        virtual void accept(const std::function<void(StatusCode, const std::shared_ptr<Socket> &)> &&handler) override;
     };
 
 } // namespace NET

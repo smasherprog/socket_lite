@@ -18,7 +18,7 @@ auto writeechos = 0.0;
 
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket) {}
+    session(const std::shared_ptr<SL::NET::Socket> &socket) : socket_(socket) {}
     void do_read()
     {
         auto self(shared_from_this());
@@ -39,21 +39,21 @@ class session : public std::enable_shared_from_this<session> {
             }
         });
     }
-    std::shared_ptr<SL::NET::ISocket> socket_;
+    std::shared_ptr<SL::NET::Socket> socket_;
 };
 
 class asioserver : public std::enable_shared_from_this<asioserver> {
   public:
-    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
+    asioserver(std::shared_ptr<SL::NET::Context> &io_context, SL::NET::PortNumber port)
     {
 
-        std::shared_ptr<SL::NET::ISocket> listensocket;
+        std::shared_ptr<SL::NET::Socket> listensocket;
         auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, SL::NET::AddressFamily::IPV4);
         if (code != SL::NET::StatusCode::SC_SUCCESS) {
             std::cout << "Error code:" << code << std::endl;
         }
         for (auto &address : addresses) {
-            auto lsock = io_context->CreateSocket();
+            auto lsock = std::make_shared<SL::NET::Socket>(io_context.get());
             if (lsock->bind(address) == SL::NET::StatusCode::SC_SUCCESS) {
                 if (lsock->listen(5) == SL::NET::StatusCode::SC_SUCCESS) {
                     listensocket = lsock;
@@ -67,7 +67,7 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     void do_accept()
     {
         auto self(shared_from_this());
-        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::Socket> &socket) {
             if (socket && SL::NET::StatusCode::SC_SUCCESS == code) {
                 std::make_shared<session>(socket)->do_read();
                 self->do_accept();
@@ -82,9 +82,9 @@ class asioclient {
   public:
     std::vector<SL::NET::sockaddr> Addresses;
     std::shared_ptr<session> socket_;
-    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
+    asioclient(std::shared_ptr<SL::NET::Context> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
     {
-        socket_ = std::make_shared<session>(io_context->CreateSocket());
+        socket_ = std::make_shared<session>(std::make_shared<SL::NET::Socket>(io_context.get()));
     }
     ~asioclient() {}
     void close() { socket_->socket_->close(); }

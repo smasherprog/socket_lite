@@ -1,13 +1,11 @@
 
-#include "Context.h"
 #include "Listener.h"
-#include "Socket.h"
 #include <assert.h>
 
 namespace SL {
 namespace NET {
 
-    Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr)
+    Listener::Listener(Context *context, std::shared_ptr<Socket> &&socket, const sockaddr &addr)
         : Context_(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
     {
         if (!AcceptEx_) {
@@ -71,7 +69,7 @@ namespace NET {
             iodone(StatusCode::SC_SUCCESS, context);
         }
     }
-    void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
+    void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<Socket> &)> &&handler)
     {
         static auto iofailed = [](auto code, auto context) {
             auto chandle(std::move(context->completionhandler));

@@ -142,7 +142,6 @@ namespace NET {
     StatusCode SOCKET_LITE_EXTERN TranslateError(int *errcode = nullptr);
     enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
     class Socket;
-    class ISocket;
     struct Win_IO_Context {
 #ifdef _WIN32
         WSAOVERLAPPED Overlapped = {0};
@@ -163,7 +162,7 @@ namespace NET {
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
-        std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
+        std::function<void(StatusCode, const std::shared_ptr<Socket> &)> completionhandler;
     };
     struct RW_CompletionHandler {
         RW_CompletionHandler()

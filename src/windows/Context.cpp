@@ -1,27 +1,26 @@
-#include "Context.h"
 #include "Listener.h"
-#include "Socket.h"
 #include <algorithm>
 #include <chrono>
 
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
-    std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
+    std::shared_ptr<Context> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
 
     Context::Context(ThreadCount threadcount)
         : ThreadCount_(threadcount), Win_IO_RW_ContextBuffer(), RW_CompletionHandlerBuffer(), iocp(threadcount.value)
     {
         PendingIO = 0;
-        if (!ConnectEx_) {
-            auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-            GUID guid = WSAID_CONNECTEX;
-            DWORD bytes = 0;
-            WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
-            closesocket(handle);
-        }
+        auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        GUID guid = WSAID_CONNECTEX;
+        DWORD bytes = 0;
+        WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
+        closesocket(handle);
     }
-
+    bool Context::inWorkerThread() const
+    {
+        return std::any_of(std::begin(Threads), std::end(Threads), [](const std::thread &t) { return t.get_id() == std::this_thread::get_id(); });
+    }
     Context::~Context()
     {
         while (PendingIO > 0) {
@@ -44,14 +43,13 @@ namespace NET {
         }
     }
 
-    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
-    std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
+    std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<Socket> &&listensocket)
     {
         auto addr = listensocket->getsockname();
         if (!addr.has_value()) {
             return std::shared_ptr<IListener>();
         }
-        auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
+        auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<Socket>>(listensocket), addr.value());
 
         if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &iocp.handle, listener.get())) {
             return std::shared_ptr<IListener>();
