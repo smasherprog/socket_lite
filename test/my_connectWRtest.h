@@ -17,31 +17,29 @@ char writeecho[] = "echo test";
 char readecho[] = "echo test";
 auto writeechos = 0.0;
 bool keepgoing = true;
-class session : public std::enable_shared_from_this<session> {
+class acceptsession {
   public:
-    session(const std::shared_ptr<SL::NET::Socket> &socket) : socket_(socket) {}
+    acceptsession(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
     void do_read()
     {
-        auto self(shared_from_this());
-        socket_->recv(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
+        socket_.recv(sizeof(writeecho), (unsigned char *)writeecho, [&](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_write();
+                do_write();
             }
         });
     }
 
     void do_write()
     {
-        auto self(shared_from_this());
-        socket_->send(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
+        socket_.send(sizeof(writeecho), (unsigned char *)writeecho, [&](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
             }
         });
     }
-    std::shared_ptr<SL::NET::Socket> socket_;
+    SL::NET::Socket socket_;
 };
 
-class asioserver : public std::enable_shared_from_this<asioserver> {
+class asioserver {
   public:
     asioserver(std::shared_ptr<SL::NET::Context> &io_context, SL::NET::PortNumber port)
     {
@@ -65,34 +63,41 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto self(shared_from_this());
-        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::Socket> &socket) {
-            if (socket && SL::NET::StatusCode::SC_SUCCESS == code) {
-                std::make_shared<session>(socket)->do_read();
-                self->do_accept();
+        Listener->accept([&](SL::NET::StatusCode code, SL::NET::Socket &&socket) {
+            if (SL::NET::StatusCode::SC_SUCCESS == code) {
+                auto p = std::make_shared<acceptsession>(socket);
+                clients.push_back(p);
+                p->do_read();
+                do_accept();
             }
         });
     }
     void close() { Listener->close(); }
+    std::vector<std::shared_ptr<acceptsession>> clients;
     std::shared_ptr<SL::NET::IListener> Listener;
 };
+class clientsession {
+  public:
+    clientsession(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
+    void do_read()
+    {
+        socket_.recv(sizeof(writeecho), (unsigned char *)writeecho, [&](SL::NET::StatusCode code, size_t bytesread) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                writeechos += 1.0;
+            }
+        });
+    }
 
-void do_write(const std::shared_ptr<SL::NET::Socket> &s)
-{
-    s->send(sizeof(writeecho), (unsigned char *)writeecho, [s](SL::NET::StatusCode code, size_t bytesread) {
-        if (code == SL::NET::StatusCode::SC_SUCCESS) {
-            writeechos += 1.0;
-        }
-    });
-}
-void do_read(const std::shared_ptr<SL::NET::Socket> &s)
-{
-    s->recv(sizeof(writeecho), (unsigned char *)writeecho, [s](SL::NET::StatusCode code, size_t bytesread) {
-        if (code == SL::NET::StatusCode::SC_SUCCESS) {
-            do_write(s);
-        }
-    });
-}
+    void do_write()
+    {
+        socket_.send(sizeof(writeecho), (unsigned char *)writeecho, [&](SL::NET::StatusCode code, size_t bytesread) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                do_write();
+            }
+        });
+    }
+    SL::NET::Socket socket_;
+};
 std::vector<SL::NET::sockaddr> Addresses;
 void do_connect(const std::shared_ptr<SL::NET::Context> &io_context)
 {

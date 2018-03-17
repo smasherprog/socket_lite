@@ -93,6 +93,7 @@ namespace NET {
     };
     enum class AddressFamily { IPV4, IPV6 };
     class SOCKET_LITE_EXTERN sockaddr {
+
         unsigned char SocketImpl[65] = {0};
         int SocketImplLen = 0;
         std::string Host;
@@ -145,25 +146,62 @@ namespace NET {
     struct Win_IO_Context {
 #ifdef _WIN32
         WSAOVERLAPPED Overlapped = {0};
+        void clear()
+        {
+            Overlapped = {0};
+            IOOperation = IO_OPERATION::IoNone;
+        }
+#else
+        void clear() { IOOperation = IO_OPERATION::IoNone; }
 #endif
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
     };
 
     struct Win_IO_Connect_Context : Win_IO_Context {
         SL::NET::sockaddr address;
-        std::function<void(StatusCode)> completionhandler;
-        Socket *Socket_ = nullptr;
+        std::function<void(StatusCode, Socket &&)> completionhandler;
+        SOCKET Socket_ = INVALID_SOCKET;
         void clear()
         {
             completionhandler = nullptr;
-            Socket_ = nullptr;
+            Socket_ = INVALID_SOCKET;
+            Win_IO_Context::clear();
         }
     };
     struct Win_IO_Accept_Context : Win_IO_Context {
-        std::shared_ptr<Socket> Socket_;
+#ifdef WIN32
+        char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
+#endif //  WIN32
+        SOCKET Socket_ = INVALID_SOCKET;
         SOCKET ListenSocket = INVALID_SOCKET;
-        std::function<void(StatusCode, const std::shared_ptr<Socket> &)> completionhandler;
+        AddressFamily Family = AddressFamily::IPV4;
+        std::function<void(StatusCode, Socket &&)> completionhandler;
+        void clear()
+        {
+            Family = AddressFamily::IPV4;
+            completionhandler = nullptr;
+            Socket_ = ListenSocket = INVALID_SOCKET;
+            Win_IO_Context::clear();
+        }
     };
+    struct RW_CompletionHandler;
+    struct Win_IO_RW_Context : Win_IO_Context {
+        size_t transfered_bytes = 0;
+        size_t bufferlen = 0;
+        unsigned char *buffer = nullptr;
+        RW_CompletionHandler *completionhandler = nullptr;
+        SOCKET Socket_ = INVALID_SOCKET;
+        void clear()
+        {
+            transfered_bytes = 0;
+            bufferlen = 0;
+            buffer = nullptr;
+            Socket_ = INVALID_SOCKET;
+            completionhandler = nullptr;
+            Win_IO_Context::clear();
+        }
+    };
+
     struct RW_CompletionHandler {
         RW_CompletionHandler()
         {
@@ -191,23 +229,6 @@ namespace NET {
             completionhandler = nullptr;
         }
     };
-    struct Win_IO_RW_Context : Win_IO_Context {
-        size_t transfered_bytes = 0;
-        size_t bufferlen = 0;
-        unsigned char *buffer = nullptr;
-        RW_CompletionHandler *completionhandler = nullptr;
-        void clear()
-        {
-            transfered_bytes = 0;
-            bufferlen = 0;
-            buffer = nullptr;
-            completionhandler = nullptr;
-#ifdef _WIN32
-            Overlapped = {0};
-#endif
-            IOOperation = IO_OPERATION::IoNone;
-        }
-    };
     struct Win_IO_RW_ContextCRUD {
         Win_IO_RW_Context *newObj() { return new Win_IO_RW_Context(); }
         void deleteObj(Win_IO_RW_Context *p) { delete p; }
@@ -218,6 +239,15 @@ namespace NET {
         void deleteObj(RW_CompletionHandler *p) { delete p; }
         void clearObj(RW_CompletionHandler *p) { p->clear(); }
     };
-
+    struct Win_IO_Accept_ContextCRUD {
+        Win_IO_Accept_Context *newObj() { return new Win_IO_Accept_Context(); }
+        void deleteObj(Win_IO_Accept_Context *p) { delete p; }
+        void clearObj(Win_IO_Accept_Context *p) { p->clear(); }
+    };
+    struct Win_IO_Connect_ContextCRUD {
+        Win_IO_Connect_Context *newObj() { return new Win_IO_Connect_Context(); }
+        void deleteObj(Win_IO_Connect_Context *p) { delete p; }
+        void clearObj(Win_IO_Connect_Context *p) { p->clear(); }
+    };
 } // namespace NET
 } // namespace SL

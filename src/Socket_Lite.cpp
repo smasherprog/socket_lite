@@ -86,9 +86,23 @@ namespace NET {
         s.Context_ = nullptr;
         return *this;
     }
+
+    Socket::Socket(const Socket &s)
+    {
+        handle = s.handle;
+        Context_ = s.Context_;
+    }
+    Socket &Socket::operator=(const Socket &s)
+    {
+        handle = s.handle;
+        Context_ = s.Context_;
+        return *this;
+    }
+
     Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
     Socket::Socket(Context *context) : Context_(context), handle(INVALID_SOCKET) {}
-    Socket::~Socket() { close(); }
+    Socket::Socket() : Context_(nullptr), handle(INVALID_SOCKET) {}
+    Socket::~Socket() {}
     StatusCode Socket::listen(int backlog) const
     {
         if (::listen(handle, backlog) == SOCKET_ERROR) {

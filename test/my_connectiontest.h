@@ -15,9 +15,9 @@ namespace myconnectiontest {
 
 auto connections = 0.0;
 bool keepgoing = true;
-class asioserver : public std::enable_shared_from_this<asioserver> {
+class asioserver {
   public:
-    asioserver(std::shared_ptr<SL::NET::Context> &io_context, SL::NET::PortNumber port)
+    asioserver(SL::NET::Context &io_context, SL::NET::PortNumber port)
     {
 
         std::shared_ptr<SL::NET::Socket> listensocket;
@@ -26,7 +26,7 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
             std::cout << "Error code:" << code << std::endl;
         }
         for (auto &address : addresses) {
-            auto lsock = std::make_shared<SL::NET::Socket>(io_context.get());
+            auto lsock = std::make_shared<SL::NET::Socket>(&io_context);
             if (lsock->bind(address) == SL::NET::StatusCode::SC_SUCCESS) {
                 if (lsock->listen(5) == SL::NET::StatusCode::SC_SUCCESS) {
                     listensocket = lsock;
@@ -34,15 +34,14 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
             }
         }
         listensocket->setsockopt<SL::NET::SocketOptions::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
-        Listener = io_context->CreateListener(std::move(listensocket));
+        Listener = io_context.CreateListener(std::move(listensocket));
     }
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto self(shared_from_this());
-        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::Socket> &socket) {
+        Listener->accept([&](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::Socket> &socket) {
             if (keepgoing) {
-                self->do_accept();
+                do_accept();
             }
         });
     }
@@ -53,9 +52,9 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
 
 std::vector<SL::NET::sockaddr> addresses;
 
-void connect(std::shared_ptr<SL::NET::Context> iocontext)
+void connect(SL::NET::Context *iocontext)
 {
-    auto socket_ = std::make_shared<SL::NET::Socket>(iocontext.get());
+    auto socket_ = std::make_shared<SL::NET::Socket>(iocontext);
     socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::StatusCode connectstatus) {
         connections += 1.0;
         if (keepgoing) {
@@ -67,7 +66,7 @@ void myconnectiontest()
 {
     std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
-    auto iocontext = std::make_shared<SL::NET::Context>(SL::NET::ThreadCount(1));
+    auto iocontext = SL::NET::Context(SL::NET::ThreadCount(1));
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     auto s(std::make_shared<asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
     s->do_accept();
@@ -76,8 +75,8 @@ void myconnectiontest()
         std::cout << "Error code:" << code << std::endl;
     }
     addresses = addrs;
-    iocontext->run();
-    connect(iocontext);
+    iocontext.run();
+    connect(&iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
