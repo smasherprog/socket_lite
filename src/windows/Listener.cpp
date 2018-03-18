@@ -21,7 +21,7 @@ namespace NET {
             context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         }
         DWORD recvbytes = 0;
-        context->Socket_ = std::make_shared<Socket>(context->Context_, context->Family);
+        context->Socket_ = std::allocate_shared<Socket>(context->Context_->SocketAllocator, context->Context_, context->Family);
         context->IOOperation = IO_OPERATION::IoAccept;
         context->Overlapped = {0};
 
