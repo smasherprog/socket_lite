@@ -9,7 +9,7 @@ namespace NET {
     class Listener final : public IListener {
       public:
 #ifdef WIN32
-        LPFN_ACCEPTEX AcceptEx_ = nullptr;
+
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
         void start_accept(bool success, Win_IO_Accept_Context *context);
         void handle_accept(bool success, Win_IO_Accept_Context *context);

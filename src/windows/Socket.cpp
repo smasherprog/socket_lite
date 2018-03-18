@@ -6,7 +6,6 @@
 namespace SL {
 namespace NET {
 
-    LPFN_CONNECTEX ConnectEx_ = nullptr;
     Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
     Socket::~Socket() {}
@@ -91,64 +90,45 @@ namespace NET {
     }
     void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
     {
-        static auto iodone = [](auto code, auto context) {
-            context->completionhandler(code);
-            delete context;
-        };
         if (!success) {
-            return iodone(TranslateError(), context);
+            context->completionhandler(TranslateError());
+            Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
-        ISocket::close();
         handle = INTERNAL::Socket(context->address.get_Family());
         BindSocket(handle, context->address.get_Family());
-        if (!setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING)) {
-            return iodone(TranslateError(), context);
-        }
-
-        if (!Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
-            return iodone(TranslateError(), context);
+        if (!setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING) || !Socket::UpdateIOCP(handle, &Context_->iocp.handle, this)) {
+            context->completionhandler(TranslateError());
+            Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
         context->IOOperation = IO_OPERATION::IoConnect;
         context->Overlapped = {0};
         Context_->PendingIO += 1;
-        auto connectres = ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), 0, 0, 0,
-                                     (LPOVERLAPPED)&context->Overlapped);
+        auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), 0, 0, 0,
+                                               (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             Context_->PendingIO -= 1;
-            iodone(StatusCode::SC_SUCCESS, context);
+            context->completionhandler(StatusCode::SC_SUCCESS);
+            return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             Context_->PendingIO -= 1;
-            iodone(TranslateError(&err), context);
+            context->completionhandler(TranslateError(&err));
+            Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
     }
 
     void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
     {
-        static auto iodone = [](auto code, auto context) {
-            context->completionhandler(code);
-            delete context;
-        };
-        if (success) {
-            if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == SOCKET_ERROR) {
-                iodone(TranslateError(), context);
-            }
-            else {
-                iodone(StatusCode::SC_SUCCESS, context);
-            }
+        if (success && ::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+            context->completionhandler(StatusCode::SC_SUCCESS);
+            return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
-        else {
-            iodone(TranslateError(), context);
-        }
+        context->completionhandler(TranslateError());
+        Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
     }
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        auto iofailed = [](auto code, auto context) {
-            auto chandle(std::move(context->completionhandler));
-            delete context;
-            chandle(code);
-        };
-        auto context = new Win_IO_Connect_Context();
+        auto context = Context_->Win_IO_Connect_ContextAllocator.allocate(1);
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoInitConnect;
         context->Socket_ = this;
@@ -160,7 +140,8 @@ namespace NET {
             Context_->PendingIO += 1;
             if (PostQueuedCompletionStatus(Context_->iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
-                iofailed(TranslateError(), context);
+                context->completionhandler(TranslateError());
+                Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
             }
         }
     }
