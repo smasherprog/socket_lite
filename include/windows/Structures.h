@@ -70,7 +70,7 @@ namespace NET {
     }
     enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
     class Socket;
-
+    class Context;
     struct Win_IO_Context {
         WSAOVERLAPPED Overlapped = {0};
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
@@ -80,8 +80,9 @@ namespace NET {
         SL::NET::sockaddr address;
         std::function<void(StatusCode)> completionhandler;
         Socket *Socket_ = nullptr;
+        Context *Context_ = nullptr;
     };
-    class Context;
+
     struct Win_IO_Accept_Context : Win_IO_Context {
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
         AddressFamily Family = AddressFamily::IPV4;
@@ -109,6 +110,8 @@ namespace NET {
     struct Win_IO_RW_Context : Win_IO_Context {
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
+        Context *Context_ = nullptr;
+        Socket *Socket_ = nullptr;
         unsigned char *buffer = nullptr;
         std::shared_ptr<RW_CompletionHandler> completionhandler;
     };

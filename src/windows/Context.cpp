@@ -61,7 +61,7 @@ namespace NET {
         }
         auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
 
-        if (!Socket::UpdateIOCP(listener->ListenSocket->get_handle(), &iocp.handle, listener.get())) {
+        if (CreateIoCompletionPort((HANDLE)listener->ListenSocket->get_handle(), iocp.handle, NULL, NULL) == NULL) {
             return std::shared_ptr<IListener>();
         }
         return listener;
@@ -87,10 +87,10 @@ namespace NET {
                     switch (overlapped->IOOperation) {
 
                     case IO_OPERATION::IoInitConnect:
-                        static_cast<Socket *>(completionkey)->init_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        Socket::init_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoConnect:
-                        static_cast<Socket *>(completionkey)->continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        Socket::continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoStartAccept:
                         Listener::start_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
@@ -104,7 +104,7 @@ namespace NET {
                         if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        static_cast<Socket *>(completionkey)->continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        Socket::continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:
                         break;

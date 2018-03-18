@@ -16,28 +16,27 @@ namespace NET {
     void Listener::close() { ListenSocket->close(); }
     void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
     {
+        auto &iocontext = *context->Context_;
         if (!success) {
             context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
-            context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+            return iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         }
         DWORD recvbytes = 0;
-        context->Socket_ = std::allocate_shared<Socket>(context->Context_->SocketAllocator, context->Context_, context->Family);
+        context->Socket_ = std::allocate_shared<Socket>(iocontext.SocketAllocator, context->Context_, context->Family);
         context->IOOperation = IO_OPERATION::IoAccept;
         context->Overlapped = {0};
-
-        context->Context_->PendingIO += 1;
-
-        auto nRet = context->Context_->AcceptEx_(context->ListenSocket, context->Socket_->get_handle(), (LPVOID)(context->Buffer), 0,
-                                                 sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &recvbytes,
-                                                 (LPOVERLAPPED) & (context->Overlapped));
+        iocontext.PendingIO += 1;
+        auto nRet =
+            iocontext.AcceptEx_(context->ListenSocket, context->Socket_->get_handle(), (LPVOID)(context->Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                                sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (context->Overlapped));
         if (nRet == TRUE) {
-            context->Context_->PendingIO -= 1;
+            iocontext.PendingIO -= 1;
             handle_accept(true, context);
         }
         else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
-            context->Context_->PendingIO -= 1;
+            iocontext.PendingIO -= 1;
             context->completionhandler(TranslateError(&err), std::shared_ptr<Socket>());
-            context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+            iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         }
     }
     void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
@@ -46,7 +45,7 @@ namespace NET {
             ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket,
                          sizeof(context->ListenSocket)) == SOCKET_ERROR ||
             !context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING) ||
-            !Socket::UpdateIOCP(context->Socket_->get_handle(), &context->Context_->iocp.handle, context->Socket_.get())) {
+            CreateIoCompletionPort((HANDLE)context->Socket_->get_handle(), context->Context_->iocp.handle, NULL, NULL) == NULL) {
             context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
         }
         else {

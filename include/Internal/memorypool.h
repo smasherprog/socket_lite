@@ -34,7 +34,6 @@ namespace NET {
         {
             if (n > std::size_t(-1) / sizeof(T))
                 throw std::bad_alloc();
-            auto s = sizeof(T);
             assert(n * sizeof(T) <= ChunkSize);
             T *buffer = nullptr;
             if (Buffer.empty()) {
