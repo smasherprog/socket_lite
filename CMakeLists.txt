@@ -17,9 +17,11 @@ endif()
 
 if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
-		src/windows/Context.cpp 
+		src/windows/Context.cpp
+		include/windows/Socket.h
 		src/windows/Socket.cpp
-		src/windows/Listener.cpp 
+		src/windows/Listener.cpp
+		include/windows/Structures.h
     )
     set(SOCKET_LITE_PLATFORM_INC  
 		include/windows
@@ -47,17 +49,16 @@ endif()
 
 	
 include_directories(
-	include 
+	include
+	include/Internal
 	${SOCKET_LITE_PLATFORM_INC}
 )
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h
-	include/defs.h
-	include/defs.cpp
-	include/memorypool.h
-	include/sockfuncs.h
-	include/spinlock.h  
-	include/Listener.h
+	include/Internal/Context.h 
+	include/Internal/memorypool.h
+	include/Internal/spinlock.h  
+	include/Internal/Listener.h
 	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )
