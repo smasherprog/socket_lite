@@ -109,7 +109,6 @@ namespace NET {
                     default:
                         break;
                     }
-
                     if (--PendingIO <= 0) {
                         PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
                         return;
