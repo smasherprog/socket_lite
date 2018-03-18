@@ -1,75 +1,75 @@
 
+#include "Context.h"
 #include "Listener.h"
+#include "Socket.h"
 #include <assert.h>
 
 namespace SL {
 namespace NET {
 
-    Listener::Listener(Context *context, std::shared_ptr<Socket> &&socket, const sockaddr &addr)
+    Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr)
         : Context_(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
     {
     }
-    Listener::~Listener() { close(); }
+    Listener::~Listener() {}
+
     void Listener::close() { ListenSocket->close(); }
-    void Listener::start_accept(bool success, Win_IO_Accept_Context *context, Context *iocontext)
+    void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
     {
+        auto &iocontext = *context->Context_;
         if (!success) {
-            context->completionhandler(TranslateError(), Socket());
-            closesocket(context->Socket_);
-            iocontext->Win_IO_Accept_ContextBuffer.deleteObject(context);
+            context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
+            return iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         }
         DWORD recvbytes = 0;
-        context->Socket_ = INTERNAL::Socket(context->Family);
+        context->Socket_ = std::allocate_shared<Socket>(iocontext.SocketAllocator, context->Context_, context->Family);
         context->IOOperation = IO_OPERATION::IoAccept;
-        iocontext->PendingIO += 1;
-
-        auto nRet = iocontext->AcceptEx_(context->ListenSocket, context->Socket_, (LPVOID)(context->Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
-                                         sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (context->Overlapped));
+        context->Overlapped = {0};
+        iocontext.PendingIO += 1;
+        auto nRet =
+            iocontext.AcceptEx_(context->ListenSocket, context->Socket_->get_handle(), (LPVOID)(context->Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                                sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (context->Overlapped));
         if (nRet == TRUE) {
-            iocontext->PendingIO -= 1;
-            handle_accept(true, context, iocontext);
+            iocontext.PendingIO -= 1;
+            handle_accept(true, context);
         }
         else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
-            iocontext->PendingIO -= 1;
-            context->completionhandler(TranslateError(&err), Socket());
-            closesocket(context->Socket_);
-            iocontext->Win_IO_Accept_ContextBuffer.deleteObject(context);
+            iocontext.PendingIO -= 1;
+            context->completionhandler(TranslateError(&err), std::shared_ptr<Socket>());
+            iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         }
     }
-    void Listener::handle_accept(bool success, Win_IO_Accept_Context *context, Context *iocontext)
+    void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
     {
         if (!success ||
-            ::setsockopt(context->Socket_, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket, sizeof(context->ListenSocket)) ==
-                SOCKET_ERROR ||
-            !INTERNAL::setsockopt_O_BLOCKING(context->Socket_, Blocking_Options::NON_BLOCKING) ||
-            !Socket::UpdateIOCP(context->Socket_, &iocontext->iocp.handle)) {
-            closesocket(context->Socket_);
-            context->completionhandler(TranslateError(), Socket());
-            iocontext->Win_IO_Accept_ContextBuffer.deleteObject(context);
+            ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket,
+                         sizeof(context->ListenSocket)) == SOCKET_ERROR ||
+            !context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING) ||
+            CreateIoCompletionPort((HANDLE)context->Socket_->get_handle(), context->Context_->iocp.handle, NULL, NULL) == NULL) {
+            context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
         }
         else {
-            Socket s(iocontext);
-            s.set_handle(context->Socket_);
-            context->completionhandler(StatusCode::SC_SUCCESS, std::move(s));
-            iocontext->Win_IO_Accept_ContextBuffer.deleteObject(context);
+            context->completionhandler(StatusCode::SC_SUCCESS, context->Socket_);
         }
+        context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
     }
-    void Listener::accept(const std::function<void(StatusCode, Socket &&)> &&handler)
+    void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
     {
-        auto context = Context_->Win_IO_Accept_ContextBuffer.newObject();
+        auto context = Context_->Win_IO_Accept_ContextAllocator.allocate(1);
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoStartAccept;
+        context->Context_ = Context_;
         context->Family = ListenSocketAddr.get_Family();
         context->ListenSocket = ListenSocket->get_handle();
         if (Context_->inWorkerThread()) {
-            start_accept(true, context, Context_);
+            start_accept(true, context);
         }
         else {
             Context_->PendingIO += 1;
             if (PostQueuedCompletionStatus(Context_->iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
-                context->completionhandler(TranslateError(), Socket());
-                Context_->Win_IO_Accept_ContextBuffer.deleteObject(context);
+                context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
+                Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
             }
         }
     }

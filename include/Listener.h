@@ -7,6 +7,12 @@ namespace NET {
     class Context;
     class Listener final : public IListener {
       public:
+#ifdef WIN32
+
+        static void start_accept(bool success, Win_IO_Accept_Context *context);
+        static void handle_accept(bool success, Win_IO_Accept_Context *context);
+#endif //  WIN32
+
         Context *Context_;
         std::shared_ptr<Socket> ListenSocket;
         SL::NET::sockaddr ListenSocketAddr;

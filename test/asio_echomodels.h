@@ -37,10 +37,10 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(readecho, sizeof(readecho)), [this, self](std::error_code ec, std::size_t /*length*/) {
+        asio::async_write(socket_, asio::buffer(readecho, sizeof(readecho)), [self](std::error_code ec, std::size_t /*length*/) {
             if (!ec) {
                 writeechos += 1.0;
-                do_read();
+                self->do_read();
             }
         });
     }

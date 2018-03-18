@@ -16,7 +16,7 @@ std::vector<char> readbuffer;
 double writeechos = 0.0;
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(const std::shared_ptr<SL::NET::Socket> &socket) : socket_(socket) {}
+    session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket) {}
 
     void start() { do_read(); }
     void do_read()
@@ -29,21 +29,21 @@ class session : public std::enable_shared_from_this<session> {
         });
     }
 
-    std::shared_ptr<SL::NET::Socket> socket_;
+    std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
 class asioserver : public std::enable_shared_from_this<asioserver> {
   public:
-    asioserver(std::shared_ptr<SL::NET::Context> &io_context, SL::NET::PortNumber port)
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
     {
 
-        std::shared_ptr<SL::NET::Socket> listensocket;
+        std::shared_ptr<SL::NET::ISocket> listensocket;
         auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, SL::NET::AddressFamily::IPV4);
         if (code != SL::NET::StatusCode::SC_SUCCESS) {
             std::cout << "Error code:" << code << std::endl;
         }
         for (auto &address : addresses) {
-            auto lsock = std::make_shared<SL::NET::Socket>(io_context.get());
+            auto lsock = io_context->CreateSocket();
             if (lsock->bind(address) == SL::NET::StatusCode::SC_SUCCESS) {
                 if (lsock->listen(5) == SL::NET::StatusCode::SC_SUCCESS) {
                     listensocket = lsock;
@@ -56,11 +56,10 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto self(shared_from_this());
-        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::Socket> &socket) {
+        Listener->accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(socket)->start();
-                self->do_accept();
+                do_accept();
             }
         });
     }
@@ -70,21 +69,20 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
 
 class asioclient : public std::enable_shared_from_this<asioclient> {
   public:
-    asioclient(std::shared_ptr<SL::NET::Context> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
+    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
     {
-        socket_ = std::make_shared<SL::NET::Socket>(io_context.get());
+        socket_ = io_context->CreateSocket();
     }
     ~asioclient() {}
     void do_connect()
     {
-        auto self(shared_from_this());
-        socket_->connect(Addresses.back(), [self](SL::NET::StatusCode connectstatus) {
+        socket_->connect(Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_write();
+                do_write();
             }
             else {
-                self->Addresses.pop_back();
-                self->do_connect();
+                Addresses.pop_back();
+                do_connect();
             }
         });
     }
@@ -99,7 +97,7 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
         });
     }
     std::vector<SL::NET::sockaddr> Addresses;
-    std::shared_ptr<SL::NET::Socket> socket_;
+    std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
 void mytransfertest()
@@ -109,7 +107,7 @@ void mytransfertest()
     writeechos = 0.0;
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
-    auto iocontext = std::make_shared<SL::NET::Context>(SL::NET::ThreadCount(1));
+    auto iocontext = SL::NET::CreateContext(SL::NET::ThreadCount(1));
     auto s(std::make_shared<asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
     s->do_accept();
     auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
