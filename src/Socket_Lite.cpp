@@ -1,21 +1,27 @@
 
 #include "Socket_Lite.h"
+#include "Structures.h"
 #include <assert.h>
-#include <string.h>
-#include <string>
-
-#if !defined(_WIN32)
-
+#ifdef _WIN32
+#include <WinSock2.h>
+#include <Windows.h>
+#include <Ws2tcpip.h>
+#include <mswsock.h>
+typedef int SOCKLEN_T;
+#else
 #include <arpa/inet.h>
-#include <fcntl.h>
-#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#define INVALID_SOCKET 0
+#define closesocket ::close
+#define SOCKET_ERROR -1
+typedef socklen_t SOCKLEN_T;
 #endif
+#include <string.h>
+#include <string>
 
 namespace SL {
 namespace NET {
@@ -73,37 +79,8 @@ namespace NET {
         freeaddrinfo(result);
         return std::make_tuple(StatusCode::SC_SUCCESS, ret);
     } // namespace NET
-    Socket::Socket(Socket &&s) : handle(s.handle), Context_(s.Context_)
-    {
-        s.handle = INVALID_SOCKET;
-        s.Context_ = nullptr;
-    }
-    Socket &Socket::operator=(Socket &&s)
-    {
-        handle = s.handle;
-        Context_ = s.Context_;
-        s.handle = INVALID_SOCKET;
-        s.Context_ = nullptr;
-        return *this;
-    }
 
-    Socket::Socket(const Socket &s)
-    {
-        handle = s.handle;
-        Context_ = s.Context_;
-    }
-    Socket &Socket::operator=(const Socket &s)
-    {
-        handle = s.handle;
-        Context_ = s.Context_;
-        return *this;
-    }
-
-    Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
-    Socket::Socket(Context *context) : Context_(context), handle(INVALID_SOCKET) {}
-    Socket::Socket() : Context_(nullptr), handle(INVALID_SOCKET) {}
-    Socket::~Socket() {}
-    StatusCode Socket::listen(int backlog) const
+    StatusCode ISocket::listen(int backlog) const
     {
         if (::listen(handle, backlog) == SOCKET_ERROR) {
             return TranslateError();
@@ -111,14 +88,15 @@ namespace NET {
         return StatusCode::SC_SUCCESS;
     }
 
-    void Socket::set_handle(PlatformSocket h)
+    void ISocket::set_handle(PlatformSocket h)
     {
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
         }
         handle = h;
     }
-    void Socket::close()
+    ISocket::ISocket() { handle = INVALID_SOCKET; }
+    void ISocket::close()
     {
         if (handle != INVALID_SOCKET) {
             closesocket(handle);
@@ -156,9 +134,9 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    StatusCode Socket::bind(sockaddr addr) { return INTERNAL::bind(handle, addr); }
+    StatusCode ISocket::bind(sockaddr addr) { return INTERNAL::bind(handle, addr); }
 
-    std::optional<SL::NET::sockaddr> Socket::getpeername() const
+    std::optional<SL::NET::sockaddr> ISocket::getpeername() const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -181,7 +159,7 @@ namespace NET {
         }
         return std::nullopt;
     }
-    std::optional<SL::NET::sockaddr> Socket::getsockname() const
+    std::optional<SL::NET::sockaddr> ISocket::getsockname() const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);

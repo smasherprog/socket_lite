@@ -2,7 +2,7 @@ project(socket_lite_test)
 include_directories(
 	.
 )
-add_executable(${PROJECT_NAME} main.cpp asio_echotest.h asio_connectiontest.h my_echotest.h asio_echomodels.h asio_transfertest.h my_connectiontest.h my_transfertest.h my_multithreadedecho.h my_echomodels.h asio_multithreadedechotest.h CpuUsage.h CpuUsage.cpp my_connectWRtest.h) 
+add_executable(${PROJECT_NAME} main.cpp asio_echotest.h asio_connectiontest.h my_echotest.h asio_echomodels.h asio_transfertest.h my_connectiontest.h my_transfertest.h my_multithreadedecho.h my_echomodels.h asio_multithreadedechotest.h CpuUsage.h CpuUsage.cpp) 
 find_package(Threads REQUIRED)
 if(WIN32) 
 	target_link_libraries(${PROJECT_NAME} Ws2_32 socket_lite)

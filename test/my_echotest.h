@@ -17,7 +17,7 @@ void myechotest()
     std::cout << "Starting My Echo Test" << std::endl;
     myechomodels::writeechos = 0;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    auto iocontext = std::make_shared<SL::NET::Context>(SL::NET::ThreadCount(1));
+    auto iocontext = SL::NET::CreateContext(SL::NET::ThreadCount(1));
     auto s(std::make_shared<myechomodels::asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
     s->do_accept();
     auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
