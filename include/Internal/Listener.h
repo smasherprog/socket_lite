@@ -10,9 +10,8 @@ namespace NET {
       public:
 #ifdef WIN32
 
-        char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
-        void start_accept(bool success, Win_IO_Accept_Context *context);
-        void handle_accept(bool success, Win_IO_Accept_Context *context);
+        static void start_accept(bool success, Win_IO_Accept_Context *context);
+        static void handle_accept(bool success, Win_IO_Accept_Context *context);
 #endif //  WIN32
 
         Context *Context_;

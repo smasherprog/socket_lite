@@ -81,7 +81,11 @@ namespace NET {
         std::function<void(StatusCode)> completionhandler;
         Socket *Socket_ = nullptr;
     };
+    class Context;
     struct Win_IO_Accept_Context : Win_IO_Context {
+        char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
+        AddressFamily Family = AddressFamily::IPV4;
+        Context *Context_ = nullptr;
         std::shared_ptr<Socket> Socket_;
         SOCKET ListenSocket = INVALID_SOCKET;
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;

@@ -11,9 +11,9 @@ namespace NET {
     Context::Context(ThreadCount threadcount)
         : ThreadCount_(threadcount), Win_IO_RW_ContextImpl(sizeof(Win_IO_RW_Context) * 2, 1000), Win_IO_RW_ContextAllocator(&Win_IO_RW_ContextImpl),
           RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000), RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
-          Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000), Win_IO_Connect_ContextAllocator(&RW_CompletionHandlerImpl),
-          Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000), Win_IO_Accept_ContextAllocator(&RW_CompletionHandlerImpl),
-          iocp(threadcount.value)
+          Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000), Win_IO_Connect_ContextAllocator(&Win_IO_Connect_ContextImpl),
+          Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000), Win_IO_Accept_ContextAllocator(&Win_IO_Accept_ContextImpl),
+          SocketImpl(sizeof(Socket) * 2, 1000), SocketAllocator(&SocketImpl), iocp(threadcount.value)
     {
         PendingIO = 0;
 
@@ -52,7 +52,7 @@ namespace NET {
         }
     }
 
-    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
+    std::shared_ptr<ISocket> Context::CreateSocket() { return std::allocate_shared<Socket>(SocketAllocator, this); }
     std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
     {
         auto addr = listensocket->getsockname();
@@ -93,10 +93,10 @@ namespace NET {
                         static_cast<Socket *>(completionkey)->continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoStartAccept:
-                        static_cast<Listener *>(completionkey)->start_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
+                        Listener::start_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoAccept:
-                        static_cast<Listener *>(completionkey)->handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
+                        Listener::handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:

@@ -13,10 +13,12 @@ namespace NET {
 
         std::vector<void *> Buffer;
         size_t TotalSize = 0;
+        size_t ChunkSize = 0;
         spinlock Lock;
         MallocatorImpl(size_t chunksize, size_t totalchunks)
         {
             TotalSize = totalchunks;
+            ChunkSize = chunksize;
             Buffer.resize(totalchunks);
             for (auto &a : Buffer) {
                 a = std::malloc(chunksize);
@@ -32,6 +34,8 @@ namespace NET {
         {
             if (n > std::size_t(-1) / sizeof(T))
                 throw std::bad_alloc();
+            auto s = sizeof(T);
+            assert(n * sizeof(T) <= ChunkSize);
             T *buffer = nullptr;
             if (Buffer.empty()) {
                 buffer = static_cast<T *>(malloc(n * sizeof(T)));
