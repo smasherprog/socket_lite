@@ -49,6 +49,7 @@ enum IO_OPERATION { IoNone, IoConnect, IoAccept, IoRead, IoWrite };
 class Socket;
 struct IO_Context {
     IO_OPERATION IOOperation = IO_OPERATION::IoNone;
+    Socket* Socket_=nullptr;
 };
 struct Win_IO_Accept_Context:IO_Context  {
     int ListenSocket = -1;
@@ -59,7 +60,6 @@ struct Win_IO_Accept_Context:IO_Context  {
     }
 };
 struct Win_IO_RW_Context :IO_Context  {
-    Socket* Socket_=nullptr;
     size_t transfered_bytes = 0;
     size_t bufferlen = 0;
     unsigned char *buffer = nullptr;

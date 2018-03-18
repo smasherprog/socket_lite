@@ -3,6 +3,7 @@
 #include "Socket.h"
 #include <chrono>
 #include <string.h>
+#include <mutex>
 
 using namespace std::chrono_literals;
 namespace SL
@@ -22,6 +23,8 @@ std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&li
     }
     auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
     epoll_event ev = {0};
+    ev.data.ptr = &listener->Win_IO_Accept_Context_;
+    ev.events = EPOLLIN;
     if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listensocket->get_handle(), &ev)  == -1) {
         return std::shared_ptr<Listener>();
     }
@@ -66,28 +69,43 @@ Context::~Context()
         close(EventWakeFd);
     }
 }
-void handleaccept(Win_IO_Accept_Context* context, Context* cont, IOCP& iocp)
+
+void handleaccept(Win_IO_Accept_Context* cont, Context* context, IOCP& iocp)
 {
-    auto handle(std::move(context->completionhandler));
-    context->clear();
+    int listenhandle =-1;
+    decltype(cont->completionhandler) handler;
+    {
+        std::lock_guard<SpinLock> lock(context->AcceptLock);
+        if(!cont->completionhandler) {
+            return;
+        }
+        handler = std::move(cont->completionhandler);
+        listenhandle = cont->ListenSocket;
+        cont->clear();
+    }
+
+
     sockaddr_in remote= {0};
     socklen_t len = sizeof(remote);
-    int i = accept(context->ListenSocket, reinterpret_cast<::sockaddr*>(&remote), &len);
+    int i = accept(listenhandle, reinterpret_cast<::sockaddr*>(&remote), &len);
     if(i==-1) {
         if(errno == EAGAIN || errno == EWOULDBLOCK) {
-            handle(StatusCode::SC_CLOSED, std::shared_ptr<ISocket>());
+            handler(StatusCode::SC_CLOSED, std::shared_ptr<ISocket>());
         } else {
-            handle(TranslateError(), std::shared_ptr<ISocket>());
+            handler(TranslateError(), std::shared_ptr<ISocket>());
         }
     } else {
-        auto sock(std::make_shared<Socket>(cont));
+        auto sock(std::make_shared<Socket>(context));
         sock->set_handle(i);
         sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         epoll_event ev = {0};
+        ev.events =  EPOLLOUT | EPOLLIN | EPOLLEXCLUSIVE;
+        ev.data.ptr = &sock->WriteContext;
         if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, i, &ev)  == -1) {
-            handle(TranslateError(), std::shared_ptr<ISocket>());
+            handler(TranslateError(), std::shared_ptr<ISocket>());
+        } else {
+            handler(StatusCode::SC_SUCCESS, sock);
         }
-        handle(StatusCode::SC_SUCCESS, sock);
     }
 }
 
@@ -106,10 +124,12 @@ void Context::run(ThreadCount threadcount)
                     if(errno == EINTR && PendingIO > 0) {
                         continue;
                     }
+                    /*
                     if(EventWakeFd!= -1) {//wake the next thread
                         eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
                     }
                     return;
+                    */
                 }
                 for(auto i=0; i< count ; i++) {
                     if(epollevents[i].data.fd == EventWakeFd) {
@@ -136,13 +156,13 @@ void Context::run(ThreadCount threadcount)
                         break;
                     default:
                         break;
-                    }
+                    }/*
                     if (--PendingIO <= 0) {
                         if(EventWakeFd!= -1) {//wake the next thread
                             eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
                         }
                         return;
-                    }
+                    }*/
                 }
             }
         }));
