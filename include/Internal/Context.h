@@ -12,8 +12,11 @@ namespace NET {
         ThreadCount ThreadCount_;
 
       public:
-        MemoryPool<Win_IO_RW_Context *, Win_IO_RW_ContextCRUD> Win_IO_RW_ContextBuffer;
-        MemoryPool<RW_CompletionHandler *, RW_CompletionHandlerCRUD> RW_CompletionHandlerBuffer;
+        MallocatorImpl Win_IO_RW_ContextImpl;
+        MallocatorImpl RW_CompletionHandlerImpl;
+
+        Mallocator<Win_IO_RW_Context> Win_IO_RW_ContextAllocator;
+        Mallocator<RW_CompletionHandler> RW_CompletionHandlerAllocator;
 
 #if WIN32
         WSARAII wsa;

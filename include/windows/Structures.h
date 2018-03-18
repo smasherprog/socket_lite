@@ -80,11 +80,6 @@ namespace NET {
         SL::NET::sockaddr address;
         std::function<void(StatusCode)> completionhandler;
         Socket *Socket_ = nullptr;
-        void clear()
-        {
-            completionhandler = nullptr;
-            Socket_ = nullptr;
-        }
     };
     struct Win_IO_Accept_Context : Win_IO_Context {
         std::shared_ptr<Socket> Socket_;
@@ -92,14 +87,9 @@ namespace NET {
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
     struct RW_CompletionHandler {
-        RW_CompletionHandler()
-        {
-            Completed = 1;
-            RefCount = 0;
-        }
+        RW_CompletionHandler() { Completed = 1; }
         std::function<void(StatusCode, size_t)> completionhandler;
         std::atomic<int> Completed;
-        std::atomic<int> RefCount;
         void handle(StatusCode code, size_t bytes, bool lockneeded)
         {
             if (lockneeded) {
@@ -111,37 +101,12 @@ namespace NET {
                 completionhandler(code, bytes);
             }
         }
-        void clear()
-        {
-            RefCount = 0;
-            Completed = 1;
-            completionhandler = nullptr;
-        }
     };
     struct Win_IO_RW_Context : Win_IO_Context {
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
         unsigned char *buffer = nullptr;
-        RW_CompletionHandler *completionhandler = nullptr;
-        void clear()
-        {
-            transfered_bytes = 0;
-            bufferlen = 0;
-            buffer = nullptr;
-            completionhandler = nullptr;
-            Overlapped = {0};
-            IOOperation = IO_OPERATION::IoNone;
-        }
-    };
-    struct Win_IO_RW_ContextCRUD {
-        Win_IO_RW_Context *newObj() { return new Win_IO_RW_Context(); }
-        void deleteObj(Win_IO_RW_Context *p) { delete p; }
-        void clearObj(Win_IO_RW_Context *p) { p->clear(); }
-    };
-    struct RW_CompletionHandlerCRUD {
-        RW_CompletionHandler *newObj() { return new RW_CompletionHandler(); }
-        void deleteObj(RW_CompletionHandler *p) { delete p; }
-        void clearObj(RW_CompletionHandler *p) { p->clear(); }
+        std::shared_ptr<RW_CompletionHandler> completionhandler;
     };
 } // namespace NET
 } // namespace SL

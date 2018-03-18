@@ -8,9 +8,10 @@ using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
     std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
-
     Context::Context(ThreadCount threadcount)
-        : ThreadCount_(threadcount), Win_IO_RW_ContextBuffer(), RW_CompletionHandlerBuffer(), iocp(threadcount.value)
+        : ThreadCount_(threadcount), Win_IO_RW_ContextImpl(sizeof(Win_IO_RW_Context) * 2, 1000), Win_IO_RW_ContextAllocator(&Win_IO_RW_ContextImpl),
+          RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000), RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
+          iocp(threadcount.value)
     {
         PendingIO = 0;
         if (!ConnectEx_) {

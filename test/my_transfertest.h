@@ -56,11 +56,10 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto self(shared_from_this());
-        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+        Listener->accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(socket)->start();
-                self->do_accept();
+                do_accept();
             }
         });
     }
@@ -77,14 +76,13 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     ~asioclient() {}
     void do_connect()
     {
-        auto self(shared_from_this());
-        socket_->connect(Addresses.back(), [self](SL::NET::StatusCode connectstatus) {
+        socket_->connect(Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_write();
+                do_write();
             }
             else {
-                self->Addresses.pop_back();
-                self->do_connect();
+                Addresses.pop_back();
+                do_connect();
             }
         });
     }

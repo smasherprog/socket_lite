@@ -40,10 +40,9 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     ~asioserver() { close(); }
     void do_accept()
     {
-        auto self(shared_from_this());
-        Listener->accept([self](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
+        Listener->accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (keepgoing) {
-                self->do_accept();
+                do_accept();
             }
         });
     }

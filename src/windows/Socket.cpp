@@ -23,12 +23,11 @@ namespace NET {
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->Win_IO_RW_ContextBuffer.newObject();
+        auto context = Context_->Win_IO_RW_ContextAllocator.allocate(1);
         context->buffer = buffer;
         context->bufferlen = buffer_size;
-        context->completionhandler = Context_->RW_CompletionHandlerBuffer.newObject();
+        context->completionhandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
         context->completionhandler->completionhandler = std::move(handler);
-        context->completionhandler->RefCount = 1;
         context->IOOperation = IO_OPERATION::IoRead;
         continue_io(true, context);
     }
@@ -38,23 +37,14 @@ namespace NET {
         if (!success) {
             close();
             context->completionhandler->handle(TranslateError(), 0, true);
-            auto c = Context_; // take a copy
-            if (context->completionhandler->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                Context_->RW_CompletionHandlerBuffer.deleteObject(context->completionhandler);
-            }
-            c->Win_IO_RW_ContextBuffer.deleteObject(context);
+            Context_->Win_IO_RW_ContextAllocator.deallocate(context, 1);
         }
         else if (context->bufferlen == context->transfered_bytes) {
             context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
-            auto c = Context_; // take a copy
-            if (context->completionhandler->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                Context_->RW_CompletionHandlerBuffer.deleteObject(context->completionhandler);
-            }
-            c->Win_IO_RW_ContextBuffer.deleteObject(context);
+            Context_->Win_IO_RW_ContextAllocator.deallocate(context, 1);
         }
         else {
             auto func = context->completionhandler;
-            func->RefCount.fetch_add(1, std::memory_order_relaxed);
             WSABUF wsabuf;
             auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
             wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
@@ -73,20 +63,10 @@ namespace NET {
                 Context_->PendingIO -= 1;
                 close();
                 func->handle(TranslateError(&lasterr), 0, false);
-                auto c = Context_; // take a copy
-                c->RW_CompletionHandlerBuffer.deleteObject(func);
-                c->Win_IO_RW_ContextBuffer.deleteObject(context);
+                Context_->Win_IO_RW_ContextAllocator.deallocate(context, 1);
             }
             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
                 func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
-                if (func->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                    Context_->RW_CompletionHandlerBuffer.deleteObject(func);
-                }
-            }
-            else {
-                if (func->RefCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                    Context_->RW_CompletionHandlerBuffer.deleteObject(func);
-                }
             }
         }
     }
@@ -186,12 +166,11 @@ namespace NET {
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->Win_IO_RW_ContextBuffer.newObject();
+        auto context = Context_->Win_IO_RW_ContextAllocator.allocate(1);
         context->buffer = buffer;
         context->bufferlen = buffer_size;
-        context->completionhandler = Context_->RW_CompletionHandlerBuffer.newObject();
+        context->completionhandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
         context->completionhandler->completionhandler = std::move(handler);
-        context->completionhandler->RefCount = 1;
         context->IOOperation = IO_OPERATION::IoWrite;
         continue_io(true, context);
     }

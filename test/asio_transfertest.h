@@ -68,10 +68,10 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
     void do_write()
     {
         auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(readbuffer.data(), readbuffer.size()), [this, self](std::error_code ec, std::size_t /*length*/) {
+        asio::async_write(socket_, asio::buffer(readbuffer.data(), readbuffer.size()), [self](std::error_code ec, std::size_t /*length*/) {
             if (!ec) {
                 writeechos += 1.0;
-                do_write();
+                self->do_write();
             }
         });
     }
