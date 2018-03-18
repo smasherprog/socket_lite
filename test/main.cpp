@@ -21,23 +21,20 @@ int main()
 {
     std::cout << "Starting Network Benchmarks\n";
     std::srand(std::time(nullptr));
-    // bool startwatching = true;
-    // float totalusage = 0.0f;
-    // float counts = 0.0f;
-    // std::thread t([&] {
-    //    CpuUsage c;
-    //    while (startwatching) {
-    //        auto temp = c.GetUsage();
-    //        totalusage += temp;
-    //        counts += 1.0f;
-    //        std::this_thread::sleep_for(200ms);
-    //    }
-    //});
+    bool startwatching = true;
+    float totalusage = 0.0f;
+    float counts = 0.0f;
+    std::thread t([&] {
+        CpuUsage c;
+        while (startwatching) {
+            auto temp = c.GetUsage();
+            totalusage += temp;
+            counts += 1.0f;
+            std::this_thread::sleep_for(200ms);
+        }
+    });
 
-    // myconnectiontest::myconnectiontest();
-
-    myechotest::myechotest();
-    /*
+    myconnectiontest::myconnectiontest();
     std::cout << std::fixed;
     std::cout << std::setprecision(2);
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
@@ -64,6 +61,6 @@ int main()
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
     startwatching = false;
-    t.join();*/
+    t.join();
     return 0;
 }
