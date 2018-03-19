@@ -24,7 +24,14 @@ void Listener::close()
         return chandle(StatusCode::SC_CLOSED, 0);
     }
 }
+void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
+{
 
+}
+void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
+{
+
+}
 void Listener::async_accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket>&)> &&handler)
 {
     assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
