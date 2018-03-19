@@ -58,11 +58,10 @@ namespace NET {
         }
         ::close(IOCPHandle);
     }
-    void Context::run(ThreadCount threadcount)
+    void Context::run()
     {
-
-        Threads.reserve(threadcount.value);
-        for (auto i = 0; i < threadcount.value; i++) {
+        Threads.reserve(ThreadCount_.value);
+        for (auto i = 0; i < ThreadCount_.value; i++) {
             Threads.push_back(std::thread([&] {
                 std::vector<epoll_event> epollevents;
                 epollevents.resize(MAXEVENTS);

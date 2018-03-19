@@ -82,7 +82,6 @@ namespace NET {
         Threads.reserve(ThreadCount_.value);
         for (auto i = 0; i < ThreadCount_.value; i++) {
             Threads.push_back(std::thread([&] {
-                std::vector<SOCKET> socketbuffer;
                 while (true) {
                     DWORD numberofbytestransfered = 0;
                     Win_IO_Context *overlapped = nullptr;
