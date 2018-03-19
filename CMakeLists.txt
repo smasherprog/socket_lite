@@ -18,10 +18,8 @@ endif()
 if(WIN32)
     set(SOCKET_LITE_PLATFORM_SRC     
 		src/windows/Context.cpp
-		include/windows/Socket.h
 		src/windows/Socket.cpp
-		src/windows/Listener.cpp
-		include/windows/Structures.h
+		src/windows/Listener.cpp 
     )
     set(SOCKET_LITE_PLATFORM_INC  
 		include/windows
@@ -36,11 +34,9 @@ elseif(APPLE)
     )
 else()
 	set(SOCKET_LITE_PLATFORM_SRC  
-		src/linux/Context.cpp
-		include/linux/Socket.h
+		src/linux/Context.cpp 
 		src/linux/Socket.cpp 
-		src/linux/Listener.cpp
-		include/linux/Structures.h
+		src/linux/Listener.cpp 
     )
 	set(SOCKET_LITE_PLATFORM_INC
 		include/linux 
@@ -59,6 +55,8 @@ add_library(${PROJECT_NAME}
 	include/Internal/memorypool.h
 	include/Internal/spinlock.h  
 	include/Internal/Listener.h
+	include/Internal/defs.h
+	include/Internal/Socket.h
 	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )

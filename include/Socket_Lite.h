@@ -97,7 +97,6 @@ namespace NET {
         sockaddr() {}
         sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
         sockaddr(const sockaddr &addr);
-
         const unsigned char *get_SocketAddr() const;
         int get_SocketAddrLen() const;
         std::string get_Host() const;
@@ -225,7 +224,6 @@ namespace NET {
     std::tuple<StatusCode, std::vector<sockaddr>> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber pServiceName, AddressFamily family);
 
     class SOCKET_LITE_EXTERN ISocket {
-
       protected:
         PlatformSocket handle;
 
@@ -241,9 +239,7 @@ namespace NET {
         std::optional<SL::NET::sockaddr> getsockname() const;
         StatusCode bind(sockaddr addr);
         StatusCode listen(int backlog) const;
-
         virtual void connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&) = 0;
-
         virtual void recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
         virtual void send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
         virtual void close();

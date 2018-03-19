@@ -1,9 +1,15 @@
 #pragma once
 #include "Socket_Lite.h"
-#include "Structures.h"
+#include "defs.h"
 #include "memorypool.h"
 #include <algorithm>
 #include <thread>
+#ifdef _WIN32
+#include <WinSock2.h>
+#include <Windows.h>
+#include <mswsock.h>
+#endif
+
 namespace SL {
 namespace NET {
 
@@ -21,14 +27,14 @@ namespace NET {
         Mallocator<Socket> SocketAllocator;
 
 #if WIN32
-        WSARAII wsa;
+        WSADATA wsaData;
         LPFN_CONNECTEX ConnectEx_ = nullptr;
         LPFN_ACCEPTEX AcceptEx_ = nullptr;
+        HANDLE IOCPHandle = NULL;
 #else
         int EventWakeFd = -1;
 #endif
 
-        IOCP iocp;
         std::atomic<int> PendingIO;
 
         Context(ThreadCount threadcount);

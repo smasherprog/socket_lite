@@ -32,7 +32,8 @@ std::shared_ptr<IContext> CreateContext()
     return std::make_shared<Context>();
 }
 Context::Context()
-{
+{ 
+   IOCPHandle = epoll_create1(0);
     EventWakeFd = eventfd(0, EFD_NONBLOCK);
     epoll_event ev = {0};
     ev.events = EPOLLIN | EPOLLET;
@@ -64,7 +65,8 @@ Context::~Context()
     }
     if(EventWakeFd!= -1) {
         close(EventWakeFd);
-    }
+    } 
+    ::close(IOCPHandle);
 }
 void handleaccept(Win_IO_Accept_Context* context, Context* cont, IOCP& iocp)
 {

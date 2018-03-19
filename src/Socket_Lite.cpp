@@ -1,6 +1,6 @@
 
 #include "Socket_Lite.h"
-#include "Structures.h"
+#include "defs.h"
 #include <assert.h>
 #ifdef _WIN32
 #include <WinSock2.h>
@@ -456,7 +456,34 @@ namespace NET {
         flags = b == Blocking_Options::BLOCKING ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
         return (fcntl(handle, F_SETFL, flags) == 0) ? true : false;
 #endif
+    }
 
+    StatusCode TranslateError(int *errcode)
+    {
+#if _WIN32
+        auto originalerr = WSAGetLastError();
+        auto errorcode = errcode != nullptr ? *errcode : originalerr;
+        switch (errorcode) {
+        case WSAECONNRESET:
+            return StatusCode::SC_ECONNRESET;
+        case WSAETIMEDOUT:
+        case WSAECONNABORTED:
+            return StatusCode::SC_ETIMEDOUT;
+        case WSAEWOULDBLOCK:
+            return StatusCode::SC_EWOULDBLOCK;
+#else
+        auto originalerror = errno;
+        auto errorcode = errcode != nullptr ? *errcode : originalerror;
+        switch (errorcode) {
+
+        default:
+            return StatusCode::SC_CLOSED;
+        };
+#endif
+
+        default:
+            return StatusCode::SC_CLOSED;
+        };
     } // namespace NET
 
 } // namespace NET

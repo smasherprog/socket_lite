@@ -1,78 +1,26 @@
 #pragma once
 
+#ifdef _WIN32
 #include <WinSock2.h>
 #include <Windows.h>
-#include <Ws2tcpip.h>
+#endif
+#include "Socket_Lite.h"
+
 #include <atomic>
 #include <functional>
-#include <iostream>
-#include <mswsock.h>
 #include <mutex>
 
 namespace SL {
 namespace NET {
 
-    struct WSARAII {
-
-        WSADATA wsaData;
-        bool good = false;
-        WSARAII()
-        {
-            if (auto ret = WSAStartup(0x202, &wsaData); ret != 0) {
-                // error
-                good = false;
-            }
-            good = true;
-        }
-        ~WSARAII()
-        {
-            if (auto ret = WSACleanup(); ret != 0) {
-                // error
-            }
-        }
-        operator bool() const { return good; }
-    };
-
-    struct IOCP {
-
-        HANDLE handle = NULL;
-        IOCP(DWORD numberOfConcurrentThreads)
-        {
-            if (handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, numberOfConcurrentThreads); handle == NULL) {
-                //  std::cerr << "CreateIoCompletionPort() failed to create I/O completion port: " << GetLastError() << std::endl;
-            }
-        }
-        ~IOCP()
-        {
-            if (operator bool()) {
-                CloseHandle(handle);
-            }
-        }
-        operator bool() const { return handle != NULL; }
-    };
-
-    inline StatusCode TranslateError(int *errcode = nullptr)
-    {
-        auto originalerr = WSAGetLastError();
-        auto errorcode = errcode != nullptr ? *errcode : originalerr;
-        switch (errorcode) {
-        case WSAECONNRESET:
-            return StatusCode::SC_ECONNRESET;
-        case WSAETIMEDOUT:
-        case WSAECONNABORTED:
-            return StatusCode::SC_ETIMEDOUT;
-        case WSAEWOULDBLOCK:
-            return StatusCode::SC_EWOULDBLOCK;
-
-        default:
-            return StatusCode::SC_CLOSED;
-        };
-    }
+    StatusCode SOCKET_LITE_EXTERN TranslateError(int *errcode = nullptr);
     enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
     class Socket;
     class Context;
     struct Win_IO_Context {
+#ifdef _WIN32
         WSAOVERLAPPED Overlapped = {0};
+#endif
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
     };
 
@@ -84,11 +32,13 @@ namespace NET {
     };
 
     struct Win_IO_Accept_Context : Win_IO_Context {
+#ifdef _WIN32
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
+#endif
         AddressFamily Family = AddressFamily::IPV4;
         Context *Context_ = nullptr;
         std::shared_ptr<Socket> Socket_;
-        SOCKET ListenSocket = INVALID_SOCKET;
+        PlatformSocket ListenSocket = INVALID_SOCKET;
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
     struct RW_CompletionHandler {

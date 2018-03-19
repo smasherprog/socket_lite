@@ -1,8 +1,8 @@
 
 #include "Context.h"
 #include "Socket.h"
+#include <Ws2ipdef.h>
 #include <assert.h>
-
 namespace SL {
 namespace NET {
 
@@ -102,7 +102,7 @@ namespace NET {
         auto handle = INTERNAL::Socket(context->address.get_Family());
         BindSocket(handle, context->address.get_Family());
         if (!INTERNAL::setsockopt_O_BLOCKING(handle, Blocking_Options::NON_BLOCKING) ||
-            CreateIoCompletionPort((HANDLE)handle, iocontext.iocp.handle, NULL, NULL) == NULL) {
+            CreateIoCompletionPort((HANDLE)handle, iocontext.IOCPHandle, NULL, NULL) == NULL) {
             context->completionhandler(TranslateError());
             return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
@@ -146,7 +146,7 @@ namespace NET {
         }
         else {
             Context_->PendingIO += 1;
-            if (PostQueuedCompletionStatus(Context_->iocp.handle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
+            if (PostQueuedCompletionStatus(Context_->IOCPHandle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
                 context->completionhandler(TranslateError());
                 Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);

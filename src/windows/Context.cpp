@@ -1,6 +1,7 @@
 #include "Context.h"
 #include "Listener.h"
 #include "Socket.h"
+#include <Ws2tcpip.h>
 #include <algorithm>
 #include <chrono>
 
@@ -13,8 +14,13 @@ namespace NET {
           RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000), RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
           Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000), Win_IO_Connect_ContextAllocator(&Win_IO_Connect_ContextImpl),
           Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000), Win_IO_Accept_ContextAllocator(&Win_IO_Accept_ContextImpl),
-          SocketImpl(sizeof(Socket) * 6, 1000), SocketAllocator(&SocketImpl), iocp(threadcount.value)
+          SocketImpl(sizeof(Socket) * 6, 1000), SocketAllocator(&SocketImpl)
     {
+        if (WSAStartup(0x202, &wsaData) != 0) {
+            abort();
+        }
+        IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, threadcount.value);
+
         PendingIO = 0;
 
         auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
@@ -28,6 +34,9 @@ namespace NET {
                  NULL);
 
         closesocket(handle);
+        if (IOCPHandle == NULL || AcceptEx_ == nullptr || ConnectEx_ == nullptr) {
+            abort();
+        }
     }
 
     Context::~Context()
@@ -36,7 +45,7 @@ namespace NET {
             std::this_thread::sleep_for(5ms);
         }
 
-        PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
+        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
 
         for (auto &t : Threads) {
 
@@ -50,6 +59,8 @@ namespace NET {
                 }
             }
         }
+        CloseHandle(IOCPHandle);
+        WSACleanup();
     }
 
     std::shared_ptr<ISocket> Context::CreateSocket() { return std::allocate_shared<Socket>(SocketAllocator, this); }
@@ -61,7 +72,7 @@ namespace NET {
         }
         auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
 
-        if (CreateIoCompletionPort((HANDLE)listener->ListenSocket->get_handle(), iocp.handle, NULL, NULL) == NULL) {
+        if (CreateIoCompletionPort((HANDLE)listener->ListenSocket->get_handle(), IOCPHandle, NULL, NULL) == NULL) {
             return std::shared_ptr<IListener>();
         }
         return listener;
@@ -77,11 +88,11 @@ namespace NET {
                     Win_IO_Context *overlapped = nullptr;
                     void *completionkey = nullptr;
 
-                    auto bSuccess = GetQueuedCompletionStatus(iocp.handle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
+                    auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
                     if (PendingIO <= 0) {
-                        PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
+                        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
                         return;
                     }
                     switch (overlapped->IOOperation) {
@@ -110,7 +121,7 @@ namespace NET {
                         break;
                     }
                     if (--PendingIO <= 0) {
-                        PostQueuedCompletionStatus(iocp.handle, 0, (DWORD)NULL, NULL);
+                        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
                         return;
                     }
                 }

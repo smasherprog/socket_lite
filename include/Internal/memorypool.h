@@ -1,5 +1,4 @@
 #pragma once
-#include "Structures.h"
 #include "spinlock.h"
 #include <assert.h>
 #include <atomic>
