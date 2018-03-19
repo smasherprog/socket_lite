@@ -17,7 +17,6 @@ typedef int SOCKLEN_T;
 #include <sys/socket.h>
 #include <sys/types.h>
 typedef socklen_t SOCKLEN_T;
-#define closesocket close
 #endif
 
 #include <string.h>
@@ -25,7 +24,21 @@ typedef socklen_t SOCKLEN_T;
 
 namespace SL {
 namespace NET {
-
+#ifdef _WIN32
+    void CloseSocket(PlatformSocket handle)
+    {
+        if (handle != INVALID_SOCKET) {
+            CloseSocket(handle);
+        }
+    }
+#else
+    void CloseSocket(PlatformSocket handle)
+    {
+        if (handle != INVALID_SOCKET) {
+            ::close(handle);
+        }
+    }
+#endif
     sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
     {
         memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
@@ -91,7 +104,7 @@ namespace NET {
     void ISocket::set_handle(PlatformSocket h)
     {
         if (handle != INVALID_SOCKET) {
-            closesocket(handle);
+            CloseSocket(handle);
         }
         handle = h;
     }
@@ -99,7 +112,7 @@ namespace NET {
     void ISocket::close()
     {
         if (handle != INVALID_SOCKET) {
-            closesocket(handle);
+            CloseSocket(handle);
         }
         handle = INVALID_SOCKET;
     }
