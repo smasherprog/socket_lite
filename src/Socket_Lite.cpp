@@ -17,7 +17,7 @@ typedef int SOCKLEN_T;
 #include <sys/socket.h>
 #include <sys/types.h>
 typedef socklen_t SOCKLEN_T;
-#define closesocket ::close
+#define closesocket close
 #endif
 
 #include <string.h>
