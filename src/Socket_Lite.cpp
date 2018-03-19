@@ -10,6 +10,7 @@
 typedef int SOCKLEN_T;
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
