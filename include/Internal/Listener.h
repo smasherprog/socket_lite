@@ -9,7 +9,6 @@ namespace NET {
     class Listener final : public IListener {
       public:
 #ifdef WIN32
-
         static void start_accept(bool success, Win_IO_Accept_Context *context);
         static void handle_accept(bool success, Win_IO_Accept_Context *context);
 #endif //  WIN32

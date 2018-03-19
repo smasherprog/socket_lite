@@ -10,16 +10,12 @@ namespace NET
 
 Socket::Socket(Context* context, AddressFamily family) : Socket(context)
 {
-    if (family == AddressFamily::IPV4) {
-        handle = socket(AF_INET, SOCK_STREAM, 0);
-    } else {
-        handle = socket(AF_INET6, SOCK_STREAM, 0);
-    }
+    handle = INTERNAL::Socket(family);
 }
 Socket::Socket(Context* context) : Context_(context) {}
 Socket::~Socket()
 {
-
+ 
 }
 template <typename T> void IOComplete(Socket* s, StatusCode code, size_t bytes, T* context)
 {

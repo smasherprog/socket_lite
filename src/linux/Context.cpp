@@ -35,13 +35,16 @@ std::shared_ptr<IContext> CreateContext()
     return std::make_shared<Context>();
 }
 Context::Context()
-{ 
-   IOCPHandle = epoll_create1(0);
+{
+    IOCPHandle = epoll_create1(0);
     EventWakeFd = eventfd(0, EFD_NONBLOCK);
+    if(IOCPHandle == -1 || EventWakeFd == -1) {
+        abort();
+    }
     epoll_event ev = {0};
     ev.events = EPOLLIN | EPOLLET;
     ev.data.fd = EventWakeFd;
-    if(epoll_ctl(iocp.handle, EPOLL_CTL_ADD, EventWakeFd, &ev)==1) {
+    if(epoll_ctl(IOCPHandle, EPOLL_CTL_ADD, EventWakeFd, &ev)==1) {
         //ERROR
     }
     PendingIO = 0;
@@ -52,9 +55,7 @@ Context::~Context()
     while (PendingIO > 0) {
         std::this_thread::sleep_for(5ms);
     }
-    if(EventWakeFd!= -1) {
-        eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
-    }
+    eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
     for (auto &t : Threads) {
 
         if (t.joinable()) {
@@ -68,7 +69,7 @@ Context::~Context()
     }
     if(EventWakeFd!= -1) {
         close(EventWakeFd);
-    } 
+    }
     ::close(IOCPHandle);
 }
 
@@ -121,25 +122,16 @@ void Context::run(ThreadCount threadcount)
             std::vector<epoll_event> epollevents;
             epollevents.resize(MAXEVENTS);
             while (true) {
-                auto count = epoll_wait(iocp.handle, epollevents.data(),MAXEVENTS,500);
+                auto count = epoll_wait(IOCPHandle, epollevents.data(),MAXEVENTS,500);
                 if(count==-1) {
                     if(errno == EINTR && PendingIO > 0) {
                         continue;
                     }
-                    /*
-                    if(EventWakeFd!= -1) {//wake the next thread
-                        eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
-                    }
-                    return;
-                    */
                 }
                 for(auto i=0; i< count ; i++) {
-                    if(epollevents[i].data.fd == EventWakeFd) {
-                        printf("Wake up received!");
-                        if (PendingIO <= 0) {
-                            return;
-                        }
-                        continue;//keep going
+                    if (PendingIO <= 0) {
+                        eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
+                        return;
                     }
                     auto ctx = static_cast<IO_Context*>(epollevents[i].data.ptr);
 
@@ -158,13 +150,11 @@ void Context::run(ThreadCount threadcount)
                         break;
                     default:
                         break;
-                    }/*
+                    }
                     if (--PendingIO <= 0) {
-                        if(EventWakeFd!= -1) {//wake the next thread
-                            eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
-                        }
+                        eventfd_write(EventWakeFd, 1);//make sure to wake up the threads
                         return;
-                    }*/
+                    }
                 }
             }
         }));
