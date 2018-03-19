@@ -476,9 +476,6 @@ namespace NET {
         auto errorcode = errcode != nullptr ? *errcode : originalerror;
         switch (errorcode) {
 
-        default:
-            return StatusCode::SC_CLOSED;
-        };
 #endif
 
         default:
