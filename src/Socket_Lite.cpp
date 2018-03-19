@@ -16,6 +16,7 @@ typedef int SOCKLEN_T;
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 typedef socklen_t SOCKLEN_T;
 #endif
 
