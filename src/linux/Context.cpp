@@ -57,7 +57,7 @@ namespace NET {
             }
         }
         if (EventWakeFd != -1) {
-            close(EventWakeFd);
+            ::close(EventWakeFd);
         }
         ::close(IOCPHandle);
     }
@@ -84,20 +84,20 @@ namespace NET {
 
                         switch (ctx->IOOperation) {
                         case IO_OPERATION::IoInitConnect:
-                            Socket::init_connect(true, static_cast<Win_IO_Connect_Context *>(overlapped));
+                            Socket::init_connect(true, static_cast<Win_IO_Connect_Context *>(ctx));
                             break;
                         case IO_OPERATION::IoConnect:
-                            Socket::continue_connect(true, static_cast<Win_IO_Connect_Context *>(overlapped));
+                            Socket::continue_connect(true, static_cast<Win_IO_Connect_Context *>(ctx));
                             break;
                         case IO_OPERATION::IoStartAccept:
-                            Listener::start_accept(true, static_cast<Win_IO_Accept_Context *>(overlapped));
+                            Listener::start_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
                             break;
                         case IO_OPERATION::IoAccept:
-                            Listener::handle_accept(true, static_cast<Win_IO_Accept_Context *>(overlapped));
+                            Listener::handle_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
                             break;
                         case IO_OPERATION::IoRead:
                         case IO_OPERATION::IoWrite:
-                            Socket::continue_io(true, static_cast<Win_IO_RW_Context *>(overlapped));
+                            Socket::continue_io(true, static_cast<Win_IO_RW_Context *>(ctx));
                             break;
                         default:
                             break;
