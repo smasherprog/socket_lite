@@ -4,6 +4,9 @@
 #include <chrono>
 #include <mutex>
 #include <string.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 using namespace std::chrono_literals;
 namespace SL {
