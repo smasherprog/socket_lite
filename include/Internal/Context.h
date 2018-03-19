@@ -33,6 +33,7 @@ namespace NET {
         HANDLE IOCPHandle = NULL;
 #else
         int EventWakeFd = -1;
+        int IOCPHandle = -1;
 #endif
 
         std::atomic<int> PendingIO;
