@@ -14,12 +14,10 @@ typedef int SOCKLEN_T;
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-
-#define INVALID_SOCKET 0
-#define closesocket ::close
-#define SOCKET_ERROR -1
 typedef socklen_t SOCKLEN_T;
+#define closesocket ::close
 #endif
+
 #include <string.h>
 #include <string>
 

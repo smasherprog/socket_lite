@@ -9,7 +9,12 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
-
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET 0
+#endif
+#ifndef SOCKET_ERROR
+#define SOCKET_ERROR -1
+#endif
 namespace SL {
 namespace NET {
 
