@@ -54,8 +54,8 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 }
 void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
 {
-    auto[success, errocode] = getsockopt<SocketOptions::O_ERROR>();
-    if (success == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
+    auto[suc, errocode] = context->Socket_->getsockopt<SocketOptions::O_ERROR>();
+    if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
         context->completionhandler(StatusCode::SC_SUCCESS);
         return context->Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
     }
@@ -89,14 +89,9 @@ void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
 //    Context_->PendingIO +=1;
 //
 //}
-void Socket::recv(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
+void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
 {
-    assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
-    ReadContext.buffer = buffer;
-    ReadContext.bufferlen = buffer_size;
-    ReadContext.IOOperation = IO_OPERATION::IoRead;
-    ReadContext.Socket_ = this;
-    ReadContext.completionhandler = std::move(handler);
+
     // handlerecv();
 }
 
@@ -125,14 +120,9 @@ void Socket::continue_io(bool success, Win_IO_RW_Context *context)
     //}
     // Context_->PendingIO +=1;
 }
-void Socket::send(size_t buffer_size, unsigned char *buffer, const std::function<void(StatusCode, size_t)> &&handler)
+void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
 {
-    assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
-    WriteContext.buffer = buffer;
-    WriteContext.bufferlen = buffer_size;
-    WriteContext.IOOperation = IO_OPERATION::IoWrite;
-    WriteContext.Socket_ = this;
-    WriteContext.completionhandler = std::move(handler);
+
     // handlewrite();
 }
 } // namespace NET
