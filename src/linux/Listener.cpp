@@ -9,6 +9,7 @@ namespace NET {
         : Context_(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
     {
         epoll_event ev = {0};
+        ev.events = EPOLLONESHOT;
         if (epoll_ctl(iocp.handle, EPOLL_CTL_ADD, listensocket->get_handle(), &ev) == -1) {
             return std::shared_ptr<Listener>();
         }
@@ -56,6 +57,7 @@ namespace NET {
     void Listener::handle_accept(bool success, Win_IO_Accept_Context *context) {}
     void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
     {
+        
         auto context = Context_->Win_IO_Accept_ContextAllocator.allocate(1);
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoStartAccept;
@@ -63,8 +65,8 @@ namespace NET {
         context->Family = ListenSocketAddr.get_Family();
         context->ListenSocket = ListenSocket->get_handle();
         Context_->PendingIO += 1;
-        epoll_event ev = {0};
-        ev.events = EPOLLIN | EPOLLEXCLUSIVE;
+        epoll_event ev = {0}; 
+        ev.events = EPOLLIN | EPOLLONESHOT;
         ev.data.ptr = context;
         if (epoll_ctl(iocp.handle, EPOLL_CTL_MOD, i, &ev) == -1) {
             Context_->PendingIO -= 1;

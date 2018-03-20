@@ -29,7 +29,6 @@ template <typename T> void IOComplete(Socket *s, StatusCode code, size_t bytes, 
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     ISocket::close();
-    WriteContext.clear();
     if (address.get_Family() == AddressFamily::IPV4) {
         handle = socket(AF_INET, SOCK_STREAM, 0);
     } else {

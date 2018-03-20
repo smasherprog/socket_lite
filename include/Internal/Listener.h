@@ -14,7 +14,8 @@ public:
     Context *Context_;
     std::shared_ptr<Socket> ListenSocket;
     SL::NET::sockaddr ListenSocketAddr;
-
+    bool AcceptStarted = false;
+    
     Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
     virtual ~Listener();
     virtual void close() override;
