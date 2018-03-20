@@ -14,7 +14,7 @@ Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const SL
 {
     epoll_event ev = {0};
     ev.events = EPOLLONESHOT;
-    if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, listensocket->get_handle(), &ev) == -1) {
+    if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, ListenSocket->get_handle(), &ev) == -1) {
         return std::shared_ptr<Listener>();
     }
 }

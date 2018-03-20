@@ -43,13 +43,13 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         ev.events = EPOLLOUT | EPOLLONESHOT;
         if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, handle, &ev) == -1) {
             Context_->PendingIO -= 1;
-            Context_->completionhandler(TranslateError());
-            return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            context->completionhandler(TranslateError());
+            return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
     } else { // connection completed
         Context_->PendingIO -= 1;
-        Context_->completionhandler(StatusCode::SC_SUCCESS);
-        return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+        context->completionhandler(StatusCode::SC_SUCCESS);
+        return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
     }
 }
 void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
