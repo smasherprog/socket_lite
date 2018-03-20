@@ -1,5 +1,5 @@
 #include "CpuUsage.h"
-
+#if _WIN32
 CpuUsage::CpuUsage() : m_nCpuUsage(-1), m_dwLastRun(0), m_lRunCount(0)
 {
     ZeroMemory(&m_ftPrevSysKernel, sizeof(FILETIME));
@@ -96,3 +96,4 @@ bool CpuUsage::EnoughTimePassed()
     ULONGLONG dwCurrentTickCount = GetTickCount64();
     return (dwCurrentTickCount - m_dwLastRun) > minElapsedMS;
 }
+#endif
