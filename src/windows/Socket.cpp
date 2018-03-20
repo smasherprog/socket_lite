@@ -99,6 +99,7 @@ namespace NET {
             context->completionhandler(TranslateError());
             return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
         }
+
         auto handle = INTERNAL::Socket(context->address.get_Family());
         BindSocket(handle, context->address.get_Family());
         if (!INTERNAL::setsockopt_O_BLOCKING(handle, Blocking_Options::NON_BLOCKING) ||
@@ -146,7 +147,7 @@ namespace NET {
         }
         else {
             Context_->PendingIO += 1;
-            if (PostQueuedCompletionStatus(Context_->IOCPHandle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
+            if (PostQueuedCompletionStatus(Context_->IOCPHandle, 0, NULL, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
                 context->completionhandler(TranslateError());
                 Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
