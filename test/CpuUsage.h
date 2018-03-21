@@ -2,16 +2,19 @@
 #if _WIN32
 #include <windows.h>
 
-class CpuUsage {
-  public:
+class CpuUsage
+{
+public:
     CpuUsage();
 
     float GetUsage();
 
-  private:
+private:
     ULONGLONG SubtractTimes(const FILETIME &ftA, const FILETIME &ftB);
     bool EnoughTimePassed();
-    inline bool IsFirstRun() const { return (m_dwLastRun == 0); }
+    inline bool IsFirstRun() const {
+        return (m_dwLastRun == 0);
+    }
 
     // system total times
     FILETIME m_ftPrevSysKernel;
@@ -28,10 +31,13 @@ class CpuUsage {
 };
 #else
 
-class CpuUsage {
-  public:
+class CpuUsage
+{
+public:
     CpuUsage() {}
 
-    short GetUsage() { return 0; }
-
+    short GetUsage() {
+        return 0;
+    }
+};
 #endif

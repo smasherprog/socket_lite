@@ -112,6 +112,10 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(
 //        continue_send();
 //    }
 //}
+void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
+{
+
+}
 void Socket::continue_io(bool success, Win_IO_RW_Context *context)
 {
     // if(WriteContext.transfered_bytes == WriteContext.bufferlen) {
