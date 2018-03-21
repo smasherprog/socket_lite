@@ -26,18 +26,20 @@ typedef socklen_t SOCKLEN_T;
 namespace SL {
 namespace NET {
 #ifdef _WIN32
-    void CloseSocket(PlatformSocket handle)
+    void CloseSocket(PlatformSocket &handle)
     {
         if (handle != INVALID_SOCKET) {
-            CloseSocket(handle);
+            closesocket(handle);
         }
+        handle = INVALID_SOCKET;
     }
 #else
-    void CloseSocket(PlatformSocket handle)
+    void CloseSocket(PlatformSocket &handle)
     {
         if (handle != INVALID_SOCKET) {
             ::close(handle);
         }
+        handle = INVALID_SOCKET;
     }
 #endif
     sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
