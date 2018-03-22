@@ -12,64 +12,92 @@ namespace NET {
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->Win_IO_RW_ContextAllocator.allocate(1);
-        context->buffer = buffer;
-        context->bufferlen = buffer_size;
-        context->Context_ = Context_;
-        context->Socket_ = this;
-        context->completionhandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
-        context->completionhandler->completionhandler = std::move(handler);
-        context->IOOperation = IO_OPERATION::IoRead;
-        continue_io(true, context);
+        assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
+        ReadContext.buffer = buffer;
+        ReadContext.bufferlen = buffer_size;
+        ReadContext.Context_ = Context_;
+        ReadContext.Socket_ = this;
+        ReadContext.completionhandler = std::move(handler);
+        ReadContext.Completed = 1;
+        ReadContext.IOOperation = IO_OPERATION::IoRead;
+        continue_io(true, ReadContext);
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->Win_IO_RW_ContextAllocator.allocate(1);
-        context->buffer = buffer;
-        context->bufferlen = buffer_size;
-        context->Context_ = Context_;
-        context->Socket_ = this;
-        context->completionhandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
-        context->completionhandler->completionhandler = std::move(handler);
-        context->IOOperation = IO_OPERATION::IoWrite;
-        continue_io(true, context);
+        assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
+        WriteContext.buffer = buffer;
+        WriteContext.bufferlen = buffer_size;
+        WriteContext.Context_ = Context_;
+        WriteContext.Socket_ = this;
+        WriteContext.completionhandler = std::move(handler);
+        WriteContext.Completed = 1;
+        WriteContext.IOOperation = IO_OPERATION::IoWrite;
+        continue_io(true, WriteContext);
     }
-    void Socket::continue_io(bool success, Win_IO_RW_Context *context)
+    void Socket::continue_io(bool success, Win_IO_RW_Context &context)
     {
-        auto &iocontext = *context->Context_;
+
         if (!success) {
-            context->Socket_->close();
-            context->completionhandler->handle(TranslateError(), 0, true);
-            iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
+            if (context.Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                context.Socket_->close();
+                auto handler(std::move(context.completionhandler));
+                context.reset();
+                handler(TranslateError(), 0);
+            }
         }
-        else if (context->bufferlen == context->transfered_bytes) {
-            context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
-            iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
+        else if (context.bufferlen == context.transfered_bytes) {
+            if (context.Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                auto handler(std::move(context.completionhandler));
+                context.reset();
+                handler(StatusCode::SC_SUCCESS, context.transfered_bytes);
+            }
         }
         else {
-            auto func = context->completionhandler;
+            context.Completed.fetch_add(1, std::memory_order_relaxed);
             WSABUF wsabuf;
-            auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
-            wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
+            auto bytesleft = static_cast<decltype(wsabuf.len)>(context.bufferlen - context.transfered_bytes);
+            wsabuf.buf = (char *)context.buffer + context.transfered_bytes;
             wsabuf.len = bytesleft;
             DWORD dwSendNumBytes(0), dwFlags(0);
-            iocontext.PendingIO += 1;
+            context.Context_->PendingIO += 1;
             DWORD nRet = 0;
-            if (context->IOOperation == IO_OPERATION::IoRead) {
-                nRet = WSARecv(context->Socket_->get_handle(), &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
+            if (context.IOOperation == IO_OPERATION::IoRead) {
+                nRet = WSARecv(context.Socket_->get_handle(), &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
             }
             else {
-                nRet = WSASend(context->Socket_->get_handle(), &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
+                nRet = WSASend(context.Socket_->get_handle(), &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context.Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                iocontext.PendingIO -= 1;
-                context->Socket_->close();
-                func->handle(TranslateError(&lasterr), 0, false);
-                iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
+                context.Context_->PendingIO -= 1;
+                if (context.Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                    context.Socket_->close();
+                    auto handler(std::move(context.completionhandler));
+                    context.reset();
+                    handler(TranslateError(&lasterr), 0);
+                }
             }
             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
-                func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
+                if (context.Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                    auto handler(std::move(context.completionhandler));
+                    context.reset();
+                    handler(StatusCode::SC_SUCCESS, bytesleft);
+                }
+            }
+            else {
+                // if this succeeds then it means another thread has completed the process
+                if (context.Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                    auto handler(std::move(context.completionhandler));
+                    if (context.bufferlen == context.transfered_bytes) {
+                        context.reset();
+                        handler(StatusCode::SC_SUCCESS, context.transfered_bytes);
+                    }
+                    else {
+                        context.Socket_->close();
+                        context.reset();
+                        handler(TranslateError(), 0);
+                    }
+                }
             }
         }
     }

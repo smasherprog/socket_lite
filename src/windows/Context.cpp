@@ -11,7 +11,6 @@ namespace NET {
     std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
     Context::Context(ThreadCount threadcount)
         : ThreadCount_(threadcount), Win_IO_RW_ContextImpl(sizeof(Win_IO_RW_Context) * 2, 1000), Win_IO_RW_ContextAllocator(&Win_IO_RW_ContextImpl),
-          RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000), RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
           Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000), Win_IO_Connect_ContextAllocator(&Win_IO_Connect_ContextImpl),
           Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000), Win_IO_Accept_ContextAllocator(&Win_IO_Accept_ContextImpl),
           SocketImpl(sizeof(Socket) * 6, 1000), SocketAllocator(&SocketImpl)
@@ -114,7 +113,7 @@ namespace NET {
                         if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        Socket::continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        Socket::continue_io(bSuccess, *static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:
                         break;
