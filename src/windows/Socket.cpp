@@ -115,8 +115,7 @@ namespace NET {
                                                (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             iocontext.PendingIO -= 1;
-            context->completionhandler(StatusCode::SC_SUCCESS);
-            return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            Socket::continue_connect(true, context);
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             iocontext.PendingIO -= 1;
