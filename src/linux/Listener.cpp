@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <sys/epoll.h>
 #include <netinet/ip.h>
+#include <algorithm>
 
 namespace SL
 {
@@ -24,6 +25,12 @@ Listener::~Listener() {}
 void Listener::close()
 {
     ListenSocket->close();
+
+    std::lock_guard<spinlock> lock(Lock);
+    for(auto a: OutStandingEvents) {
+        context->Context_->Win_IO_Accept_ContextAllocator.deallocate(a, 1);
+    }
+    OutStandingEvents.clear();
 }
 void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
 {
@@ -34,9 +41,13 @@ void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             context->completionhandler(StatusCode::SC_CLOSED, std::shared_ptr<Socket>());
             context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+            std::lock_guard<spinlock> lock(Lock);
+            OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
         } else {
             context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
             context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+            std::lock_guard<spinlock> lock(Lock);
+            OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
         }
     } else {
         auto sock(std::allocate_shared<Socket>(context->Context_->SocketAllocator, context->Context_));
@@ -44,22 +55,24 @@ void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
         sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         epoll_event ev = {0};
         ev.events = EPOLLONESHOT;
-        if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_ADD, i, &ev) == -1)
-
-        {
+        if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_ADD, i, &ev) == -1) {
             context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
-            context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         } else {
             context->completionhandler(StatusCode::SC_SUCCESS, sock);
-            context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         }
+        context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+        std::lock_guard<spinlock> lock(Lock);
+        OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
     }
 }
 void Listener::handle_accept(bool success, Win_IO_Accept_Context *context) {}
 void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
 {
-
     auto context = Context_->Win_IO_Accept_ContextAllocator.allocate(1);
+    {
+        std::lock_guard<spinlock> lock(Lock);
+        OutStandingEvents.push_back(context);
+    }
     context->completionhandler = std::move(handler);
     context->IOOperation = IO_OPERATION::IoStartAccept;
     context->Context_ = Context_;
@@ -73,6 +86,8 @@ void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr
         Context_->PendingIO -= 1;
         context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
         Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+        std::lock_guard<spinlock> lock(Lock);
+        OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
     }
 }
 } // namespace NET

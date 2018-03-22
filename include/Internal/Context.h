@@ -10,43 +10,51 @@
 #include <mswsock.h>
 #endif
 
-namespace SL {
-namespace NET {
+namespace SL
+{
+namespace NET
+{
 
-    class Context final : public IContext {
-        std::vector<std::thread> Threads;
-        ThreadCount ThreadCount_;
+class Context final : public IContext
+{
+    std::vector<std::thread> Threads;
+    ThreadCount ThreadCount_;
 
-      public:
-        MallocatorImpl Win_IO_RW_ContextImpl, RW_CompletionHandlerImpl, Win_IO_Connect_ContextImpl, Win_IO_Accept_ContextImpl, SocketImpl;
+public:
+    MallocatorImpl Win_IO_RW_ContextImpl;
+    MallocatorImpl RW_CompletionHandlerImpl;
+    MallocatorImpl Win_IO_Connect_ContextImpl;
+    MallocatorImpl Win_IO_Accept_ContextImpl;
+    MallocatorImpl SocketImpl;
 
-        Mallocator<Win_IO_RW_Context> Win_IO_RW_ContextAllocator;
-        Mallocator<RW_CompletionHandler> RW_CompletionHandlerAllocator;
-        Mallocator<Win_IO_Connect_Context> Win_IO_Connect_ContextAllocator;
-        Mallocator<Win_IO_Accept_Context> Win_IO_Accept_ContextAllocator;
-        Mallocator<Socket> SocketAllocator;
+    Mallocator<Win_IO_RW_Context> Win_IO_RW_ContextAllocator;
+    Mallocator<RW_CompletionHandler> RW_CompletionHandlerAllocator;
+    Mallocator<Win_IO_Connect_Context> Win_IO_Connect_ContextAllocator;
+    Mallocator<Win_IO_Accept_Context> Win_IO_Accept_ContextAllocator;
+    Mallocator<Socket> SocketAllocator;
 
 #if WIN32
-        WSADATA wsaData;
-        LPFN_CONNECTEX ConnectEx_ = nullptr;
-        LPFN_ACCEPTEX AcceptEx_ = nullptr;
-        HANDLE IOCPHandle = NULL;
+    WSADATA wsaData;
+    LPFN_CONNECTEX ConnectEx_ = nullptr;
+    LPFN_ACCEPTEX AcceptEx_ = nullptr;
+    HANDLE IOCPHandle = NULL;
 #else
-        int EventWakeFd = -1;
-        int IOCPHandle = -1;
+    int EventWakeFd = -1;
+    int IOCPHandle = -1;
 #endif
 
-        std::atomic<int> PendingIO;
+    std::atomic<int> PendingIO;
 
-        Context(ThreadCount threadcount);
-        ~Context();
-        virtual void run() override;
-        virtual std::shared_ptr<ISocket> CreateSocket() override;
-        virtual std::shared_ptr<IListener> CreateListener(std::shared_ptr<ISocket> &&listensocket) override;
-        bool inWorkerThread() const
-        {
-            return std::any_of(std::begin(Threads), std::end(Threads), [](const std::thread &t) { return t.get_id() == std::this_thread::get_id(); });
-        }
-    };
+    Context(ThreadCount threadcount);
+    ~Context();
+    virtual void run() override;
+    virtual std::shared_ptr<ISocket> CreateSocket() override;
+    virtual std::shared_ptr<IListener> CreateListener(std::shared_ptr<ISocket> &&listensocket) override;
+    bool inWorkerThread() const {
+        return std::any_of(std::begin(Threads), std::end(Threads), [](const std::thread &t) {
+            return t.get_id() == std::this_thread::get_id();
+        });
+    }
+};
 } // namespace NET
 } // namespace SL

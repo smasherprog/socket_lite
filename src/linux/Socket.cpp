@@ -20,12 +20,15 @@ Socket::~Socket() {}
 
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
-    auto context = Context_->Win_IO_Connect_ContextAllocator.allocate(1);
-    context->completionhandler = std::move(handler);
-    context->IOOperation = IO_OPERATION::IoInitConnect;
-    context->Socket_ = this;
-    context->address = address;
-    context->Context_ = Context_;
+
+    WriteContext.completionhandler = std::make_shared<RW_CompletionHandler>();
+    WriteContext.completionhandler->completionhandler = [ihandler(std::move(handler))](StatusCode s, size_t sz) {
+        ihandler(s);
+    };
+    WriteContext.IOOperation = IO_OPERATION::IoInitConnect;
+    WriteContext.Socket_ = this;
+    WriteContext.address = address;
+    WriteContext.Context_ = Context_;
     ISocket::close();
     handle = INTERNAL::Socket(address.get_Family());
     setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);

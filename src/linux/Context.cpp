@@ -32,11 +32,17 @@ std::shared_ptr<IContext> CreateContext(ThreadCount threadcount)
     return std::make_shared<Context>(threadcount);
 }
 Context::Context(ThreadCount threadcount)
-    : ThreadCount_(threadcount), Win_IO_RW_ContextImpl(sizeof(Win_IO_RW_Context) * 2, 1000), Win_IO_RW_ContextAllocator(&Win_IO_RW_ContextImpl),
-      RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000), RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
-      Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000), Win_IO_Connect_ContextAllocator(&Win_IO_Connect_ContextImpl),
-      Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000), Win_IO_Accept_ContextAllocator(&Win_IO_Accept_ContextImpl),
-      SocketImpl(sizeof(Socket) * 6, 1000), SocketAllocator(&SocketImpl)
+    : ThreadCount_(threadcount),
+      Win_IO_RW_ContextImpl(sizeof(Win_IO_RW_Context) * 2, 1000),
+      RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000),
+      Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000),
+      Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000),
+      SocketImpl(sizeof(Socket) * 6, 1000),
+      Win_IO_RW_ContextAllocator(&Win_IO_RW_ContextImpl),
+      RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
+      Win_IO_Connect_ContextAllocator(&Win_IO_Connect_ContextImpl), 
+      Win_IO_Accept_ContextAllocator(&Win_IO_Accept_ContextImpl),
+      SocketAllocator(&SocketImpl)
 {
     IOCPHandle = epoll_create1(0);
     EventWakeFd = eventfd(0, EFD_NONBLOCK);
