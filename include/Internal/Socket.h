@@ -10,6 +10,10 @@ namespace NET {
     class Socket final : public ISocket {
       public:
         Context *Context_;
+#ifndef _WIN32
+        Win_IO_RW_Context ReadContext;
+        Win_IO_RW_Context WriteContext;
+#endif
         Socket(Context *context);
         Socket(Context *context, AddressFamily family);
         virtual ~Socket();
