@@ -2,6 +2,8 @@
 #include "Socket_Lite.h"
 #include "defs.h"
 #include <memory>
+#include "spinlock.h"
+
 namespace SL
 {
 namespace NET
@@ -16,6 +18,10 @@ public:
     SL::NET::sockaddr ListenSocketAddr;
     bool AcceptStarted = false;
     
+#ifndef _WIN32
+    std::vector<Win_IO_Context *> OutStandingEvents;
+    spinlock Lock;
+#endif
     Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr);
     virtual ~Listener();
     virtual void close() override;
