@@ -18,9 +18,10 @@ namespace NET {
         ThreadCount ThreadCount_;
 
       public:
-        MallocatorImpl Win_IO_RW_ContextImpl, Win_IO_Connect_ContextImpl, Win_IO_Accept_ContextImpl, SocketImpl;
+        MallocatorImpl Win_IO_RW_ContextImpl, RW_CompletionHandlerImpl, Win_IO_Connect_ContextImpl, Win_IO_Accept_ContextImpl, SocketImpl;
 
         Mallocator<Win_IO_RW_Context> Win_IO_RW_ContextAllocator;
+        Mallocator<RW_CompletionHandler> RW_CompletionHandlerAllocator;
         Mallocator<Win_IO_Connect_Context> Win_IO_Connect_ContextAllocator;
         Mallocator<Win_IO_Accept_Context> Win_IO_Accept_ContextAllocator;
         Mallocator<Socket> SocketAllocator;

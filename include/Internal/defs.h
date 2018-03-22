@@ -27,13 +27,6 @@ namespace NET {
         WSAOVERLAPPED Overlapped = {0};
 #endif
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
-        void reset()
-        {
-#ifdef _WIN32
-            Overlapped = {0};
-#endif
-            IOOperation = IO_OPERATION::IoNone;
-        }
     };
 
     struct Win_IO_Connect_Context : Win_IO_Context {
@@ -53,13 +46,8 @@ namespace NET {
         PlatformSocket ListenSocket = INVALID_SOCKET;
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
-
-    struct Win_IO_RW_Context : Win_IO_Context {
-        size_t transfered_bytes = 0;
-        size_t bufferlen = 0;
-        Context *Context_ = nullptr;
-        Socket *Socket_ = nullptr;
-        unsigned char *buffer = nullptr;
+    struct RW_CompletionHandler {
+        RW_CompletionHandler() { Completed = 1; }
         std::function<void(StatusCode, size_t)> completionhandler;
         std::atomic<int> Completed;
         void handle(StatusCode code, size_t bytes, bool lockneeded)
@@ -73,17 +61,14 @@ namespace NET {
                 completionhandler(code, bytes);
             }
         }
-        void reset()
-        {
-            Win_IO_Context::reset();
-            transfered_bytes = 0;
-            bufferlen = 0;
-            Context_ = nullptr;
-            Socket_ = nullptr;
-            buffer = nullptr;
-            Completed = 1;
-            completionhandler = nullptr;
-        }
+    };
+    struct Win_IO_RW_Context : Win_IO_Context {
+        size_t transfered_bytes = 0;
+        size_t bufferlen = 0;
+        Context *Context_ = nullptr;
+        Socket *Socket_ = nullptr;
+        unsigned char *buffer = nullptr;
+        std::shared_ptr<RW_CompletionHandler> completionhandler;
     };
 } // namespace NET
 } // namespace SL
