@@ -106,9 +106,6 @@ void Context::run()
                     case IO_OPERATION::IoConnect:
                         Socket::continue_connect(true, static_cast<Win_IO_RW_Context *>(ctx));
                         break;
-                    case IO_OPERATION::IoStartAccept:
-                        Listener::start_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
-                        break;
                     case IO_OPERATION::IoAccept:
                         Listener::handle_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
                         break;

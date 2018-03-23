@@ -16,11 +16,25 @@ Socket::Socket(Context *context, AddressFamily family) : Socket(context)
     handle = INTERNAL::Socket(family);
 }
 Socket::Socket(Context *context) : Context_(context) {}
-Socket::~Socket() {}
-
+Socket::~Socket() { }
+void Socket::close()
+{
+    ISocket::close();
+    auto whandler(std::move(WriteContext.completionhandler));
+    if(whandler) {
+        Context_->PendingIO -= 1;
+        WriteContext.reset();
+        whandler->handle(StatusCode::SC_CLOSED, 0, true);
+    }
+    auto whandler1(std::move(ReadContext.completionhandler));
+    if(whandler1) {
+        Context_->PendingIO -= 1;
+        WriteContext.reset();
+        whandler1->handle(StatusCode::SC_CLOSED, 0, true);
+    }
+}
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
-
     WriteContext.completionhandler = std::make_shared<RW_CompletionHandler>();
     WriteContext.completionhandler->completionhandler = [ihandler(std::move(handler))](StatusCode s, size_t sz) {
         ihandler(s);
@@ -67,67 +81,61 @@ void Socket::continue_connect(bool success, Win_IO_RW_Context *context)
     context->reset();
     handler(TranslateError(&erval), 0);
 }
-// void Socket::handlerecv()
-//{
-//    if(!ReadContext.completionhandler) return;
-//    auto bytestowrite = ReadContext.bufferlen - ReadContext.transfered_bytes;
-//    auto count = ::read (handle, ReadContext.buffer + ReadContext.transfered_bytes, bytestowrite);
-//    if (count <= 0) {//possible error or continue
-//        if(count == -1 && (errno == EAGAIN || errno == EINTR)) {
-//            continue_recv();
-//        } else {
-//            return IOComplete(this, StatusCode::SC_CLOSED, 0, &ReadContext);
-//        }
-//    } else {
-//        ReadContext.transfered_bytes += count;
-//        continue_recv();
-//    }
-//
-//}
-// void Socket::continue_recv()
-//{
-//    if(ReadContext.transfered_bytes == ReadContext.bufferlen) {
-//        //done writing
-//        return IOComplete(this, StatusCode::SC_SUCCESS, ReadContext.transfered_bytes, &ReadContext);
-//    }
-//    Context_->PendingIO +=1;
-//
-//}
-void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-{
 
-    // handlerecv();
-}
-
-//
-// void Socket::handlewrite()
-//{
-//    if(!WriteContext.completionhandler) return;
-//    auto bytestowrite = WriteContext.bufferlen - WriteContext.transfered_bytes;
-//    auto count = ::write (handle, WriteContext.buffer + WriteContext.transfered_bytes, bytestowrite);
-//    if ( count <0) {//possible error or continue
-//        if(errno == EAGAIN || errno == EINTR) {
-//            continue_send();
-//        } else {
-//            return IOComplete(this, StatusCode::SC_CLOSED, 0, &WriteContext);
-//        }
-//    } else {
-//        WriteContext.transfered_bytes += count;
-//        continue_send();
-//    }
-//}
-void Socket::continue_io(bool success, Win_IO_RW_Context *context)
-{
-    // if(WriteContext.transfered_bytes == WriteContext.bufferlen) {
-    //    //done writing
-    //    return IOComplete(this, StatusCode::SC_SUCCESS, WriteContext.transfered_bytes, &WriteContext);
-    //}
-    // Context_->PendingIO +=1;
-}
 void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
 {
+    assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
+    WriteContext.buffer = buffer;
+    WriteContext.bufferlen =  buffer_size;
+    WriteContext.completionhandler = std::move(handler);
+    WriteContext.Context_ = Context_;
+    WriteContext.IOOperation = IO_OPERATION::IoWrite;
+    WriteContext.Socket_ = this;
+    WriteContext.transfered_bytes =0;
+    continue_io(true, &WriteContext);
+}
+void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+{
+    assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
+    ReadContext.buffer = buffer;
+    ReadContext.bufferlen =  buffer_size;
+    ReadContext.completionhandler = std::move(handler);
+    ReadContext.Context_ = Context_;
+    ReadContext.IOOperation = IO_OPERATION::IoRead;
+    ReadContext.Socket_ = this;
+    ReadContext.transfered_bytes =0;
+    continue_io(true, &ReadContext);
+}
 
-    // handlewrite();
+void Socket::continue_io(bool success, Win_IO_RW_Context *context)
+{
+    auto bytestowrite = context->bufferlen - context->transfered_bytes;
+    if(context->IOOperation == IO_OPERATION::IoRead) {
+        auto count = ::read (context->Socket_->get_handle(), context->buffer + context->transfered_bytes, bytestowrite);
+        if (count <= 0) {//possible error or continue
+            if(count == -1 && (errno == EAGAIN || errno == EINTR)) {
+
+            } else {
+                return IOComplete(this, StatusCode::SC_CLOSED, 0, &ReadContext);
+            }
+        } else {
+            ReadContext.transfered_bytes += count;
+        }
+
+
+    } else {
+        auto count = ::write (context->Socket_->get_handle(), context->buffer + context->transfered_bytes, bytestowrite);
+        if ( count <0) {//possible error or continue
+            if(errno == EAGAIN || errno == EINTR) {
+                continue_send();
+            } else {
+                return IOComplete(this, StatusCode::SC_CLOSED, 0, &WriteContext);
+            }
+        } else {
+            context->transfered_bytes += count;
+            continue_send();
+        }
+    }
 }
 } // namespace NET
 } // namespace SL

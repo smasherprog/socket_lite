@@ -20,7 +20,7 @@ Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const SL
         abort();
     }
 }
-Listener::~Listener() {}
+Listener::~Listener() { close(); }
 
 void Listener::close()
 {

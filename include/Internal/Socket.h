@@ -29,6 +29,7 @@ public:
     static void init_connect(bool success, Win_IO_Connect_Context *context);
     static void continue_connect(bool success, Win_IO_Connect_Context *context);
 #else
+    virtual void close() override;
     static void continue_connect(bool success, Win_IO_RW_Context *context);
 #endif
 };
