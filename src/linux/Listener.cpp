@@ -31,7 +31,7 @@ void Listener::close()
     }
     OutStandingEvents.clear();
 }
-void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
+void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
 {
     auto &listener = *context->Listener_;
     auto &iocontext = *context->Context_;
@@ -40,11 +40,7 @@ void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
     int i = ::accept(context->ListenSocket, reinterpret_cast<::sockaddr *>(&remote), &len);
     auto handler(std::move(context->completionhandler));
     if (i == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            handler(StatusCode::SC_CLOSED, std::shared_ptr<Socket>());
-        } else {
-            handler(TranslateError(), std::shared_ptr<Socket>());
-        }
+        handler(TranslateError(), std::shared_ptr<Socket>());
     } else {
         auto sock(std::allocate_shared<Socket>(iocontext.SocketAllocator, context->Context_));
         sock->set_handle(i);
@@ -63,7 +59,10 @@ void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
     }
     iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
 }
-void Listener::handle_accept(bool success, Win_IO_Accept_Context *context) {}
+void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
+{
+    context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+}
 void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
 {
     auto context = Context_->Win_IO_Accept_ContextAllocator.allocate(1);
@@ -72,7 +71,7 @@ void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr
         OutStandingEvents.push_back(context);
     }
     context->completionhandler = std::move(handler);
-    context->IOOperation = IO_OPERATION::IoStartAccept;
+    context->IOOperation = IO_OPERATION::IoAccept;
     context->Context_ = Context_;
     context->Listener_ = this;
     context->Family = ListenSocketAddr.get_Family();

@@ -11,15 +11,16 @@
 
 using namespace std::chrono_literals;
 
-namespace myconnectiontest {
+namespace myconnectiontest
+{
 
 const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 bool keepgoing = true;
-class asioserver : public std::enable_shared_from_this<asioserver> {
-  public:
-    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
-    {
+class asioserver : public std::enable_shared_from_this<asioserver>
+{
+public:
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
         auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, SL::NET::AddressFamily::IPV4);
@@ -37,16 +38,20 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
         listensocket->setsockopt<SL::NET::SocketOptions::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
         Listener = io_context->CreateListener(std::move(listensocket));
     }
-    ~asioserver() { close(); }
-    void do_accept()
-    {
+    ~asioserver() {
+        close();
+    }
+    void do_accept() {
         Listener->accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (keepgoing) {
+                // std::cout << "Accept" <<  std::endl;
                 do_accept();
             }
         });
     }
-    void close() { Listener->close(); }
+    void close() {
+        Listener->close();
+    }
 
     std::shared_ptr<SL::NET::IListener> Listener;
 };
@@ -58,6 +63,7 @@ void connect(std::shared_ptr<SL::NET::IContext> iocontext)
     auto socket_ = iocontext->CreateSocket();
     socket_->connect(addresses.back(), [iocontext, socket_](SL::NET::StatusCode connectstatus) {
         connections += 1.0;
+        //  std::cout << "connect" << connectstatus<< std::endl;
         if (keepgoing) {
             connect(iocontext);
         }
