@@ -25,45 +25,43 @@ Listener::~Listener() {}
 void Listener::close()
 {
     ListenSocket->close();
-
     std::lock_guard<spinlock> lock(Lock);
     for(auto a: OutStandingEvents) {
-        context->Context_->Win_IO_Accept_ContextAllocator.deallocate(a, 1);
+        Context_->Win_IO_Accept_ContextAllocator.deallocate(static_cast<Win_IO_Accept_Context*>(a), 1);
     }
     OutStandingEvents.clear();
 }
 void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
 {
+    auto &listener = *context->Listener_;
+    auto &iocontext = *context->Context_;
     sockaddr_in remote = {0};
     socklen_t len = sizeof(remote);
     int i = ::accept(context->ListenSocket, reinterpret_cast<::sockaddr *>(&remote), &len);
+    auto handler(std::move(context->completionhandler));
     if (i == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            context->completionhandler(StatusCode::SC_CLOSED, std::shared_ptr<Socket>());
-            context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
-            std::lock_guard<spinlock> lock(Lock);
-            OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
+            handler(StatusCode::SC_CLOSED, std::shared_ptr<Socket>());
         } else {
-            context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
-            context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
-            std::lock_guard<spinlock> lock(Lock);
-            OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
+            handler(TranslateError(), std::shared_ptr<Socket>());
         }
     } else {
-        auto sock(std::allocate_shared<Socket>(context->Context_->SocketAllocator, context->Context_));
+        auto sock(std::allocate_shared<Socket>(iocontext.SocketAllocator, context->Context_));
         sock->set_handle(i);
         sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         epoll_event ev = {0};
         ev.events = EPOLLONESHOT;
-        if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_ADD, i, &ev) == -1) {
-            context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
+        if (epoll_ctl(iocontext.IOCPHandle, EPOLL_CTL_ADD, i, &ev) == -1) {
+            handler(TranslateError(), std::shared_ptr<Socket>());
         } else {
-            context->completionhandler(StatusCode::SC_SUCCESS, sock);
+            handler(StatusCode::SC_SUCCESS, sock);
         }
-        context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
-        std::lock_guard<spinlock> lock(Lock);
-        OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
     }
+    {
+        std::lock_guard<spinlock> lock(listener.Lock);
+        listener.OutStandingEvents.erase(std::remove(std::begin(listener.OutStandingEvents), std::end(listener.OutStandingEvents), context), std::end(listener.OutStandingEvents));
+    }
+    iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
 }
 void Listener::handle_accept(bool success, Win_IO_Accept_Context *context) {}
 void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
@@ -76,6 +74,7 @@ void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr
     context->completionhandler = std::move(handler);
     context->IOOperation = IO_OPERATION::IoStartAccept;
     context->Context_ = Context_;
+    context->Listener_ = this;
     context->Family = ListenSocketAddr.get_Family();
     context->ListenSocket = ListenSocket->get_handle();
     Context_->PendingIO += 1;
@@ -87,7 +86,8 @@ void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr
         context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
         Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
         std::lock_guard<spinlock> lock(Lock);
-        OutStandingEvents.erase(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
+        OutStandingEvents.erase(std::remove(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
+
     }
 }
 } // namespace NET

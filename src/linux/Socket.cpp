@@ -25,9 +25,8 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
     WriteContext.completionhandler->completionhandler = [ihandler(std::move(handler))](StatusCode s, size_t sz) {
         ihandler(s);
     };
-    WriteContext.IOOperation = IO_OPERATION::IoInitConnect;
+    WriteContext.IOOperation = IO_OPERATION::IoConnect;
     WriteContext.Socket_ = this;
-    WriteContext.address = address;
     WriteContext.Context_ = Context_;
     ISocket::close();
     handle = INTERNAL::Socket(address.get_Family());
@@ -38,33 +37,35 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         auto err = errno;
         if (err != EINPROGRESS) {
             Context_->PendingIO -= 1;
-            context->completionhandler(TranslateError(&err));
-            return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            auto handler(std::move(WriteContext.completionhandler->completionhandler));
+            WriteContext.reset();
+            return handler(TranslateError(&err),0);
         }
         epoll_event ev = {0};
-        ev.data.ptr = context;
+        ev.data.ptr = &WriteContext;
         ev.events = EPOLLOUT | EPOLLONESHOT;
         if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, handle, &ev) == -1) {
             Context_->PendingIO -= 1;
-            context->completionhandler(TranslateError());
-            return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            auto handler(std::move(WriteContext.completionhandler->completionhandler));
+            WriteContext.reset();
+            return handler(TranslateError(), 0);
         }
     } else { // connection completed
         Context_->PendingIO -= 1;
-        context->completionhandler(StatusCode::SC_SUCCESS);
-        return Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+        Socket::continue_connect(true, &WriteContext);
     }
 }
-void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
+void Socket::continue_connect(bool success, Win_IO_RW_Context *context)
 {
+    auto handler(std::move(context->completionhandler->completionhandler));
     auto[suc, errocode] = context->Socket_->getsockopt<SocketOptions::O_ERROR>();
     if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
-        context->completionhandler(StatusCode::SC_SUCCESS);
-        return context->Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+        context->reset();
+        return handler(StatusCode::SC_SUCCESS, 0);
     }
     auto erval = errocode.value();
-    context->completionhandler(TranslateError(&erval));
-    context->Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+    context->reset();
+    handler(TranslateError(&erval), 0);
 }
 // void Socket::handlerecv()
 //{
@@ -115,10 +116,6 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(
 //        continue_send();
 //    }
 //}
-void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
-{
-
-}
 void Socket::continue_io(bool success, Win_IO_RW_Context *context)
 {
     // if(WriteContext.transfered_bytes == WriteContext.bufferlen) {
