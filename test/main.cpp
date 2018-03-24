@@ -7,6 +7,7 @@
 #include "asio_echotest.h"
 #include "asio_multithreadedechotest.h"
 #include "asio_transfertest.h"
+#include "cpumem_monitor.h"
 #include "my_connectiontest.h"
 #include "my_echotest.h"
 #include "my_multithreadedecho.h"
@@ -25,10 +26,10 @@ int main()
     float totalusage = 0.0f;
     float counts = 0.0f;
     std::thread t([&] {
-        CpuUsage c;
+        SL::NET::CPUMemMonitor cpumemmom;
         while (startwatching) {
-            auto temp = c.GetUsage();
-            totalusage += temp;
+            auto temp = cpumemmom.getCPUUsage();
+            totalusage += temp.ProcessUse;
             counts += 1.0f;
             std::this_thread::sleep_for(200ms);
         }
