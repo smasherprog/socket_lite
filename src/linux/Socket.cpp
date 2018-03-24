@@ -17,7 +17,10 @@ Socket::Socket(Context *context, AddressFamily family) : Socket(context)
     handle = INTERNAL::Socket(family);
 }
 Socket::Socket(Context *context) : Context_(context) {}
-Socket::~Socket() { }
+Socket::~Socket()
+{ 
+    Socket::close();
+}
 void Socket::close()
 {
     ISocket::close();
@@ -30,7 +33,7 @@ void Socket::close()
     auto whandler1(std::move(ReadContext.completionhandler));
     if(whandler1) {
         Context_->PendingIO -= 1;
-        WriteContext.reset();
+        ReadContext.reset();
         whandler1->handle(StatusCode::SC_CLOSED, 0, true);
     }
 }

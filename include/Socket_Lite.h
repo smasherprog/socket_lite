@@ -305,9 +305,7 @@ protected:
 
 public:
     ISocket();
-    virtual ~ISocket() {
-        close();
-    };
+    virtual ~ISocket() {}
     template <SocketOptions SO> auto getsockopt() {
         return INTERNAL::getsockopt_factory_impl<SO>::getsockopt_(handle);
     }

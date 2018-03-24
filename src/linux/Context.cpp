@@ -60,9 +60,12 @@ Context::Context(ThreadCount threadcount)
 
 Context::~Context()
 {
+    printf("2Cllsing Context");
+    PendingIO-=1;
     while (PendingIO > 0) {
         std::this_thread::sleep_for(5ms);
     }
+    printf("1Cllsing Context");
     eventfd_write(EventWakeFd, 1); // make sure to wake up the threads
     for (auto &t : Threads) {
 
@@ -101,7 +104,6 @@ void Context::run()
                         return;
                     }
                     auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
-
                     switch (ctx->IOOperation) {
                     case IO_OPERATION::IoConnect:
                         Socket::continue_connect(true, static_cast<Win_IO_RW_Context *>(ctx));

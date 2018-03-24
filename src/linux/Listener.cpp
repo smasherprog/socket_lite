@@ -20,13 +20,17 @@ Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const SL
         abort();
     }
 }
-Listener::~Listener() { close(); }
+Listener::~Listener()
+{
+    close();
+}
 
 void Listener::close()
 {
     ListenSocket->close();
     std::lock_guard<spinlock> lock(Lock);
     for(auto a: OutStandingEvents) {
+        Context_->PendingIO -= 1;
         Context_->Win_IO_Accept_ContextAllocator.deallocate(static_cast<Win_IO_Accept_Context*>(a), 1);
     }
     OutStandingEvents.clear();
@@ -61,7 +65,7 @@ void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
 }
 void Listener::start_accept(bool success, Win_IO_Accept_Context *context)
 {
-    context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+
 }
 void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
 {
@@ -83,11 +87,12 @@ void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr
     if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_MOD, context->ListenSocket, &ev) == -1) {
         Context_->PendingIO -= 1;
         context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
+        {
+            std::lock_guard<spinlock> lock(Lock);
+            OutStandingEvents.erase(std::remove(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
+        }
         Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
-        std::lock_guard<spinlock> lock(Lock);
-        OutStandingEvents.erase(std::remove(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
-
     }
 }
+}
 } // namespace NET
-} // namespace SL
