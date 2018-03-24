@@ -8,7 +8,7 @@ namespace NET {
 
     Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
-    Socket::~Socket() {}
+    Socket::~Socket() { close(); }
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
