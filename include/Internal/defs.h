@@ -30,6 +30,12 @@ struct Win_IO_Context {
     WSAOVERLAPPED Overlapped = {0};
 #endif
     IO_OPERATION IOOperation = IO_OPERATION::IoNone;
+    void reset() {
+#ifdef _WIN32
+        Overlapped = {0};
+#endif
+        IOOperation = IO_OPERATION::IoNone;
+    }
 };
 
 struct Win_IO_Connect_Context : Win_IO_Context {
@@ -81,6 +87,8 @@ struct Win_IO_RW_Context : Win_IO_Context {
         Socket_ = nullptr;
         buffer = nullptr;
         completionhandler.reset();
+        Win_IO_Context::reset();
+
     }
 };
 } // namespace NET

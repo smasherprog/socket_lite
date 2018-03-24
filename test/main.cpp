@@ -35,7 +35,6 @@ int main()
     });
 
     myconnectiontest::myconnectiontest();
-#if _WIN32
     std::cout << std::fixed;
     std::cout << std::setprecision(2);
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
@@ -58,7 +57,6 @@ int main()
     mymultithreadedechotest::myechotest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
-#endif
     asioconnectiontest::connectiontest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;

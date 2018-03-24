@@ -18,7 +18,7 @@ Socket::Socket(Context *context, AddressFamily family) : Socket(context)
 }
 Socket::Socket(Context *context) : Context_(context) {}
 Socket::~Socket()
-{ 
+{
     Socket::close();
 }
 void Socket::close()
@@ -36,6 +36,7 @@ void Socket::close()
         ReadContext.reset();
         whandler1->handle(StatusCode::SC_CLOSED, 0, true);
     }
+    WriteContext.Context_ = ReadContext.Context_ = Context_;
 }
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
@@ -129,23 +130,53 @@ void Socket::continue_io(bool success, Win_IO_RW_Context *context)
                 }
             }
         } else {
-            //ReadContext.transfered_bytes += count;
+            context->transfered_bytes += count;
         }
-
-
     } else {
         auto count = ::write (context->Socket_->get_handle(), context->buffer + context->transfered_bytes, bytestowrite);
         if ( count <0) {//possible error or continue
-            if(errno == EAGAIN || errno == EINTR) {
-                //        continue_send();
-            } else {
-                //        return IOComplete(this, StatusCode::SC_CLOSED, 0, &WriteContext);
+            if(errno != EAGAIN && errno != EINTR) {
+                context->Socket_->close();
+                auto h(context->completionhandler);
+                if(h) {
+                    auto handler(std::move(h->completionhandler));
+                    context->reset();
+                    return handler(TranslateError(),0);
+                }
             }
         } else {
             context->transfered_bytes += count;
-            //    continue_send();
+        }
+    }
+    if(context->transfered_bytes == context->bufferlen) {
+        auto h(context->completionhandler);
+        if(h) {
+            auto handler(std::move(h->completionhandler));
+            context->reset();
+            return handler(StatusCode::SC_SUCCESS, context->bufferlen);
+        } else {
+            return context->reset();
+        }
+    } else {
+        epoll_event ev = {0};
+        ev.data.ptr = context;
+        ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN |EPOLLONESHOT :  EPOLLOUT |EPOLLONESHOT;
+        auto s = context->Socket_;
+        if(s != nullptr ) {
+            context->Context_->PendingIO += 1;
+            if( epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_MOD, s->get_handle(), &ev) ==-1) {
+                context->Context_->PendingIO -= 1;
+                s->close();
+                auto h(context->completionhandler);
+                if(h) {
+                    auto handler(std::move(h->completionhandler));
+                    context->reset();
+                    return handler(TranslateError(),0);
+                }
+            }
+
         }
     }
 }
+}
 } // namespace NET
-} // namespace SL
