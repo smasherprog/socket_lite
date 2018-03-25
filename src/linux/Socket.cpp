@@ -101,19 +101,22 @@ void Socket::continue_connect(bool success, Win_IO_RW_Context *context)
 void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
 {
     assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
+    WriteContext.transfered_bytes = 0;
     auto count = ::write(handle, buffer, buffer_size);
-    if (count <= 0) { // possible error or continue
+    if (count < 0) { // possible error or continue
         if (errno != EAGAIN && errno != EINTR) {
             close();
             return handler(TranslateError(), 0);
         }
+    } else {
+        WriteContext.transfered_bytes = static_cast<size_t>(count);
     }
-    if (static_cast<size_t>(count) == buffer_size) {
+    if (count > 0 && static_cast<size_t>(count) == buffer_size) {
         return handler(StatusCode::SC_SUCCESS, buffer_size);
     }
     WriteContext.buffer = buffer;
     WriteContext.bufferlen = buffer_size;
-    WriteContext.transfered_bytes = static_cast<size_t>(count);
+
     {
         auto temp = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
         temp->completionhandler = std::move(handler);
@@ -126,14 +129,17 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(
 void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
 {
     assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
+    ReadContext.transfered_bytes = 0;
     auto count = ::read(handle, buffer, buffer_size);
     if (count <= 0) { // possible error or continue
         if ((errno != EAGAIN && errno != EINTR) || count == 0) {
             close();
             return handler(TranslateError(), 0);
         }
+    } else {
+        ReadContext.transfered_bytes = static_cast<size_t>(count);
     }
-    if (static_cast<size_t>(count) == buffer_size) {
+    if (count>0 && static_cast<size_t>(count) == buffer_size) {
         return handler(StatusCode::SC_SUCCESS, buffer_size);
     }
     ReadContext.buffer = buffer;
@@ -144,7 +150,7 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(
         ReadContext.setCompletionHandler(temp);
     }
     ReadContext.IOOperation = IO_OPERATION::IoRead;
-    ReadContext.transfered_bytes = static_cast<size_t>(count);
+
     Context_->PendingIO += 1;
     continue_io(true, &ReadContext);
 }
