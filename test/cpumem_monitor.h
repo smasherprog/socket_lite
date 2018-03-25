@@ -8,6 +8,7 @@
 #include <psapi.h>
 #include <tchar.h>
 #pragma comment(lib, "pdh")
+
 #elif __APPLE__
 
 #elif __linux__
@@ -147,6 +148,22 @@ namespace NET {
     };
 #elif __APPLE__
 
+    class CPUMemMonitor {
+
+      public:
+        CPUMemMonitor() {}
+        ~CPUMemMonitor() {}
+        CPUUse getCPUUsage()
+        {
+            CPUUse c = {0};
+            return c;
+        }
+        MemoryUse getMemoryUsage()
+        {
+            MemoryUse m = {0};
+            return m;
+        }
+    };
 #elif __linux__
 
     class CPUMemMonitor {

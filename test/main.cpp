@@ -25,8 +25,9 @@ int main()
     bool startwatching = true;
     float totalusage = 0.0f;
     float counts = 0.0f;
+    SL::NET::CPUMemMonitor cpumemmom;
+    cpumemmom.getCPUUsage();
     std::thread t([&] {
-        SL::NET::CPUMemMonitor cpumemmom;
         while (startwatching) {
             auto temp = cpumemmom.getCPUUsage();
             totalusage += temp.ProcessUse;
