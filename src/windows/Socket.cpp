@@ -12,6 +12,22 @@ namespace NET {
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
+        auto count = ::recv(handle, (char *)buffer, buffer_size, 0);
+        if (count == SOCKET_ERROR) {
+            auto err = WSAGetLastError();
+            if (err != WSAEWOULDBLOCK) {
+                return handler(TranslateError(&err), 0);
+            }
+            else {
+                count = 0;
+            }
+        }
+        else if (count == 0) {
+            return handler(StatusCode::SC_CLOSED, 0);
+        }
+        else if (count == buffer_size) {
+            return handler(StatusCode::SC_SUCCESS, buffer_size);
+        }
         auto context = new Win_IO_RW_Context();
         context->buffer = buffer;
         context->bufferlen = buffer_size;
@@ -25,8 +41,22 @@ namespace NET {
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
+        auto count = ::send(handle, (const char *)buffer, buffer_size, 0);
+        if (count == SOCKET_ERROR) {
+            auto err = WSAGetLastError();
+            if (err != WSAEWOULDBLOCK) {
+                return handler(TranslateError(&err), 0);
+            }
+            else {
+                count = 0;
+            }
+        }
+        else if (count == buffer_size) {
+            return handler(StatusCode::SC_SUCCESS, buffer_size);
+        }
         auto context = new Win_IO_RW_Context();
         context->buffer = buffer;
+        context->transfered_bytes = count;
         context->bufferlen = buffer_size;
         context->Context_ = Context_;
         context->Socket_ = this;
