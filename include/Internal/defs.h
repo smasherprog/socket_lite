@@ -57,20 +57,23 @@ struct Win_IO_Accept_Context : Win_IO_Context {
     PlatformSocket ListenSocket = INVALID_SOCKET;
     std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
 };
-struct RW_CompletionHandler {
+class RW_CompletionHandler
+{
+    std::function<void(StatusCode, size_t)> completionhandler;
+    std::atomic<int> Completed;
+public:
     RW_CompletionHandler() {
         Completed = 1;
     }
-    std::function<void(StatusCode, size_t)> completionhandler;
-    std::atomic<int> Completed;
-    void handle(StatusCode code, size_t bytes, bool lockneeded) {
-        if (lockneeded) {
-            if (Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
-                completionhandler(code, bytes);
-            }
-        } else {
+    void setHandle(std::function<void(StatusCode, size_t)>&& handle) {
+        completionhandler= handle;
+    }
+    bool handle(StatusCode code, size_t bytes) {
+        if (Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
             completionhandler(code, bytes);
+            return true;
         }
+        return false;
     }
 };
 struct Win_IO_RW_Context : Win_IO_Context {
@@ -83,8 +86,6 @@ struct Win_IO_RW_Context : Win_IO_Context {
     void reset() {
         transfered_bytes = 0;
         bufferlen = 0;
-        Context_ = nullptr;
-        Socket_ = nullptr;
         buffer = nullptr;
         completionhandler.reset();
         Win_IO_Context::reset();

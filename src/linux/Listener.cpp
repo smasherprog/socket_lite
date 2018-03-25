@@ -85,10 +85,10 @@ void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr
     ev.events = EPOLLIN | EPOLLONESHOT;
     ev.data.ptr = context;
     if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_MOD, context->ListenSocket, &ev) == -1) {
-        Context_->PendingIO -= 1;
         context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
         {
             std::lock_guard<spinlock> lock(Lock);
+            Context_->PendingIO -= 1;
             OutStandingEvents.erase(std::remove(std::begin(OutStandingEvents), std::end(OutStandingEvents), context), std::end(OutStandingEvents));
         }
         Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);

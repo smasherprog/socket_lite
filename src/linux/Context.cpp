@@ -115,7 +115,7 @@ void Context::run()
                     default:
                         break;
                     }
-                    if (--PendingIO <= 0) {
+                    if (PendingIO <= 0) {
                         eventfd_write(EventWakeFd, 1); // make sure to wake up the threads
                         return;
                     }
