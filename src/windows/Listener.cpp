@@ -19,10 +19,11 @@ namespace NET {
         auto &iocontext = *context->Context_;
         if (!success) {
             context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
-            return iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+            delete context;
+            return;
         }
         DWORD recvbytes = 0;
-        context->Socket_ = std::allocate_shared<Socket>(iocontext.SocketAllocator, context->Context_, context->Family);
+        context->Socket_ = std::make_shared<Socket>(context->Context_, context->Family);
         context->IOOperation = IO_OPERATION::IoAccept;
         context->Overlapped = {0};
         iocontext.PendingIO += 1;
@@ -36,7 +37,8 @@ namespace NET {
         else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
             iocontext.PendingIO -= 1;
             context->completionhandler(TranslateError(&err), std::shared_ptr<Socket>());
-            iocontext.Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+            delete context;
+            return;
         }
     }
     void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
@@ -44,18 +46,17 @@ namespace NET {
         if (!success ||
             ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket,
                          sizeof(context->ListenSocket)) == SOCKET_ERROR ||
-            !context->Socket_->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING) ||
             CreateIoCompletionPort((HANDLE)context->Socket_->get_handle(), context->Context_->IOCPHandle, NULL, NULL) == NULL) {
             context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
         }
         else {
             context->completionhandler(StatusCode::SC_SUCCESS, context->Socket_);
         }
-        context->Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+        delete context;
     }
     void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
     {
-        auto context = Context_->Win_IO_Accept_ContextAllocator.allocate(1);
+        auto context = new Win_IO_Accept_Context();
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoStartAccept;
         context->Context_ = Context_;
@@ -69,7 +70,7 @@ namespace NET {
             if (PostQueuedCompletionStatus(Context_->IOCPHandle, 0, (ULONG_PTR)this, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
                 context->completionhandler(TranslateError(), std::shared_ptr<Socket>());
-                Context_->Win_IO_Accept_ContextAllocator.deallocate(context, 1);
+                delete context;
             }
         }
     }

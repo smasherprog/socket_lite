@@ -12,12 +12,12 @@ namespace NET {
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->Win_IO_RW_ContextAllocator.allocate(1);
+        auto context = new Win_IO_RW_Context();
         context->buffer = buffer;
         context->bufferlen = buffer_size;
         context->Context_ = Context_;
         context->Socket_ = this;
-        auto h = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+        auto h = std::make_shared<RW_CompletionHandler>();
         h->completionhandler = std::move(handler);
         context->setCompletionHandler(h);
         context->IOOperation = IO_OPERATION::IoRead;
@@ -25,12 +25,12 @@ namespace NET {
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto context = Context_->Win_IO_RW_ContextAllocator.allocate(1);
+        auto context = new Win_IO_RW_Context();
         context->buffer = buffer;
         context->bufferlen = buffer_size;
         context->Context_ = Context_;
         context->Socket_ = this;
-        auto h = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+        auto h = std::make_shared<RW_CompletionHandler>();
         h->completionhandler = std::move(handler);
         context->setCompletionHandler(h);
         context->IOOperation = IO_OPERATION::IoWrite;
@@ -42,11 +42,11 @@ namespace NET {
         if (!success) {
             context->Socket_->close();
             context->getCompletionHandler()->handle(TranslateError(), 0, true);
-            iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
+            delete context;
         }
         else if (context->bufferlen == context->transfered_bytes) {
             context->getCompletionHandler()->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
-            iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
+            delete context;
         }
         else {
             auto func = context->getCompletionHandler();
@@ -68,7 +68,7 @@ namespace NET {
                 iocontext.PendingIO -= 1;
                 context->Socket_->close();
                 func->handle(TranslateError(&lasterr), 0, false);
-                iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
+                delete context;
             }
             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
                 func->handle(StatusCode::SC_SUCCESS, bytesleft, true);
@@ -99,15 +99,16 @@ namespace NET {
         auto &iocontext = *context->Context_;
         if (!success) {
             context->completionhandler(TranslateError());
-            return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            delete context;
+            return;
         }
 
         auto handle = INTERNAL::Socket(context->address.get_Family());
         BindSocket(handle, context->address.get_Family());
-        if (!INTERNAL::setsockopt_O_BLOCKING(handle, Blocking_Options::NON_BLOCKING) ||
-            CreateIoCompletionPort((HANDLE)handle, iocontext.IOCPHandle, NULL, NULL) == NULL) {
+        if (CreateIoCompletionPort((HANDLE)handle, iocontext.IOCPHandle, NULL, NULL) == NULL) {
             context->completionhandler(TranslateError());
-            return iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            delete context;
+            return;
         }
         context->IOOperation = IO_OPERATION::IoConnect;
         context->Overlapped = {0};
@@ -122,7 +123,8 @@ namespace NET {
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             iocontext.PendingIO -= 1;
             context->completionhandler(TranslateError(&err));
-            iocontext.Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            delete context;
+            return;
         }
     }
 
@@ -130,14 +132,15 @@ namespace NET {
     {
         if (success && ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
             context->completionhandler(StatusCode::SC_SUCCESS);
-            return context->Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+            delete context;
+            return;
         }
         context->completionhandler(TranslateError());
-        context->Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+        delete context;
     }
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        auto context = Context_->Win_IO_Connect_ContextAllocator.allocate(1);
+        auto context = new Win_IO_Connect_Context();
         context->completionhandler = std::move(handler);
         context->IOOperation = IO_OPERATION::IoInitConnect;
         context->Socket_ = this;
@@ -151,7 +154,7 @@ namespace NET {
             if (PostQueuedCompletionStatus(Context_->IOCPHandle, 0, NULL, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
                 Context_->PendingIO -= 1;
                 context->completionhandler(TranslateError());
-                Context_->Win_IO_Connect_ContextAllocator.deallocate(context, 1);
+                delete context;
             }
         }
     }

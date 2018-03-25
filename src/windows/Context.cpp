@@ -9,12 +9,7 @@ using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
     std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
-    Context::Context(ThreadCount threadcount)
-        : ThreadCount_(threadcount), Win_IO_RW_ContextImpl(sizeof(Win_IO_RW_Context) * 2, 1000), Win_IO_RW_ContextAllocator(&Win_IO_RW_ContextImpl),
-          RW_CompletionHandlerImpl(sizeof(RW_CompletionHandler) * 2, 1000), RW_CompletionHandlerAllocator(&RW_CompletionHandlerImpl),
-          Win_IO_Connect_ContextImpl(sizeof(Win_IO_Connect_Context) * 2, 1000), Win_IO_Connect_ContextAllocator(&Win_IO_Connect_ContextImpl),
-          Win_IO_Accept_ContextImpl(sizeof(Win_IO_Accept_Context) * 2, 1000), Win_IO_Accept_ContextAllocator(&Win_IO_Accept_ContextImpl),
-          SocketImpl(sizeof(Socket) * 6, 1000), SocketAllocator(&SocketImpl)
+    Context::Context(ThreadCount threadcount) : ThreadCount_(threadcount)
     {
         if (WSAStartup(0x202, &wsaData) != 0) {
             abort();
@@ -63,7 +58,7 @@ namespace NET {
         WSACleanup();
     }
 
-    std::shared_ptr<ISocket> Context::CreateSocket() { return std::allocate_shared<Socket>(SocketAllocator, this); }
+    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
     std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
     {
         auto addr = listensocket->getsockname();
