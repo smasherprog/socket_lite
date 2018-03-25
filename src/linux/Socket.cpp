@@ -94,21 +94,41 @@ namespace NET {
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
+        auto count = ::write(handle, buffer, buffer_size);
+        if (count <= 0) { // possible error or continue
+            if (errno != EAGAIN && errno != EINTR) {
+                close();
+                return handler(TranslateError(), 0);
+            }
+        }
+        if (count == buffer_size) {
+            return handler(StatusCode::SC_SUCCESS, context->bufferlen);
+        }
         WriteContext.buffer = buffer;
         WriteContext.bufferlen = buffer_size;
+        WriteContext.transfered_bytes = count;
         {
             auto temp = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
             temp->completionhandler = std::move(handler);
             WriteContext.setCompletionHandler(temp);
         }
         WriteContext.IOOperation = IO_OPERATION::IoWrite;
-        WriteContext.transfered_bytes = 0;
         Context_->PendingIO += 1;
         continue_io(true, &WriteContext);
     }
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
+        auto count = ::read(handle, buffer, buffer_size);
+        if (count <= 0) { // possible error or continue
+            if ((errno != EAGAIN && errno != EINTR) || count == 0) {
+                close();
+                return handler(TranslateError(), 0);
+            }
+        }
+        if (count == buffer_size) {
+            return handler(StatusCode::SC_SUCCESS, context->bufferlen);
+        }
         ReadContext.buffer = buffer;
         ReadContext.bufferlen = buffer_size;
         {
@@ -117,7 +137,7 @@ namespace NET {
             ReadContext.setCompletionHandler(temp);
         }
         ReadContext.IOOperation = IO_OPERATION::IoRead;
-        ReadContext.transfered_bytes = 0;
+        ReadContext.transfered_bytes = count;
         Context_->PendingIO += 1;
         continue_io(true, &ReadContext);
     }
