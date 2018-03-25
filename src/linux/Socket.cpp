@@ -44,7 +44,7 @@ void Socket::close()
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     ISocket::close();
-    handle = INTERNAL::Socket(address.get_Family()); 
+    handle = INTERNAL::Socket(address.get_Family());
     auto ret = ::connect(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen());
     if (ret == -1) { // will complete some time later
         auto err = errno;
@@ -54,7 +54,7 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
             //need to allocate for the epoll call
             Context_->PendingIO += 1;
             {
-                auto tmphandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+                auto tmphandler = std::make_shared<RW_CompletionHandler>();
                 tmphandler->completionhandler = [ihandler(std::move(handler))](StatusCode s, size_t sz) {
                     ihandler(s);
                 };
@@ -64,7 +64,7 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 
             epoll_event ev = {0};
             ev.data.ptr = &WriteContext;
-            ev.events = EPOLLOUT | EPOLLONESHOT;
+            ev.events =EPOLLIN| EPOLLOUT | EPOLLONESHOT;
             if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, handle, &ev) == -1) {
                 auto h = WriteContext.getCompletionHandler();
                 if (h) {
@@ -118,7 +118,7 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(
     WriteContext.bufferlen = buffer_size;
 
     {
-        auto temp = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+        auto temp = std::make_shared<RW_CompletionHandler>();
         temp->completionhandler = std::move(handler);
         WriteContext.setCompletionHandler(temp);
     }
@@ -145,7 +145,7 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(
     ReadContext.buffer = buffer;
     ReadContext.bufferlen = buffer_size;
     {
-        auto temp = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+        auto temp = std::make_shared<RW_CompletionHandler>();
         temp->completionhandler = std::move(handler);
         ReadContext.setCompletionHandler(temp);
     }
