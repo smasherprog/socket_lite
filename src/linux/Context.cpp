@@ -62,8 +62,9 @@ Context::~Context()
 {
     while (PendingIO > 0) {
         std::this_thread::sleep_for(5ms);
+        eventfd_write(EventWakeFd, 1);// make sure to wake up the threads
     }
-    eventfd_write(EventWakeFd, 1); // make sure to wake up the threads
+
     for (auto &t : Threads) {
 
         if (t.joinable()) {
@@ -96,9 +97,7 @@ void Context::run()
                     }
                 }
                 for (auto i = 0; i < count; i++) {
-                    if(epollevents[i].data.fd == EventWakeFd) {
-                        eventfd_write(EventWakeFd, 1);
-                    } else {
+                    if(epollevents[i].data.fd != EventWakeFd) {
                         auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
                         switch (ctx->IOOperation) {
                         case IO_OPERATION::IoConnect:
@@ -115,10 +114,9 @@ void Context::run()
                             break;
                         }
                     }
-                    if (PendingIO <= 0) {
-                        eventfd_write(EventWakeFd, 1); // make sure to wake up the threads
-                        return;
-                    }
+                }
+                if (PendingIO <= 0) {
+                    return;
                 }
             }
         }));
