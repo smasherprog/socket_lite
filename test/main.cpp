@@ -35,8 +35,32 @@ int main()
         }
     });
 
-
+    myconnectiontest::myconnectiontest();
+    std::cout << std::fixed;
+    std::cout << std::setprecision(2);
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asiotest::asioechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    myechotest::myechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asiotransfertest::asiotransfertest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
     mytransfertest::mytransfertest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asio_multithreadedechotest::asioechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    mymultithreadedechotest::myechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asioconnectiontest::connectiontest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
     startwatching = false;
     t.join();
     return 0;

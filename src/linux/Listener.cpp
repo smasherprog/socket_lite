@@ -41,6 +41,7 @@ void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
     auto &iocontext = *context->Context_;
     sockaddr_in remote = {0};
     socklen_t len = sizeof(remote);
+    iocontext.PendingIO -=1;
     int i = ::accept(context->ListenSocket, reinterpret_cast<::sockaddr *>(&remote), &len);
     auto handler(std::move(context->completionhandler));
     if (i == -1) {

@@ -9,18 +9,21 @@
 
 using namespace std::chrono_literals;
 
-namespace mytransfertest {
+namespace mytransfertest
+{
 
 std::vector<char> writebuffer;
 std::vector<char> readbuffer;
 double writeechos = 0.0;
-class session : public std::enable_shared_from_this<session> {
-  public:
+class session : public std::enable_shared_from_this<session>
+{
+public:
     session(const std::shared_ptr<SL::NET::ISocket> &socket) : socket_(socket) {}
 
-    void start() { do_read(); }
-    void do_read()
-    {
+    void start() {
+        do_read();
+    }
+    void do_read() {
         auto self(shared_from_this());
         socket_->recv(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
@@ -32,10 +35,10 @@ class session : public std::enable_shared_from_this<session> {
     std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
-class asioserver : public std::enable_shared_from_this<asioserver> {
-  public:
-    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port)
-    {
+class asioserver : public std::enable_shared_from_this<asioserver>
+{
+public:
+    asioserver(std::shared_ptr<SL::NET::IContext> &io_context, SL::NET::PortNumber port) {
 
         std::shared_ptr<SL::NET::ISocket> listensocket;
         auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, SL::NET::AddressFamily::IPV4);
@@ -53,9 +56,10 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
         listensocket->setsockopt<SL::NET::SocketOptions::O_REUSEADDR>(SL::NET::SockOptStatus::ENABLED);
         Listener = io_context->CreateListener(std::move(listensocket));
     }
-    ~asioserver() { close(); }
-    void do_accept()
-    {
+    ~asioserver() {
+        close();
+    }
+    void do_accept() {
         Listener->accept([this](SL::NET::StatusCode code, const std::shared_ptr<SL::NET::ISocket> &socket) {
             if (socket && code == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(socket)->start();
@@ -63,31 +67,31 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
             }
         });
     }
-    void close() { Listener->close(); }
+    void close() {
+        Listener->close();
+    }
     std::shared_ptr<SL::NET::IListener> Listener;
 };
 
-class asioclient : public std::enable_shared_from_this<asioclient> {
-  public:
-    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
-    {
+class asioclient : public std::enable_shared_from_this<asioclient>
+{
+public:
+    asioclient(std::shared_ptr<SL::NET::IContext> &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints) {
         socket_ = io_context->CreateSocket();
     }
     ~asioclient() {}
-    void do_connect()
-    {
+    void do_connect() {
         socket_->connect(Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
+
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 do_write();
-            }
-            else {
+            } else {
                 Addresses.pop_back();
                 do_connect();
             }
         });
     }
-    void do_write()
-    {
+    void do_write() {
         auto self(shared_from_this());
         socket_->send(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {

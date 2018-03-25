@@ -96,24 +96,24 @@ void Context::run()
                     }
                 }
                 for (auto i = 0; i < count; i++) {
-                    if (PendingIO <= 0) {
-                        eventfd_write(EventWakeFd, 1); // make sure to wake up the threads
-                        return;
-                    }
-                    auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
-                    switch (ctx->IOOperation) {
-                    case IO_OPERATION::IoConnect:
-                        Socket::continue_connect(true, static_cast<Win_IO_RW_Context *>(ctx));
-                        break;
-                    case IO_OPERATION::IoAccept:
-                        Listener::handle_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
-                        break;
-                    case IO_OPERATION::IoRead:
-                    case IO_OPERATION::IoWrite:
-                        Socket::continue_io(true, static_cast<Win_IO_RW_Context *>(ctx));
-                        break;
-                    default:
-                        break;
+                    if(epollevents[i].data.fd == EventWakeFd) {
+                        eventfd_write(EventWakeFd, 1);
+                    } else {
+                        auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
+                        switch (ctx->IOOperation) {
+                        case IO_OPERATION::IoConnect:
+                            Socket::continue_connect(true, static_cast<Win_IO_RW_Context *>(ctx));
+                            break;
+                        case IO_OPERATION::IoAccept:
+                            Listener::handle_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
+                            break;
+                        case IO_OPERATION::IoRead:
+                        case IO_OPERATION::IoWrite:
+                            Socket::continue_io(true, static_cast<Win_IO_RW_Context *>(ctx));
+                            break;
+                        default:
+                            break;
+                        }
                     }
                     if (PendingIO <= 0) {
                         eventfd_write(EventWakeFd, 1); // make sure to wake up the threads

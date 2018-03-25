@@ -57,37 +57,33 @@ struct Win_IO_Accept_Context : Win_IO_Context {
     PlatformSocket ListenSocket = INVALID_SOCKET;
     std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
 };
-class RW_CompletionHandler
-{
+struct RW_CompletionHandler {
     std::function<void(StatusCode, size_t)> completionhandler;
-    std::atomic<int> Completed;
-public:
-    RW_CompletionHandler() {
-        Completed = 1;
-    }
-    void setHandle(std::function<void(StatusCode, size_t)>&& handle) {
-        completionhandler= handle;
-    }
-    bool handle(StatusCode code, size_t bytes) {
-        if (Completed.fetch_sub(1, std::memory_order_relaxed) == 1) {
-            completionhandler(code, bytes);
-            return true;
-        }
-        return false;
+    void handle(StatusCode code, size_t bytes) {
+        completionhandler(code, bytes);
     }
 };
-struct Win_IO_RW_Context : Win_IO_Context {
+class Win_IO_RW_Context : public Win_IO_Context
+{
+    std::shared_ptr<RW_CompletionHandler> completionhandler;
+public:
     size_t transfered_bytes = 0;
     size_t bufferlen = 0;
     Context *Context_ = nullptr;
     Socket *Socket_ = nullptr;
     unsigned char *buffer = nullptr;
-    std::shared_ptr<RW_CompletionHandler> completionhandler;
+
+    void setCompletionHandler(std::shared_ptr<RW_CompletionHandler>& c) {
+        std::atomic_store(&completionhandler, c);
+    }
+    std::shared_ptr<RW_CompletionHandler>  getCompletionHandler() {
+        return std::atomic_exchange(&completionhandler, std::shared_ptr<RW_CompletionHandler>());
+    }
     void reset() {
         transfered_bytes = 0;
         bufferlen = 0;
         buffer = nullptr;
-        completionhandler.reset();
+        std::atomic_store(&completionhandler, std::shared_ptr<RW_CompletionHandler>());
         Win_IO_Context::reset();
 
     }
