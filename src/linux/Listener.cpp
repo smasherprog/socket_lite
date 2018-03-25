@@ -49,7 +49,6 @@ void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
     } else {
         auto sock(std::allocate_shared<Socket>(iocontext.SocketAllocator, context->Context_));
         sock->set_handle(i);
-        sock->setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
         epoll_event ev = {0};
         ev.events = EPOLLONESHOT;
         if (epoll_ctl(iocontext.IOCPHandle, EPOLL_CTL_ADD, i, &ev) == -1) {

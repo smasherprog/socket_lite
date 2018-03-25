@@ -44,8 +44,7 @@ void Socket::close()
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     ISocket::close();
-    handle = INTERNAL::Socket(address.get_Family());
-    setsockopt<SocketOptions::O_BLOCKING>(Blocking_Options::NON_BLOCKING);
+    handle = INTERNAL::Socket(address.get_Family()); 
     auto ret = ::connect(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen());
     if (ret == -1) { // will complete some time later
         auto err = errno;
