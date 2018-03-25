@@ -17,8 +17,9 @@ namespace NET {
         context->bufferlen = buffer_size;
         context->Context_ = Context_;
         context->Socket_ = this;
-        context->completionhandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
-        context->completionhandler->completionhandler = std::move(handler);
+        auto h = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+        h->completionhandler = std::move(handler);
+        context->setCompletionHandler(h);
         context->IOOperation = IO_OPERATION::IoRead;
         continue_io(true, context);
     }
@@ -29,8 +30,9 @@ namespace NET {
         context->bufferlen = buffer_size;
         context->Context_ = Context_;
         context->Socket_ = this;
-        context->completionhandler = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
-        context->completionhandler->completionhandler = std::move(handler);
+        auto h = std::allocate_shared<RW_CompletionHandler>(Context_->RW_CompletionHandlerAllocator);
+        h->completionhandler = std::move(handler);
+        context->setCompletionHandler(h);
         context->IOOperation = IO_OPERATION::IoWrite;
         continue_io(true, context);
     }
@@ -39,15 +41,15 @@ namespace NET {
         auto &iocontext = *context->Context_;
         if (!success) {
             context->Socket_->close();
-            context->completionhandler->handle(TranslateError(), 0, true);
+            context->getCompletionHandler()->handle(TranslateError(), 0, true);
             iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
         }
         else if (context->bufferlen == context->transfered_bytes) {
-            context->completionhandler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
+            context->getCompletionHandler()->handle(StatusCode::SC_SUCCESS, context->transfered_bytes, true);
             iocontext.Win_IO_RW_ContextAllocator.deallocate(context, 1);
         }
         else {
-            auto func = context->completionhandler;
+            auto func = context->getCompletionHandler();
             WSABUF wsabuf;
             auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
             wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
