@@ -150,9 +150,9 @@ PlatformSocket INTERNAL::Socket(AddressFamily family)
 
 #else
     if (family == AddressFamily::IPV4) {
-        handle = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+        handle = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     } else {
-        handle = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+        handle = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK, 0);
     }
 #endif
     return handle;
