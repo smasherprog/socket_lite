@@ -57,13 +57,9 @@ namespace NET {
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
     };
 
-    struct RW_CompletionHandler {
-        std::function<void(StatusCode, size_t)> completionhandler;
-        void handle(StatusCode code, size_t bytes) { completionhandler(code, bytes); }
-    };
-
     class Win_IO_RW_Context : public Win_IO_Context {
-        std::shared_ptr<RW_CompletionHandler> completionhandler;
+        std::function<void(StatusCode, size_t)> completionhandler;
+        std::atomic<int> Completion;
 
       public:
         size_t transfered_bytes = 0;
@@ -71,11 +67,19 @@ namespace NET {
         Context *Context_ = nullptr;
         Socket *Socket_ = nullptr;
         unsigned char *buffer = nullptr;
-
-        void setCompletionHandler(std::shared_ptr<RW_CompletionHandler> &c) { std::atomic_store(&completionhandler, c); }
-        std::shared_ptr<RW_CompletionHandler> getCompletionHandler()
+        Win_IO_RW_Context() { Completion = 0; }
+        void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
         {
-            return std::atomic_exchange(&completionhandler, std::shared_ptr<RW_CompletionHandler>());
+            completionhandler = std::move(c);
+            Completion = 1;
+        }
+        std::function<void(StatusCode, size_t)> getCompletionHandler()
+        {
+            if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
+                return std::move(completionhandler);
+            }
+            std::function<void(StatusCode, size_t)> t;
+            return t;
         }
 
         void reset()
@@ -83,7 +87,8 @@ namespace NET {
             transfered_bytes = 0;
             bufferlen = 0;
             buffer = nullptr;
-            std::atomic_store(&completionhandler, std::shared_ptr<RW_CompletionHandler>());
+            Completion = 1;
+            completionhandler = nullptr;
             Win_IO_Context::reset();
         }
     };

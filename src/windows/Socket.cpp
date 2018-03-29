@@ -12,29 +12,55 @@ namespace NET {
 
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-
+        auto count = 0;
+        /*
+                    ::recv(handle, (char *)buffer, buffer_size, 0);
+                if (count == SOCKET_ERROR) {
+                    auto err = WSAGetLastError();
+                    if (err != WSAEWOULDBLOCK) {
+                        return handler(TranslateError(&err), 0);
+                    }
+                    else {
+                        count = 0;
+                    }
+                }
+                else if (count == 0) {
+                    return handler(StatusCode::SC_CLOSED, 0);
+                }
+                else if (count == buffer_size) {
+                    return handler(StatusCode::SC_SUCCESS, buffer_size);
+                }*/
         ReadContext.buffer = buffer;
-        ReadContext.transfered_bytes = 0;
+        ReadContext.transfered_bytes = count;
         ReadContext.bufferlen = buffer_size;
         ReadContext.Context_ = Context_;
         ReadContext.Socket_ = this;
-        auto h = std::make_shared<RW_CompletionHandler>();
-        h->completionhandler = std::move(handler);
-        ReadContext.setCompletionHandler(h);
+        ReadContext.setCompletionHandler(std::move(handler));
         ReadContext.IOOperation = IO_OPERATION::IoRead;
         continue_io(true, &ReadContext);
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-
+        auto count = 0;
+        /* ::send(handle, (const char *)buffer, buffer_size, 0);
+        if (count == SOCKET_ERROR) {
+            auto err = WSAGetLastError();
+            if (err != WSAEWOULDBLOCK) {
+                return handler(TranslateError(&err), 0);
+            }
+            else {
+                count = 0;
+            }
+        }
+        else if (count == buffer_size) {
+            return handler(StatusCode::SC_SUCCESS, buffer_size);
+        }*/
         WriteContext.buffer = buffer;
-        WriteContext.transfered_bytes = 0;
+        WriteContext.transfered_bytes = count;
         WriteContext.bufferlen = buffer_size;
         WriteContext.Context_ = Context_;
         WriteContext.Socket_ = this;
-        auto h = std::make_shared<RW_CompletionHandler>();
-        h->completionhandler = std::move(handler);
-        WriteContext.setCompletionHandler(h);
+        WriteContext.setCompletionHandler(std::move(handler));
         WriteContext.IOOperation = IO_OPERATION::IoWrite;
         continue_io(true, &WriteContext);
     }
@@ -46,14 +72,14 @@ namespace NET {
             auto handler(context->getCompletionHandler());
             if (handler) {
                 context->reset();
-                handler->handle(TranslateError(), 0);
+                handler(TranslateError(), 0);
             }
         }
         else if (context->bufferlen == context->transfered_bytes) {
             auto handler(context->getCompletionHandler());
             if (handler) {
                 context->reset();
-                handler->handle(StatusCode::SC_SUCCESS, context->transfered_bytes);
+                handler(StatusCode::SC_SUCCESS, context->transfered_bytes);
             }
         }
         else {
@@ -77,7 +103,7 @@ namespace NET {
                 auto handler(context->getCompletionHandler());
                 if (handler) {
                     context->reset();
-                    handler->handle(TranslateError(&lasterr), 0);
+                    handler(TranslateError(&lasterr), 0);
                 }
             } /*
              else if (nRet == 0 && dwSendNumBytes == bytesleft) {
