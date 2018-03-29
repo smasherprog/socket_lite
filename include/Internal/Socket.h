@@ -22,8 +22,7 @@ namespace NET {
 
         static void continue_io(bool success, Win_IO_RW_Context *context);
 #if _WIN32
-        static void init_connect(bool success, Win_IO_Connect_Context *context);
-        static void continue_connect(bool success, Win_IO_Connect_Context *context);
+        static void continue_connect(bool success, Win_IO_RW_Context *context);
 #else
         virtual void close() override;
         static void continue_connect(bool success, Win_IO_RW_Context *context);

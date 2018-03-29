@@ -37,13 +37,6 @@ namespace NET {
         }
     };
 
-    struct Win_IO_Connect_Context : Win_IO_Context {
-        SL::NET::sockaddr address;
-        std::function<void(StatusCode)> completionhandler;
-        Socket *Socket_ = nullptr;
-        Context *Context_ = nullptr;
-    };
-
     struct Win_IO_Accept_Context : Win_IO_Context {
 #ifdef _WIN32
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];

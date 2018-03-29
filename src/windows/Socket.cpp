@@ -68,16 +68,14 @@ namespace NET {
     {
         auto &iocontext = *context->Context_;
         if (!success) {
-            context->Socket_->close();
-            auto handler(context->getCompletionHandler());
-            if (handler) {
+            if (auto handler(context->getCompletionHandler()); handler) {
+                context->Socket_->close();
                 context->reset();
                 handler(TranslateError(), 0);
             }
         }
         else if (context->bufferlen == context->transfered_bytes) {
-            auto handler(context->getCompletionHandler());
-            if (handler) {
+            if (auto handler(context->getCompletionHandler()); handler) {
                 context->reset();
                 handler(StatusCode::SC_SUCCESS, context->transfered_bytes);
             }
@@ -99,9 +97,8 @@ namespace NET {
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 iocontext.PendingIO -= 1;
-                context->Socket_->close();
-                auto handler(context->getCompletionHandler());
-                if (handler) {
+                if (auto handler(context->getCompletionHandler()); handler) {
+                    context->Socket_->close();
                     context->reset();
                     handler(TranslateError(&lasterr), 0);
                 }
@@ -134,67 +131,45 @@ namespace NET {
             INTERNAL::bind(sock, mytestaddr);
         }
     }
-    void Socket::init_connect(bool success, Win_IO_Connect_Context *context)
-    {
-        auto &iocontext = *context->Context_;
-        if (!success) {
-            context->completionhandler(TranslateError());
-            delete context;
-            return;
-        }
 
-        auto handle = INTERNAL::Socket(context->address.get_Family());
-        BindSocket(handle, context->address.get_Family());
-        if (CreateIoCompletionPort((HANDLE)handle, iocontext.IOCPHandle, NULL, NULL) == NULL) {
-            context->completionhandler(TranslateError());
-            delete context;
-            return;
-        }
-        context->IOOperation = IO_OPERATION::IoConnect;
-        context->Overlapped = {0};
-        iocontext.PendingIO += 1;
-        context->Socket_->set_handle(handle);
-        auto connectres = iocontext.ConnectEx_(handle, (::sockaddr *)context->address.get_SocketAddr(), context->address.get_SocketAddrLen(), 0, 0, 0,
-                                               (LPOVERLAPPED)&context->Overlapped);
-        if (connectres == TRUE) {
-            iocontext.PendingIO -= 1;
-            Socket::continue_connect(true, context);
-        }
-        else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
-            iocontext.PendingIO -= 1;
-            context->completionhandler(TranslateError(&err));
-            delete context;
-            return;
-        }
-    }
-
-    void Socket::continue_connect(bool success, Win_IO_Connect_Context *context)
+    void Socket::continue_connect(bool success, Win_IO_RW_Context *context)
     {
+        auto h = context->getCompletionHandler();
+        context->reset();
         if (success && ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-            context->completionhandler(StatusCode::SC_SUCCESS);
-            delete context;
-            return;
+            if (h) {
+                return h(StatusCode::SC_SUCCESS, 0);
+            }
         }
-        context->completionhandler(TranslateError());
-        delete context;
+        else if (h) {
+            h(TranslateError(), 0);
+        }
     }
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        auto context = new Win_IO_Connect_Context();
-        context->completionhandler = std::move(handler);
-        context->IOOperation = IO_OPERATION::IoInitConnect;
-        context->Socket_ = this;
-        context->address = address;
-        context->Context_ = Context_;
-        if (Context_->inWorkerThread()) {
-            init_connect(true, context);
+        WriteContext.reset();
+        WriteContext.Context_ = Context_;
+        WriteContext.Socket_ = this;
+        WriteContext.setCompletionHandler([ihandle(std::move(handler))](StatusCode s, size_t) { ihandle(s); });
+        WriteContext.IOOperation = IO_OPERATION::IoConnect;
+
+        ISocket::close();
+        handle = INTERNAL::Socket(address.get_Family());
+        BindSocket(handle, address.get_Family());
+        if (CreateIoCompletionPort((HANDLE)handle, Context_->IOCPHandle, NULL, NULL) == NULL) {
+            return handler(TranslateError());
         }
-        else {
-            Context_->PendingIO += 1;
-            if (PostQueuedCompletionStatus(Context_->IOCPHandle, 0, NULL, (LPOVERLAPPED)&context->Overlapped) == FALSE) {
-                Context_->PendingIO -= 1;
-                context->completionhandler(TranslateError());
-                delete context;
+        Context_->PendingIO += 1;
+        auto connectres = Context_->ConnectEx_(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), 0, 0, 0,
+                                               (LPOVERLAPPED)&WriteContext.Overlapped);
+        if (connectres == TRUE) {
+            Context_->PendingIO -= 1;
+            Socket::continue_connect(true, &WriteContext);
+        }
+        else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
+            Context_->PendingIO -= 1;
+            if (auto h(WriteContext.getCompletionHandler()); h) {
+                h(TranslateError(&err), 0);
             }
         }
     }

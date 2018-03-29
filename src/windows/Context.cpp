@@ -91,11 +91,8 @@ namespace NET {
                     }
                     switch (overlapped->IOOperation) {
 
-                    case IO_OPERATION::IoInitConnect:
-                        Socket::init_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
-                        break;
                     case IO_OPERATION::IoConnect:
-                        Socket::continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        Socket::continue_connect(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoStartAccept:
                         Listener::start_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
