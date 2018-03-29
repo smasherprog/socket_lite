@@ -32,13 +32,13 @@ void Socket::close()
     if (whandler) {
         WriteContext.reset();
         Context_->PendingIO -= 1;
-        whandler->handle(StatusCode::SC_CLOSED, 0);
+        whandler(StatusCode::SC_CLOSED, 0);
     }
     auto whandler1(ReadContext.getCompletionHandler());
     if (whandler1) {
         ReadContext.reset();
         Context_->PendingIO -= 1;
-        whandler1->handle(StatusCode::SC_CLOSED, 0);
+        whandler1(StatusCode::SC_CLOSED, 0);
     }
 }
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
@@ -53,24 +53,20 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         } else {
             //need to allocate for the epoll call
             Context_->PendingIO += 1;
-            {
-                auto tmphandler = std::make_shared<RW_CompletionHandler>();
-                tmphandler->completionhandler = [ihandler(std::move(handler))](StatusCode s, size_t sz) {
-                    ihandler(s);
-                };
-                WriteContext.setCompletionHandler(tmphandler);
-            }
+            WriteContext.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) {
+                ihandler(s);
+            });
             WriteContext.IOOperation = IO_OPERATION::IoConnect;
 
             epoll_event ev = {0};
             ev.data.ptr = &WriteContext;
-            ev.events =EPOLLIN| EPOLLOUT | EPOLLONESHOT;
+            ev.events = EPOLLOUT | EPOLLONESHOT;
             if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, handle, &ev) == -1) {
                 auto h = WriteContext.getCompletionHandler();
                 if (h) {
                     WriteContext.reset();
                     Context_->PendingIO -= 1;
-                    h->handle(TranslateError(), 0);
+                    h(TranslateError(), 0);
                 }
             }
         }
@@ -91,9 +87,9 @@ void Socket::continue_connect(bool success, Win_IO_RW_Context *context)
         context->reset();
         auto[suc, errocode] = context->Socket_->getsockopt<SocketOptions::O_ERROR>();
         if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
-            h->handle(StatusCode::SC_SUCCESS, 0);
+            h(StatusCode::SC_SUCCESS, 0);
         } else {
-            h->handle(TranslateError(), 0);
+            h(TranslateError(), 0);
         }
     }
 }
@@ -116,12 +112,7 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(
     }
     WriteContext.buffer = buffer;
     WriteContext.bufferlen = buffer_size;
-
-    {
-        auto temp = std::make_shared<RW_CompletionHandler>();
-        temp->completionhandler = std::move(handler);
-        WriteContext.setCompletionHandler(temp);
-    }
+    WriteContext.setCompletionHandler(std::move(handler));
     WriteContext.IOOperation = IO_OPERATION::IoWrite;
     Context_->PendingIO += 1;
     continue_io(true, &WriteContext);
@@ -144,11 +135,7 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(
     }
     ReadContext.buffer = buffer;
     ReadContext.bufferlen = buffer_size;
-    {
-        auto temp = std::make_shared<RW_CompletionHandler>();
-        temp->completionhandler = std::move(handler);
-        ReadContext.setCompletionHandler(temp);
-    }
+    ReadContext.setCompletionHandler(std::move(handler));
     ReadContext.IOOperation = IO_OPERATION::IoRead;
 
     Context_->PendingIO += 1;
@@ -168,7 +155,7 @@ void Socket::continue_io(bool success, Win_IO_RW_Context *context)
                 if (h) {
                     context->Socket_->close();
                     context->reset();
-                    h->handle(TranslateError(), 0);
+                    h(TranslateError(), 0);
                 }
                 return; // done get out
             } else {
@@ -183,7 +170,7 @@ void Socket::continue_io(bool success, Win_IO_RW_Context *context)
                 if (h) {
                     context->Socket_->close();
                     context->reset();
-                    h->handle(TranslateError(), 0);
+                    h(TranslateError(), 0);
                 }
                 return; // done get out
             } else {
@@ -196,7 +183,7 @@ void Socket::continue_io(bool success, Win_IO_RW_Context *context)
         auto h(context->getCompletionHandler());
         if (h) {
             context->reset();
-            h->handle(StatusCode::SC_SUCCESS, context->bufferlen);
+            h(StatusCode::SC_SUCCESS, context->bufferlen);
         }
         return; // done with this get out!!
     }
@@ -212,7 +199,7 @@ void Socket::continue_io(bool success, Win_IO_RW_Context *context)
             context->reset();
             context->Socket_->close();
             context->Context_->PendingIO -= 1;
-            h->handle(TranslateError(), 0);
+            h(TranslateError(), 0);
         }
     }
 }
