@@ -60,7 +60,7 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
 
             epoll_event ev = {0};
             ev.data.ptr = &WriteContext;
-            ev.events =EPOLLIN| EPOLLOUT | EPOLLONESHOT;
+            ev.events = EPOLLOUT | EPOLLONESHOT;
             if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, handle, &ev) == -1) {
                 auto h = WriteContext.getCompletionHandler();
                 if (h) {
