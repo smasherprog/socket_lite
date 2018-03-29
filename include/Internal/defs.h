@@ -48,6 +48,18 @@ namespace NET {
         std::shared_ptr<Socket> Socket_;
         PlatformSocket ListenSocket = INVALID_SOCKET;
         std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
+        void reset()
+        {
+            Win_IO_Context::reset();
+#ifndef _WIN32
+            Listener_ = nullptr;
+#endif
+            Family = AddressFamily::IPV4;
+            Context_ = nullptr;
+            Socket_.reset();
+            ListenSocket = INVALID_SOCKET;
+            completionhandler = nullptr;
+        }
     };
 
     class Win_IO_RW_Context : public Win_IO_Context {
