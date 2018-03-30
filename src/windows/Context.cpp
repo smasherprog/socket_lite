@@ -98,6 +98,9 @@ namespace NET {
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
                         static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
+                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
+                            bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                        }
                         Socket::continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:

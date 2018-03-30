@@ -50,8 +50,8 @@ namespace NET {
             handle_accept(true, &Win_IO_Accept_Context_);
         }
         else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
-            Context_->PendingIO -= 1;
             if (auto h(std::move(Win_IO_Accept_Context_.completionhandler)); h) {
+                Context_->PendingIO -= 1;
                 Win_IO_Accept_Context_.reset();
                 h(TranslateError(&err), std::shared_ptr<Socket>());
             }

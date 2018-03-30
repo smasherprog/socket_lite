@@ -39,7 +39,6 @@ namespace NET {
         auto &iocontext = *context->Context_;
         if (!success) {
             if (auto handler(context->getCompletionHandler()); handler) {
-                context->Socket_->close();
                 context->reset();
                 handler(TranslateError(), 0);
             }
@@ -66,9 +65,8 @@ namespace NET {
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                iocontext.PendingIO -= 1;
                 if (auto handler(context->getCompletionHandler()); handler) {
-                    context->Socket_->close();
+                    iocontext.PendingIO -= 1;
                     context->reset();
                     handler(TranslateError(&lasterr), 0);
                 }
@@ -130,8 +128,9 @@ namespace NET {
             Socket::continue_connect(true, &WriteContext);
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
-            Context_->PendingIO -= 1;
+
             if (auto h(WriteContext.getCompletionHandler()); h) {
+                Context_->PendingIO -= 1;
                 h(TranslateError(&err), 0);
             }
         }
