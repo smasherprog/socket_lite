@@ -19,7 +19,7 @@ namespace SL {
 namespace NET {
 
     StatusCode SOCKET_LITE_EXTERN TranslateError(int *errcode = nullptr);
-    enum IO_OPERATION { IoNone, IoInitConnect, IoConnect, IoStartAccept, IoAccept, IoRead, IoWrite };
+    enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite, IoNone };
     class Socket;
     class Context;
     class Listener;

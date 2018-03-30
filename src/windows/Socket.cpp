@@ -9,29 +9,12 @@ namespace NET {
     Socket::Socket(Context *context, AddressFamily family) : Socket(context) { handle = INTERNAL::Socket(family); }
     Socket::Socket(Context *context) : Context_(context) {}
     Socket::~Socket() { close(); }
-
+    void Socket::close() { ISocket::close(); }
     void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto count = 0;
-        /*
-                    ::recv(handle, (char *)buffer, buffer_size, 0);
-                if (count == SOCKET_ERROR) {
-                    auto err = WSAGetLastError();
-                    if (err != WSAEWOULDBLOCK) {
-                        return handler(TranslateError(&err), 0);
-                    }
-                    else {
-                        count = 0;
-                    }
-                }
-                else if (count == 0) {
-                    return handler(StatusCode::SC_CLOSED, 0);
-                }
-                else if (count == buffer_size) {
-                    return handler(StatusCode::SC_SUCCESS, buffer_size);
-                }*/
+        assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
         ReadContext.buffer = buffer;
-        ReadContext.transfered_bytes = count;
+        ReadContext.transfered_bytes = 0;
         ReadContext.bufferlen = buffer_size;
         ReadContext.Context_ = Context_;
         ReadContext.Socket_ = this;
@@ -41,22 +24,9 @@ namespace NET {
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto count = 0;
-        /* ::send(handle, (const char *)buffer, buffer_size, 0);
-        if (count == SOCKET_ERROR) {
-            auto err = WSAGetLastError();
-            if (err != WSAEWOULDBLOCK) {
-                return handler(TranslateError(&err), 0);
-            }
-            else {
-                count = 0;
-            }
-        }
-        else if (count == buffer_size) {
-            return handler(StatusCode::SC_SUCCESS, buffer_size);
-        }*/
+        assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
         WriteContext.buffer = buffer;
-        WriteContext.transfered_bytes = count;
+        WriteContext.transfered_bytes = 0;
         WriteContext.bufferlen = buffer_size;
         WriteContext.Context_ = Context_;
         WriteContext.Socket_ = this;
@@ -102,14 +72,7 @@ namespace NET {
                     context->reset();
                     handler(TranslateError(&lasterr), 0);
                 }
-            } /*
-             else if (nRet == 0 && dwSendNumBytes == bytesleft) {
-                 auto handler(context->getCompletionHandler());
-                 if (handler) {
-                     context->reset();
-                     handler->handle(StatusCode::SC_SUCCESS, bytesleft);
-                 }
-             }*/
+            }
         }
     }
     void BindSocket(SOCKET sock, AddressFamily family)
@@ -138,7 +101,7 @@ namespace NET {
         context->reset();
         if (success && ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
             if (h) {
-                return h(StatusCode::SC_SUCCESS, 0);
+                h(StatusCode::SC_SUCCESS, 0);
             }
         }
         else if (h) {
@@ -147,7 +110,7 @@ namespace NET {
     }
     void Socket::connect(sockaddr &address, const std::function<void(StatusCode)> &&handler)
     {
-        WriteContext.reset();
+        assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
         WriteContext.Context_ = Context_;
         WriteContext.Socket_ = this;
         WriteContext.setCompletionHandler([ihandle(std::move(handler))](StatusCode s, size_t) { ihandle(s); });

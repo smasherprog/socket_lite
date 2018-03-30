@@ -15,9 +15,7 @@ namespace NET {
             abort();
         }
         IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, threadcount.value);
-
         PendingIO = 0;
-
         auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         GUID guid = WSAID_CONNECTEX;
         DWORD bytes = 0;
@@ -100,9 +98,6 @@ namespace NET {
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
                         static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
-                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
-                            bSuccess = WSAGetLastError() == WSA_IO_PENDING;
-                        }
                         Socket::continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:

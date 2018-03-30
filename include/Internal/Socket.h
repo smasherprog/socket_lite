@@ -19,14 +19,10 @@ namespace NET {
         virtual void connect(sockaddr &address, const std::function<void(StatusCode)> &&) override;
         virtual void recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) override;
         virtual void send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) override;
+        virtual void close() override;
 
         static void continue_io(bool success, Win_IO_RW_Context *context);
-#if _WIN32
         static void continue_connect(bool success, Win_IO_RW_Context *context);
-#else
-        virtual void close() override;
-        static void continue_connect(bool success, Win_IO_RW_Context *context);
-#endif
     };
 
 } // namespace NET
