@@ -43,6 +43,7 @@ void Socket::close()
 }
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
+    assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
     ISocket::close();
     handle = INTERNAL::Socket(address.get_Family());
     auto ret = ::connect(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen());
@@ -114,8 +115,19 @@ void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(
     WriteContext.bufferlen = buffer_size;
     WriteContext.setCompletionHandler(std::move(handler));
     WriteContext.IOOperation = IO_OPERATION::IoWrite;
+    epoll_event ev = {0};
+    ev.data.ptr = &WriteContext;
+    ev.events = EPOLLOUT |  EPOLLONESHOT;
     Context_->PendingIO += 1;
-    continue_io(true, &WriteContext);
+    if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_MOD, handle, &ev) == -1) {
+        auto h(WriteContext.getCompletionHandler());
+        if (h) {
+            WriteContext.reset();
+            close();
+            Context_->PendingIO -= 1;
+            h(TranslateError(), 0);
+        }
+    }
 }
 void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
 {
@@ -138,8 +150,19 @@ void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(
     ReadContext.setCompletionHandler(std::move(handler));
     ReadContext.IOOperation = IO_OPERATION::IoRead;
 
+    epoll_event ev = {0};
+    ev.data.ptr = &ReadContext;
+    ev.events = EPOLLIN |  EPOLLONESHOT;
     Context_->PendingIO += 1;
-    continue_io(true, &ReadContext);
+    if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_MOD, handle, &ev) == -1) {
+        auto h(ReadContext.getCompletionHandler());
+        if (h) {
+            ReadContext.reset();
+            close();
+            Context_->PendingIO -= 1;
+            h(TranslateError(), 0);
+        }
+    }
 }
 
 void Socket::continue_io(bool success, Win_IO_RW_Context *context)
