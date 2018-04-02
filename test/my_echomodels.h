@@ -24,7 +24,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        SL::NET::recv(socket_, sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
+        SL::NET::recv(socket_, sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_write();
             }
@@ -57,7 +57,9 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
         auto self(shared_from_this());
         Listener.accept([self](SL::NET::StatusCode code, SL::NET::Socket socket) {
             if (keepgoing) {
-                std::make_shared<session>(socket)->do_read();
+                auto s = std::make_shared<session>(socket);
+                s->do_read();
+                s->do_write();
                 self->do_accept();
             }
         });
@@ -83,6 +85,7 @@ class asioclient {
         connect(socket_->socket_, Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 socket_->do_write();
+                socket_->do_read();
             }
             else {
                 Addresses.pop_back();
