@@ -15,6 +15,7 @@ namespace asio_multithreadedechotest {
 char writeecho[] = "echo test";
 char readecho[] = "echo test";
 auto writeechos = 0.0;
+bool keepgoing = true;
 
 using asio::ip::tcp;
 class session : public std::enable_shared_from_this<session> {
@@ -50,21 +51,19 @@ class session : public std::enable_shared_from_this<session> {
     asio::io_service::strand strand_;
 };
 
-class asioserver {
+class asioserver : public std::enable_shared_from_this<asioserver> {
   public:
-    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), io_context_(io_context)
-    {
-        do_accept();
-    }
+    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), io_context_(io_context) {}
 
     void do_accept()
     {
-        acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
-            if (!ec) {
-                auto s = std::make_shared<session>(std::move(socket), io_context_);
+        auto self(shared_from_this());
+        acceptor_.async_accept([self](std::error_code ec, tcp::socket socket) {
+            if (keepgoing) {
+                auto s = std::make_shared<session>(std::move(socket), self->io_context_);
                 s->do_read();
                 s->do_write();
-                do_accept();
+                self->do_accept();
             }
         });
     }
@@ -72,7 +71,7 @@ class asioserver {
     asio::io_context &io_context_;
 };
 
-class asioclient : public std::enable_shared_from_this<asioclient> {
+class asioclient {
   public:
     asioclient(asio::io_context &io_context, const tcp::resolver::results_type &endpoints) : socket_(std::make_shared<session>(io_context))
     {
@@ -94,9 +93,12 @@ class asioclient : public std::enable_shared_from_this<asioclient> {
 void asioechotest()
 {
     std::cout << "Starting ASIO 4 Threads Echo Test" << std::endl;
+    keepgoing = true;
+    writeechos = 0;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asio::io_context iocontext;
-    asioserver s(iocontext, porttouse);
+    auto s(std::make_shared<asioserver>(iocontext, porttouse));
+    s->do_accept();
 
     tcp::resolver resolver(iocontext);
     auto endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
@@ -110,10 +112,12 @@ void asioechotest()
     std::thread t4([&iocontext]() { iocontext.run(); });
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    keepgoing = false;
+
     std::cout << "ASIO 4 Threads Echo per Second " << writeechos / 10 << std::endl;
     iocontext.stop();
-    s.acceptor_.cancel();
-    s.acceptor_.close();
+    s->acceptor_.cancel();
+    s->acceptor_.close();
     c->close();
     c1->close();
     c2->close();

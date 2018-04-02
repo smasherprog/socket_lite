@@ -66,7 +66,7 @@ namespace NET {
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 if (auto handler(context->getCompletionHandler()); handler) {
                     context->Context_->PendingIO -= 1;
-                    context->reset();
+                    delete context;
                     handler(TranslateError(&lasterr), 0);
                 }
             }

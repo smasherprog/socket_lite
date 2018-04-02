@@ -21,15 +21,16 @@ const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 auto keepgoing = true;
 using asio::ip::tcp;
-class asioserver {
+class asioserver : public std::enable_shared_from_this<asioserver> {
   public:
-    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) { do_accept(); }
+    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {}
 
     void do_accept()
     {
-        acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
+        auto self(shared_from_this());
+        acceptor_.async_accept([self](std::error_code ec, tcp::socket socket) {
             if (keepgoing) {
-                do_accept();
+                self->do_accept();
             }
         });
     }

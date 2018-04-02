@@ -42,21 +42,22 @@ class session : public std::enable_shared_from_this<session> {
     SL::NET::Socket socket_;
 };
 
-class asioserver : public std::enable_shared_from_this<asioserver> {
+class asioserver {
   public:
     asioserver(SL::NET::Context &io_context, SL::NET::PortNumber port) : Listener(io_context, port, SL::NET::AddressFamily::IPV4, ec)
     {
         if (ec != SL::NET::StatusCode::SC_SUCCESS) {
             std::cout << "Listener failed to create code:" << ec << std::endl;
         }
+        else {
+            do_accept();
+        }
     }
     void do_accept()
     {
-        auto self(shared_from_this());
-        Listener.accept([self](SL::NET::StatusCode code, SL::NET::Socket socket) {
+        Listener.accept([this](SL::NET::StatusCode code, SL::NET::Socket socket) {
             if (keepgoing) {
                 std::make_shared<session>(socket)->do_read();
-                self->do_accept();
             }
         });
     }
@@ -96,8 +97,8 @@ void mytransfertest()
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    auto s(std::make_shared<asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
-    s->do_accept();
+    asioserver s(iocontext, SL::NET::PortNumber(porttouse));
+
     auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     if (code != SL::NET::StatusCode::SC_SUCCESS) {
         std::cout << "Error code:" << code << std::endl;
@@ -108,7 +109,7 @@ void mytransfertest()
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     c->close();
-    s->close();
+    s.close();
     std::cout << "My MB per Second " << (writeechos / 10) * 8 << std::endl;
 }
 

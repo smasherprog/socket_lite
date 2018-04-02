@@ -21,9 +21,6 @@ class session : public std::enable_shared_from_this<session> {
   public:
     session(tcp::socket socket) : socket_(std::move(socket)) {}
 
-    void start() { do_read(); }
-
-  private:
     void do_read()
     {
         auto self(shared_from_this());
@@ -33,7 +30,16 @@ class session : public std::enable_shared_from_this<session> {
             }
         });
     }
-
+    void do_write()
+    {
+        auto self(shared_from_this());
+        asio::async_write(socket_, asio::buffer(readbuffer.data(), readbuffer.size()), [self](std::error_code ec, std::size_t /*length*/) {
+            if (!ec) {
+                writeechos += 1.0;
+                self->do_write();
+            }
+        });
+    }
     tcp::socket socket_;
 };
 
@@ -45,7 +51,7 @@ class asioserver {
     {
         acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
             if (!ec) {
-                std::make_shared<session>(std::move(socket))->start();
+                std::make_shared<session>(std::move(socket))->do_read();
             }
         });
     }
@@ -53,30 +59,19 @@ class asioserver {
     tcp::acceptor acceptor_;
 };
 
-class asioclient : public std::enable_shared_from_this<asioclient> {
+class asioclient {
   public:
-    asioclient(asio::io_context &io_context, const tcp::resolver::results_type &endpoints) : socket_(io_context) { do_connect(endpoints); }
+    asioclient(asio::io_context &io_context) { socket_ = std::make_shared<session>(tcp::socket(io_context)); }
     void do_connect(const tcp::resolver::results_type &endpoints)
     {
-        asio::async_connect(socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
+        asio::async_connect(socket_->socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
             if (!ec) {
-                do_write();
+                socket_->do_write();
             }
         });
     }
-
-    void do_write()
-    {
-        auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(readbuffer.data(), readbuffer.size()), [self](std::error_code ec, std::size_t /*length*/) {
-            if (!ec) {
-                writeechos += 1.0;
-                self->do_write();
-            }
-        });
-    }
-
-    tcp::socket socket_;
+    void close() { socket_->socket_.close(); }
+    std::shared_ptr<session> socket_;
 };
 
 void asiotransfertest()
@@ -90,7 +85,8 @@ void asiotransfertest()
     asioserver s(iocontext, porttouse);
     tcp::resolver resolver(iocontext);
     auto endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
-    auto c = std::make_shared<asioclient>(iocontext, endpoints);
+    auto c = std::make_shared<asioclient>(iocontext);
+    c->do_connect(endpoints);
 
     std::thread t([&iocontext]() { iocontext.run(); });
 
@@ -99,7 +95,7 @@ void asiotransfertest()
     iocontext.stop();
     s.acceptor_.cancel();
     s.acceptor_.close();
-    c->socket_.close();
+    c->close();
     t.join();
 }
 
