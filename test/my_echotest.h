@@ -16,6 +16,7 @@ void myechotest()
 {
     std::cout << "Starting My Echo Test" << std::endl;
     myechomodels::writeechos = 0;
+    myechomodels::keepgoing = true;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     auto s(std::make_shared<myechomodels::asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
@@ -28,6 +29,7 @@ void myechotest()
     c.do_connect();
     iocontext.run();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
+    myechomodels::keepgoing = false;
     std::cout << "My Echo per Second " << myechomodels::writeechos / 20 << std::endl;
     c.close();
     s->close();
