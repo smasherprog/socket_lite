@@ -17,7 +17,7 @@ void myechotest()
     std::cout << "Starting My 4 thread Echos Test" << std::endl;
     myechomodels::writeechos = 0;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    auto iocontext = SL::NET::CreateContext(SL::NET::ThreadCount(4));
+    SL::NET::Context iocontext(SL::NET::ThreadCount(4));
     auto s(std::make_shared<myechomodels::asioserver>(iocontext, SL::NET::PortNumber(porttouse)));
     s->do_accept();
     auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
@@ -31,7 +31,7 @@ void myechotest()
     c1.do_connect();
     c2.do_connect();
 
-    iocontext->run();
+    iocontext.run();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
     c.close();

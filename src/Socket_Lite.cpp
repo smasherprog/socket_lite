@@ -94,66 +94,39 @@ namespace NET {
         }
         freeaddrinfo(result);
         return std::make_tuple(StatusCode::SC_SUCCESS, ret);
-    } // namespace NET
-
-    StatusCode ISocket::listen(int backlog) const
+    }
+    Listener::Listener(Listener &&l) : Context_(l.Context_), ListenSocket(std::move(ListenSocket)), Family(l.Family) {}
+    StatusCode Socket::listen(int backlog)
     {
         if (::listen(handle, backlog) == SOCKET_ERROR) {
             return TranslateError();
         }
         return StatusCode::SC_SUCCESS;
     }
-
-    void ISocket::set_handle(PlatformSocket h)
+    bool Socket::isopen() const { return handle != INVALID_SOCKET; }
+    void Socket::close()
     {
-        if (handle != INVALID_SOCKET) {
-            CloseSocket(handle);
-        }
-        handle = h;
-    }
-    ISocket::ISocket() { handle = INVALID_SOCKET; }
-    void ISocket::close()
-    {
-        if (handle != INVALID_SOCKET) {
-            CloseSocket(handle);
-        }
+        auto t = handle;
         handle = INVALID_SOCKET;
+        if (t != INVALID_SOCKET) {
+            CloseSocket(t);
+        }
     }
-    PlatformSocket INTERNAL::Socket(AddressFamily family)
-    {
-        PlatformSocket handle = INVALID_SOCKET;
-#if _WIN32
-        if (family == AddressFamily::IPV4) {
-            handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        }
-        else {
-            handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        }
-        u_long iMode = 1;
-        ioctlsocket(handle, FIONBIO, &iMode);
-#else
-        if (family == AddressFamily::IPV4) {
-            handle = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-        }
-        else {
-            handle = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK, 0);
-        }
-#endif
-        return handle;
-    }
-    StatusCode INTERNAL::bind(PlatformSocket &handle, sockaddr addr)
+    Socket::Socket(Context &c) : context(c) { handle = INVALID_SOCKET; }
+    Socket::Socket(Socket &&sock) : handle(sock.handle), context(sock.context) { sock.handle = INVALID_SOCKET; }
+    Socket::~Socket() { close(); }
+    StatusCode Socket::bind(sockaddr addr)
     {
         if (handle == INVALID_SOCKET) {
-            handle = Socket(addr.get_Family());
+            handle = INTERNAL::Socket(addr.get_Family());
         }
         if (::bind(handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen()) == SOCKET_ERROR) {
             return TranslateError();
         }
         return StatusCode::SC_SUCCESS;
     }
-    StatusCode ISocket::bind(sockaddr addr) { return INTERNAL::bind(handle, addr); }
 
-    std::optional<SL::NET::sockaddr> ISocket::getpeername() const
+    std::optional<SL::NET::sockaddr> Socket::getpeername()
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -176,7 +149,7 @@ namespace NET {
         }
         return std::nullopt;
     }
-    std::optional<SL::NET::sockaddr> ISocket::getsockname() const
+    std::optional<SL::NET::sockaddr> Socket::getsockname()
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -199,6 +172,28 @@ namespace NET {
         return std::nullopt;
     }
 
+    PlatformSocket INTERNAL::Socket(AddressFamily family)
+    {
+        PlatformSocket handle = INVALID_SOCKET;
+#if _WIN32
+        if (family == AddressFamily::IPV4) {
+            handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        }
+        else {
+            handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        }
+        u_long iMode = 1;
+        ioctlsocket(handle, FIONBIO, &iMode);
+#else
+        if (family == AddressFamily::IPV4) {
+            handle = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        }
+        else {
+            handle = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        }
+#endif
+        return handle;
+    }
     std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_DEBUG(PlatformSocket handle)
     {
         int value = 0;

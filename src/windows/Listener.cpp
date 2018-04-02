@@ -1,59 +1,80 @@
 
-#include "Context.h"
-#include "Listener.h"
-#include "Socket.h"
+#include "Socket_Lite.h"
+#include "defs.h"
 #include <assert.h>
 
 namespace SL {
 namespace NET {
 
-    Listener::Listener(Context *context, std::shared_ptr<ISocket> &&socket, const sockaddr &addr)
-        : Context_(context), ListenSocket(std::static_pointer_cast<Socket>(socket)), ListenSocketAddr(addr)
+    Listener::Listener(Context &context, PortNumber port, AddressFamily family, SL::NET::StatusCode &ec)
+        : Context_(context), Family(family), ListenSocket(context)
     {
-    }
-    Listener::~Listener() {}
-
-    void Listener::close() { ListenSocket->close(); }
-    void Listener::handle_accept(bool success, Win_IO_Accept_Context *context)
-    {
-        if (!success ||
-            ::setsockopt(context->Socket_->get_handle(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket,
-                         sizeof(context->ListenSocket)) == SOCKET_ERROR ||
-            CreateIoCompletionPort((HANDLE)context->Socket_->get_handle(), context->Context_->IOCPHandle, NULL, NULL) == NULL) {
-            if (auto h(std::move(context->completionhandler)); h) {
-                context->reset();
-                h(TranslateError(), std::shared_ptr<Socket>());
+        ec = SL::NET::StatusCode::SC_CLOSED;
+        auto[code, addresses] = SL::NET::getaddrinfo(nullptr, port, family);
+        if (code != SL::NET::StatusCode::SC_SUCCESS) {
+            ec = code;
+        }
+        else {
+            for (auto &address : addresses) {
+                if (ec = ListenSocket.bind(address); ec == SL::NET::StatusCode::SC_SUCCESS) {
+                    if (ec = ListenSocket.listen(5); ec == SL::NET::StatusCode::SC_SUCCESS) {
+                        SL::NET::setsockopt<SL::NET::SocketOptions::O_REUSEADDR>(ListenSocket, SL::NET::SockOptStatus::ENABLED);
+                        if (auto e = CreateIoCompletionPort((HANDLE)ListenSocket.handle, Context_.IOCPHandle, NULL, NULL); e == NULL) {
+                            ListenSocket.close();
+                            ec = TranslateError();
+                        }
+                    }
+                }
             }
         }
-        else if (auto h(std::move(context->completionhandler)); h) {
-            auto s(context->Socket_);
-            context->reset();
-            h(StatusCode::SC_SUCCESS, s);
+    }
+    Listener::~Listener() { ListenSocket.close(); }
+    void handle_accept(bool success, Win_IO_Accept_Context *context, Socket &&socket)
+    {
+        auto h(std::move(context->completionhandler));
+        if (!success ||
+            ::setsockopt(context->Socket_, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&context->ListenSocket, sizeof(context->ListenSocket)) ==
+                SOCKET_ERROR ||
+            CreateIoCompletionPort((HANDLE)context->Socket_, context->Context_->IOCPHandle, NULL, NULL) == NULL) {
+            delete context;
+            if (h) {
+                socket.close();
+                h(TranslateError(), std::move(socket));
+            }
+        }
+        else {
+            delete context;
+            if (h) {
+                h(StatusCode::SC_SUCCESS, std::move(socket));
+            }
         }
     }
 
-    void Listener::accept(const std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> &&handler)
+    void Listener::accept(const std::function<void(StatusCode, Socket)> &&handler)
     {
-        assert(Win_IO_Accept_Context_.IOOperation == IO_OPERATION::IoNone);
-        Win_IO_Accept_Context_.Socket_ = std::make_shared<Socket>(Context_, ListenSocketAddr.get_Family());
-        Win_IO_Accept_Context_.IOOperation = IO_OPERATION::IoAccept;
-        Win_IO_Accept_Context_.completionhandler = std::move(handler);
-        Win_IO_Accept_Context_.Context_ = Context_;
-        Win_IO_Accept_Context_.ListenSocket = ListenSocket->get_handle();
-        Context_->PendingIO += 1;
+        if (!ListenSocket.isopen())
+            return;
+        auto context = new Win_IO_Accept_Context();
+        context->Socket_ = INTERNAL::Socket(Family);
+        context->IOOperation = IO_OPERATION::IoAccept;
+        context->completionhandler = std::move(handler);
+        context->Context_ = &Context_;
+        context->ListenSocket = ListenSocket.handle;
+        Context_.PendingIO += 1;
         DWORD recvbytes = 0;
-        auto nRet = Context_->AcceptEx_(ListenSocket->get_handle(), Win_IO_Accept_Context_.Socket_->get_handle(),
-                                        (LPVOID)(Win_IO_Accept_Context_.Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
-                                        &recvbytes, (LPOVERLAPPED) & (Win_IO_Accept_Context_.Overlapped));
+        auto nRet = Context_.AcceptEx_(ListenSocket.handle, context->Socket_, (LPVOID)(context->Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16,
+                                       sizeof(SOCKADDR_STORAGE) + 16, &recvbytes, (LPOVERLAPPED) & (context->Overlapped));
         if (nRet == TRUE) {
-            Context_->PendingIO -= 1;
-            handle_accept(true, &Win_IO_Accept_Context_);
+            Context_.PendingIO -= 1;
+            Socket sock(Context_);
+            sock.handle = context->Socket_;
+            handle_accept(true, context, std::move(sock));
         }
         else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
-            if (auto h(std::move(Win_IO_Accept_Context_.completionhandler)); h) {
-                Context_->PendingIO -= 1;
-                Win_IO_Accept_Context_.reset();
-                h(TranslateError(&err), std::shared_ptr<Socket>());
+            if (auto h(std::move(context->completionhandler)); h) {
+                Context_.PendingIO -= 1;
+                delete context;
+                h(TranslateError(&err), Socket(Context_));
             }
         }
     }

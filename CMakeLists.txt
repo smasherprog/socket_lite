@@ -50,12 +50,9 @@ include_directories(
 	${SOCKET_LITE_PLATFORM_INC}
 )
 add_library(${PROJECT_NAME}  
-	include/Socket_Lite.h
-	include/Internal/Context.h  
-	include/Internal/spinlock.h  
-	include/Internal/Listener.h
-	include/Internal/defs.h
-	include/Internal/Socket.h
+	include/Socket_Lite.h 
+	include/Internal/spinlock.h   
+	include/Internal/defs.h 
 	src/Socket_Lite.cpp
 	${SOCKET_LITE_PLATFORM_SRC}
 )

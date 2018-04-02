@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef _WIN32
-#include <WinSock2.h>
-#include <Windows.h>
-#endif
 #include "Socket_Lite.h"
 
 #include <atomic>
@@ -20,9 +16,6 @@ namespace NET {
 
     StatusCode SOCKET_LITE_EXTERN TranslateError(int *errcode = nullptr);
     enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite, IoNone };
-    class Socket;
-    class Context;
-    class Listener;
     struct Win_IO_Context {
 #ifdef _WIN32
         WSAOVERLAPPED Overlapped = {0};
@@ -37,6 +30,36 @@ namespace NET {
         }
     };
 
+    class Win_IO_Connect_Context : public Win_IO_Context {
+        std::function<void(StatusCode)> completionhandler;
+        std::atomic<int> Completion;
+
+      public:
+        PlatformSocket Socket_ = INVALID_SOCKET;
+        Context *Context_ = nullptr;
+        Win_IO_Connect_Context() { Completion = 0; }
+        void setCompletionHandler(std::function<void(StatusCode)> &&c)
+        {
+            completionhandler = std::move(c);
+            Completion = 1;
+        }
+        std::function<void(StatusCode)> getCompletionHandler()
+        {
+            if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
+                return std::move(completionhandler);
+            }
+            std::function<void(StatusCode)> t;
+            return t;
+        }
+
+        void reset()
+        {
+            Socket_ = INVALID_SOCKET;
+            Completion = 1;
+            completionhandler = nullptr;
+            Win_IO_Context::reset();
+        }
+    };
     struct Win_IO_Accept_Context : Win_IO_Context {
 #ifdef _WIN32
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
@@ -45,9 +68,9 @@ namespace NET {
 #endif
         AddressFamily Family = AddressFamily::IPV4;
         Context *Context_ = nullptr;
-        std::shared_ptr<Socket> Socket_;
+        PlatformSocket Socket_ = INVALID_SOCKET;
         PlatformSocket ListenSocket = INVALID_SOCKET;
-        std::function<void(StatusCode, const std::shared_ptr<ISocket> &)> completionhandler;
+        std::function<void(StatusCode, Socket)> completionhandler;
         void reset()
         {
             Win_IO_Context::reset();
@@ -55,9 +78,7 @@ namespace NET {
             Listener_ = nullptr;
 #endif
             Family = AddressFamily::IPV4;
-            Context_ = nullptr;
-            Socket_.reset();
-            ListenSocket = INVALID_SOCKET;
+            Socket_ = ListenSocket = INVALID_SOCKET;
             completionhandler = nullptr;
         }
     };
@@ -69,8 +90,8 @@ namespace NET {
       public:
         size_t transfered_bytes = 0;
         size_t bufferlen = 0;
+        PlatformSocket Socket_ = INVALID_SOCKET;
         Context *Context_ = nullptr;
-        Socket *Socket_ = nullptr;
         unsigned char *buffer = nullptr;
         Win_IO_RW_Context() { Completion = 0; }
         void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
@@ -89,6 +110,7 @@ namespace NET {
 
         void reset()
         {
+            Socket_ = INVALID_SOCKET;
             transfered_bytes = 0;
             bufferlen = 0;
             buffer = nullptr;
@@ -97,5 +119,14 @@ namespace NET {
             Win_IO_Context::reset();
         }
     };
+
+    namespace INTERNAL {
+        PlatformSocket Socket(AddressFamily family);
+    };
+
+    void continue_io(bool success, Win_IO_RW_Context *context);
+    void continue_connect(bool success, Win_IO_Connect_Context *context);
+    void handle_accept(bool success, Win_IO_Accept_Context *context, Socket &&s);
+
 } // namespace NET
 } // namespace SL

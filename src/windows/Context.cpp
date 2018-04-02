@@ -1,6 +1,5 @@
-#include "Context.h"
-#include "Listener.h"
-#include "Socket.h"
+#include "Socket_Lite.h"
+#include "defs.h"
 #include <Ws2tcpip.h>
 #include <algorithm>
 #include <chrono>
@@ -8,7 +7,6 @@
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
-    std::shared_ptr<IContext> CreateContext(ThreadCount threadcount) { return std::make_shared<Context>(threadcount); }
     Context::Context(ThreadCount threadcount) : ThreadCount_(threadcount)
     {
         if (WSAStartup(0x202, &wsaData) != 0) {
@@ -56,22 +54,13 @@ namespace NET {
         WSACleanup();
     }
 
-    std::shared_ptr<ISocket> Context::CreateSocket() { return std::make_shared<Socket>(this); }
-    std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
-    {
-        auto addr = listensocket->getsockname();
-        if (!addr.has_value()) {
-            return std::shared_ptr<IListener>();
-        }
-        auto listener = std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
-
-        if (CreateIoCompletionPort((HANDLE)listener->ListenSocket->get_handle(), IOCPHandle, NULL, NULL) == NULL) {
-            return std::shared_ptr<IListener>();
-        }
-        return listener;
-    }
     void Context::run()
     {
+        auto sockcreator = [](Context &c, PlatformSocket s) {
+            Socket sock(c);
+            sock.handle = s;
+            return sock;
+        };
         Threads.reserve(ThreadCount_.value);
         for (auto i = 0; i < ThreadCount_.value; i++) {
             Threads.push_back(std::thread([&] {
@@ -90,10 +79,11 @@ namespace NET {
                     switch (overlapped->IOOperation) {
 
                     case IO_OPERATION::IoConnect:
-                        Socket::continue_connect(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
                     case IO_OPERATION::IoAccept:
-                        Listener::handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped));
+                        handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped),
+                                      sockcreator(*this, static_cast<Win_IO_Accept_Context *>(overlapped)->Socket_));
                         break;
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
@@ -101,7 +91,7 @@ namespace NET {
                         if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        Socket::continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:
                         break;
