@@ -26,7 +26,7 @@ class session : public std::enable_shared_from_this<session> {
         auto self(shared_from_this());
         SL::NET::recv(socket_, sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_write();
+                self->do_read();
             }
         });
     }
@@ -37,7 +37,7 @@ class session : public std::enable_shared_from_this<session> {
         SL::NET::send(socket_, sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
-                self->do_read();
+                self->do_write();
             }
         });
     }
