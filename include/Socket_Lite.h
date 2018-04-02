@@ -139,6 +139,9 @@ namespace NET {
         PlatformSocket handle;
         Context &context;
 
+        StatusCode bind(sockaddr addr);
+        StatusCode listen(int backlog);
+
       public:
         Socket(Socket &&);
         Socket(const Socket &) = delete;
@@ -147,8 +150,6 @@ namespace NET {
         Socket &operator=(const Socket &) = delete;
         bool isopen() const;
         void close();
-        StatusCode bind(sockaddr addr);
-        StatusCode listen(int backlog);
         std::optional<SL::NET::sockaddr> getpeername();
         std::optional<SL::NET::sockaddr> getsockname();
 
