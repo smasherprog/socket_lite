@@ -10,31 +10,33 @@ namespace NET {
     {
         if (!socket.isopen())
             return;
+        SocketGetter sg(socket);
         auto context = new Win_IO_RW_Context();
         context->buffer = buffer;
         context->transfered_bytes = 0;
         context->bufferlen = buffer_size;
-        context->Context_ = &socket.context;
-        context->Socket_ = socket.handle;
+        context->Context_ = sg.getContext();
+        context->Socket_ = sg.getSocket();
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = IO_OPERATION::IoRead;
-        continue_io(true, context);
+        continue_io(true, context, sg.getPendingIO());
     }
     void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         if (!socket.isopen())
             return;
+        SocketGetter sg(socket);
         auto context = new Win_IO_RW_Context();
         context->buffer = buffer;
         context->transfered_bytes = 0;
         context->bufferlen = buffer_size;
-        context->Context_ = &socket.context;
-        context->Socket_ = socket.handle;
+        context->Context_ = sg.getContext();
+        context->Socket_ = sg.getSocket();
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = IO_OPERATION::IoWrite;
-        continue_io(true, context);
+        continue_io(true, context, sg.getPendingIO());
     }
-    void continue_io(bool success, Win_IO_RW_Context *context)
+    void continue_io(bool success, Win_IO_RW_Context *context, std::atomic<int> &pendingio)
     {
         if (!success) {
             if (auto handler(context->getCompletionHandler()); handler) {
@@ -54,7 +56,7 @@ namespace NET {
             wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
             wsabuf.len = bytesleft;
             DWORD dwSendNumBytes(0), dwFlags(0);
-            context->Context_->PendingIO += 1;
+            pendingio += 1;
             DWORD nRet = 0;
             if (context->IOOperation == IO_OPERATION::IoRead) {
                 nRet = WSARecv(context->Socket_, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
@@ -65,7 +67,7 @@ namespace NET {
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 if (auto handler(context->getCompletionHandler()); handler) {
-                    context->Context_->PendingIO -= 1;
+                    pendingio -= 1;
                     delete context;
                     handler(TranslateError(&lasterr), 0);
                 }
@@ -79,7 +81,6 @@ namespace NET {
             bindaddr.sin_family = AF_INET;
             bindaddr.sin_addr.s_addr = INADDR_ANY;
             bindaddr.sin_port = 0;
-            sockaddr mytestaddr((unsigned char *)&bindaddr, sizeof(bindaddr), "", 0, AddressFamily::IPV4);
             ::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr));
         }
         else {
@@ -113,30 +114,30 @@ namespace NET {
     }
     void connect(Socket &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
-        socket.handle = INTERNAL::Socket(address.get_Family());
-        BindSocket(socket.handle, address.get_Family());
-
-        if (CreateIoCompletionPort((HANDLE)socket.handle, socket.context.IOCPHandle, NULL, NULL) == NULL) {
+        SocketGetter sg(socket);
+        auto handle = sg.setSocket(INTERNAL::Socket(address.get_Family()));
+        BindSocket(handle, address.get_Family());
+        if (CreateIoCompletionPort((HANDLE)handle, sg.getIOCPHandle(), NULL, NULL) == NULL) {
             return handler(TranslateError());
         }
 
         auto context = new Win_IO_Connect_Context();
-        context->Context_ = &socket.context;
+        context->Context_ = sg.getContext();
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = IO_OPERATION::IoConnect;
-        context->Socket_ = socket.handle;
+        context->Socket_ = handle;
 
-        socket.context.PendingIO += 1;
-        auto connectres = socket.context.ConnectEx_(socket.handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), 0, 0, 0,
-                                                    (LPOVERLAPPED)&context->Overlapped);
+        sg.getPendingIO() += 1;
+        auto connectres =
+            sg.ConnectEx()(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen(), 0, 0, 0, (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
-            socket.context.PendingIO -= 1;
+            sg.getPendingIO() -= 1;
             continue_connect(true, context);
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
 
             if (auto h(context->getCompletionHandler()); h) {
-                socket.context.PendingIO -= 1;
+                sg.getPendingIO() -= 1;
                 delete context;
                 h(TranslateError(&err));
             }

@@ -108,11 +108,11 @@ namespace NET {
         unsigned short get_Port() const;
         AddressFamily get_Family() const;
     };
+    class SocketGetter;
     class SOCKET_LITE_EXTERN Context {
+      protected:
         std::vector<std::thread> Threads;
         ThreadCount ThreadCount_;
-
-      public:
 #if WIN32
         WSADATA wsaData;
         LPFN_CONNECTEX ConnectEx_ = nullptr;
@@ -125,6 +125,7 @@ namespace NET {
 
         std::atomic<int> PendingIO;
 
+      public:
         Context(ThreadCount threadcount);
         ~Context();
         Context() = delete;
@@ -132,15 +133,14 @@ namespace NET {
         Context(Context &&) = delete;
         Context &operator=(Context &) = delete;
         void run();
+
+        friend class Listener;
+        friend class SocketGetter;
     };
-    class Listener;
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket handle;
         Context &context;
-
-        StatusCode bind(sockaddr addr);
-        StatusCode listen(int backlog);
 
       public:
         Socket(Socket &&);
@@ -155,11 +155,7 @@ namespace NET {
 
         template <SocketOptions SO> friend auto getsockopt(Socket &socket);
         template <SocketOptions SO, typename... Args> friend auto setsockopt(Socket &socket, Args &&... args);
-        friend void connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
-        friend void recv(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        friend void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        friend Listener;
-        friend Context;
+        friend class SocketGetter;
     };
     class SOCKET_LITE_EXTERN Listener {
       protected:

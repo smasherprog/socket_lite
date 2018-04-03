@@ -58,7 +58,8 @@ namespace NET {
     {
         auto sockcreator = [](Context &c, PlatformSocket s) {
             Socket sock(c);
-            sock.handle = s;
+            SocketGetter sg(sock);
+            sg.setSocket(s);
             return sock;
         };
         Threads.reserve(ThreadCount_.value);
@@ -91,7 +92,7 @@ namespace NET {
                         if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped), PendingIO);
                         break;
                     default:
                         break;

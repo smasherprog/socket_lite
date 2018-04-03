@@ -96,13 +96,7 @@ namespace NET {
         return std::make_tuple(StatusCode::SC_SUCCESS, ret);
     }
     Listener::Listener(Listener &&l) : Context_(l.Context_), ListenSocket(std::move(ListenSocket)), Family(l.Family) {}
-    StatusCode Socket::listen(int backlog)
-    {
-        if (::listen(handle, backlog) == SOCKET_ERROR) {
-            return TranslateError();
-        }
-        return StatusCode::SC_SUCCESS;
-    }
+
     bool Socket::isopen() const { return handle != INVALID_SOCKET; }
     void Socket::close()
     {
@@ -115,17 +109,23 @@ namespace NET {
     Socket::Socket(Context &c) : context(c) { handle = INVALID_SOCKET; }
     Socket::Socket(Socket &&sock) : handle(sock.handle), context(sock.context) { sock.handle = INVALID_SOCKET; }
     Socket::~Socket() { close(); }
-    StatusCode Socket::bind(sockaddr addr)
+    StatusCode SocketGetter::bind(sockaddr addr)
     {
-        if (handle == INVALID_SOCKET) {
-            handle = INTERNAL::Socket(addr.get_Family());
+        if (socket.handle == INVALID_SOCKET) {
+            socket.handle = INTERNAL::Socket(addr.get_Family());
         }
-        if (::bind(handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen()) == SOCKET_ERROR) {
+        if (::bind(socket.handle, (::sockaddr *)addr.get_SocketAddr(), addr.get_SocketAddrLen()) == SOCKET_ERROR) {
             return TranslateError();
         }
         return StatusCode::SC_SUCCESS;
     }
-
+    StatusCode SocketGetter::listen(int backlog)
+    {
+        if (::listen(socket.handle, backlog) == SOCKET_ERROR) {
+            return TranslateError();
+        }
+        return StatusCode::SC_SUCCESS;
+    }
     std::optional<SL::NET::sockaddr> Socket::getpeername()
     {
         sockaddr_storage addr = {0};

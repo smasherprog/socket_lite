@@ -123,8 +123,32 @@ namespace NET {
     namespace INTERNAL {
         PlatformSocket Socket(AddressFamily family);
     };
+    class SocketGetter {
+        Socket &socket;
+        Context &context;
 
-    void continue_io(bool success, Win_IO_RW_Context *context);
+      public:
+        SocketGetter(Socket &s) : socket(s), context(s.context) {}
+        StatusCode bind(sockaddr addr);
+        StatusCode listen(int backlog);
+        PlatformSocket getSocket() const { return socket.handle; }
+        PlatformSocket setSocket(PlatformSocket s)
+        {
+            socket.handle = s;
+            return s;
+        }
+        Context *getContext() const { return &context; }
+        std::atomic<int> &getPendingIO() const { return context.PendingIO; }
+
+#if WIN32
+        LPFN_CONNECTEX ConnectEx() const { return context.ConnectEx_; }
+        HANDLE getIOCPHandle() const { return context.IOCPHandle; }
+#else
+        int getIOCPHandle() const { return context.IOCPHandle; }
+#endif
+    };
+
+    void continue_io(bool success, Win_IO_RW_Context *context, std::atomic<int> &pendingio);
     void continue_connect(bool success, Win_IO_Connect_Context *context);
     void handle_accept(bool success, Win_IO_Accept_Context *context, Socket &&s);
 
