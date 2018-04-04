@@ -11,14 +11,14 @@ namespace NET {
         if (!socket.isopen())
             return;
         SocketGetter sg(socket);
-        auto context = new Win_IO_RW_Context();
+        auto context = sg.getReadContext();
         context->buffer = buffer;
         context->transfered_bytes = 0;
         context->bufferlen = buffer_size;
         context->Context_ = sg.getContext();
         context->Socket_ = sg.getSocket();
         context->setCompletionHandler(std::move(handler));
-        context->IOOperation = IO_OPERATION::IoRead;
+        context->IOOperation = INTERNAL::IO_OPERATION::IoRead;
         continue_io(true, context, sg.getPendingIO());
     }
     void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -26,27 +26,27 @@ namespace NET {
         if (!socket.isopen())
             return;
         SocketGetter sg(socket);
-        auto context = new Win_IO_RW_Context();
+        auto context = sg.getWriteContext();
         context->buffer = buffer;
         context->transfered_bytes = 0;
         context->bufferlen = buffer_size;
         context->Context_ = sg.getContext();
         context->Socket_ = sg.getSocket();
         context->setCompletionHandler(std::move(handler));
-        context->IOOperation = IO_OPERATION::IoWrite;
+        context->IOOperation = INTERNAL::IO_OPERATION::IoWrite;
         continue_io(true, context, sg.getPendingIO());
     }
-    void continue_io(bool success, Win_IO_RW_Context *context, std::atomic<int> &pendingio)
+    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio)
     {
         if (!success) {
             if (auto handler(context->getCompletionHandler()); handler) {
-                delete context;
+                context->reset();
                 handler(TranslateError(), 0);
             }
         }
         else if (context->bufferlen == context->transfered_bytes) {
             if (auto handler(context->getCompletionHandler()); handler) {
-                delete context;
+                context->reset();
                 handler(StatusCode::SC_SUCCESS, context->transfered_bytes);
             }
         }
@@ -58,7 +58,7 @@ namespace NET {
             DWORD dwSendNumBytes(0), dwFlags(0);
             pendingio += 1;
             DWORD nRet = 0;
-            if (context->IOOperation == IO_OPERATION::IoRead) {
+            if (context->IOOperation == INTERNAL::IO_OPERATION::IoRead) {
                 nRet = WSARecv(context->Socket_, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
             }
             else {
@@ -68,7 +68,7 @@ namespace NET {
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 if (auto handler(context->getCompletionHandler()); handler) {
                     pendingio -= 1;
-                    delete context;
+                    context->reset();
                     handler(TranslateError(&lasterr), 0);
                 }
             }
@@ -124,7 +124,7 @@ namespace NET {
         auto context = new Win_IO_Connect_Context();
         context->Context_ = sg.getContext();
         context->setCompletionHandler(std::move(handler));
-        context->IOOperation = IO_OPERATION::IoConnect;
+        context->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
         context->Socket_ = handle;
 
         sg.getPendingIO() += 1;

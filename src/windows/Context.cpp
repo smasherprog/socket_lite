@@ -67,7 +67,7 @@ namespace NET {
             Threads.push_back(std::thread([&] {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
-                    Win_IO_Context *overlapped = nullptr;
+                    INTERNAL::Win_IO_Context *overlapped = nullptr;
                     void *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
@@ -79,20 +79,20 @@ namespace NET {
                     }
                     switch (overlapped->IOOperation) {
 
-                    case IO_OPERATION::IoConnect:
+                    case INTERNAL::IO_OPERATION::IoConnect:
                         continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
-                    case IO_OPERATION::IoAccept:
+                    case INTERNAL::IO_OPERATION::IoAccept:
                         handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped),
                                       sockcreator(*this, static_cast<Win_IO_Accept_Context *>(overlapped)->Socket_));
                         break;
-                    case IO_OPERATION::IoRead:
-                    case IO_OPERATION::IoWrite:
-                        static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
-                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
+                    case INTERNAL::IO_OPERATION::IoRead:
+                    case INTERNAL::IO_OPERATION::IoWrite:
+                        static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
+                        if (numberofbytestransfered == 0 && static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped), PendingIO);
+                        continue_io(bSuccess, static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped), PendingIO);
                         break;
                     default:
                         break;

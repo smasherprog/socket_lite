@@ -108,6 +108,7 @@ namespace NET {
         unsigned short get_Port() const;
         AddressFamily get_Family() const;
     };
+
     class SocketGetter;
     class SOCKET_LITE_EXTERN Context {
       protected:
@@ -137,43 +138,6 @@ namespace NET {
         friend class Listener;
         friend class SocketGetter;
     };
-    class SOCKET_LITE_EXTERN Socket {
-      protected:
-        PlatformSocket handle;
-        Context &context;
-
-      public:
-        Socket(Socket &&);
-        Socket(const Socket &) = delete;
-        Socket(Context &);
-        ~Socket();
-        Socket &operator=(const Socket &) = delete;
-        bool isopen() const;
-        void close();
-        std::optional<SL::NET::sockaddr> getpeername();
-        std::optional<SL::NET::sockaddr> getsockname();
-
-        template <SocketOptions SO> friend auto getsockopt(Socket &socket);
-        template <SocketOptions SO, typename... Args> friend auto setsockopt(Socket &socket, Args &&... args);
-        friend class SocketGetter;
-    };
-    class SOCKET_LITE_EXTERN Listener {
-      protected:
-        Context &Context_;
-        Socket ListenSocket;
-        AddressFamily Family;
-
-      public:
-        Listener(Context &context, PortNumber port, AddressFamily family, StatusCode &ec);
-        ~Listener();
-        Listener() = delete;
-        Listener(Listener &) = delete;
-        Listener(Listener &&);
-        Listener &operator=(Listener &) = delete;
-        void accept(const std::function<void(StatusCode, Socket)> &&handler);
-        void close() { ListenSocket.close(); }
-    };
-
     namespace INTERNAL {
         std::tuple<StatusCode, std::optional<SockOptStatus>> SOCKET_LITE_EXTERN getsockopt_O_DEBUG(PlatformSocket handle);
         std::tuple<StatusCode, std::optional<SockOptStatus>> SOCKET_LITE_EXTERN getsockopt_O_ACCEPTCONN(PlatformSocket handle);
@@ -284,7 +248,97 @@ namespace NET {
         template <> struct setsockopt_factory_impl<SocketOptions::O_BLOCKING> {
             static auto setsockopt_(PlatformSocket handle, Blocking_Options b) { return setsockopt_O_BLOCKING(handle, b); }
         };
+
+        enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite, IoNone };
+        struct Win_IO_Context {
+#ifdef _WIN32
+            WSAOVERLAPPED Overlapped = {0};
+#endif
+            IO_OPERATION IOOperation = IO_OPERATION::IoNone;
+            void reset()
+            {
+#ifdef _WIN32
+                Overlapped = {0};
+#endif
+                IOOperation = IO_OPERATION::IoNone;
+            }
+        };
+        class Win_IO_RW_Context : public Win_IO_Context {
+            std::function<void(StatusCode, size_t)> completionhandler;
+            std::atomic<int> Completion;
+
+          public:
+            size_t transfered_bytes = 0;
+            size_t bufferlen = 0;
+            PlatformSocket Socket_ = INVALID_SOCKET;
+            Context *Context_ = nullptr;
+            unsigned char *buffer = nullptr;
+            Win_IO_RW_Context() { Completion = 0; }
+            void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
+            {
+                completionhandler = std::move(c);
+                Completion = 1;
+            }
+            std::function<void(StatusCode, size_t)> getCompletionHandler()
+            {
+                if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
+                    return std::move(completionhandler);
+                }
+                std::function<void(StatusCode, size_t)> t;
+                return t;
+            }
+
+            void reset()
+            {
+                Socket_ = INVALID_SOCKET;
+                transfered_bytes = 0;
+                bufferlen = 0;
+                buffer = nullptr;
+                Completion = 1;
+                completionhandler = nullptr;
+                Win_IO_Context::reset();
+            }
+        };
     } // namespace INTERNAL
+
+    class SOCKET_LITE_EXTERN Socket {
+      protected:
+        PlatformSocket handle;
+        Context &context;
+        INTERNAL::Win_IO_RW_Context ReadContext;
+        INTERNAL::Win_IO_RW_Context WriteContext;
+
+      public:
+        Socket(Socket &&);
+        Socket(const Socket &) = delete;
+        Socket(Context &);
+        ~Socket();
+        Socket &operator=(const Socket &) = delete;
+        bool isopen() const;
+        void close();
+        std::optional<SL::NET::sockaddr> getpeername();
+        std::optional<SL::NET::sockaddr> getsockname();
+
+        template <SocketOptions SO> friend auto getsockopt(Socket &socket);
+        template <SocketOptions SO, typename... Args> friend auto setsockopt(Socket &socket, Args &&... args);
+        friend class SocketGetter;
+    };
+    class SOCKET_LITE_EXTERN Listener {
+      protected:
+        Context &Context_;
+        Socket ListenSocket;
+        AddressFamily Family;
+
+      public:
+        Listener(Context &context, PortNumber port, AddressFamily family, StatusCode &ec);
+        ~Listener();
+        Listener() = delete;
+        Listener(Listener &) = delete;
+        Listener(Listener &&);
+        Listener &operator=(Listener &) = delete;
+        void accept(const std::function<void(StatusCode, Socket)> &&handler);
+        void close() { ListenSocket.close(); }
+    };
     template <SocketOptions SO> auto getsockopt(Socket &socket) { return INTERNAL::getsockopt_factory_impl<SO>::getsockopt_(socket.handle); }
     template <SocketOptions SO, typename... Args> auto setsockopt(Socket &socket, Args &&... args)
     {

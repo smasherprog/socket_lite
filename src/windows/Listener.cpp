@@ -59,7 +59,7 @@ namespace NET {
         SocketGetter sg(ListenSocket);
         auto context = new Win_IO_Accept_Context();
         context->Socket_ = INTERNAL::Socket(Family);
-        context->IOOperation = IO_OPERATION::IoAccept;
+        context->IOOperation = INTERNAL::IO_OPERATION::IoAccept;
         context->completionhandler = std::move(handler);
         context->Context_ = &Context_;
         context->ListenSocket = sg.getSocket();

@@ -14,23 +14,9 @@
 namespace SL {
 namespace NET {
 
-    StatusCode SOCKET_LITE_EXTERN TranslateError(int *errcode = nullptr);
-    enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite, IoNone };
-    struct Win_IO_Context {
-#ifdef _WIN32
-        WSAOVERLAPPED Overlapped = {0};
-#endif
-        IO_OPERATION IOOperation = IO_OPERATION::IoNone;
-        void reset()
-        {
-#ifdef _WIN32
-            Overlapped = {0};
-#endif
-            IOOperation = IO_OPERATION::IoNone;
-        }
-    };
+    StatusCode TranslateError(int *errcode = nullptr);
 
-    class Win_IO_Connect_Context : public Win_IO_Context {
+    class Win_IO_Connect_Context : public INTERNAL::Win_IO_Context {
         std::function<void(StatusCode)> completionhandler;
         std::atomic<int> Completion;
 
@@ -60,7 +46,7 @@ namespace NET {
             Win_IO_Context::reset();
         }
     };
-    struct Win_IO_Accept_Context : Win_IO_Context {
+    struct Win_IO_Accept_Context : INTERNAL::Win_IO_Context {
 #ifdef _WIN32
         char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
 #else
@@ -83,43 +69,6 @@ namespace NET {
         }
     };
 
-    class Win_IO_RW_Context : public Win_IO_Context {
-        std::function<void(StatusCode, size_t)> completionhandler;
-        std::atomic<int> Completion;
-
-      public:
-        size_t transfered_bytes = 0;
-        size_t bufferlen = 0;
-        PlatformSocket Socket_ = INVALID_SOCKET;
-        Context *Context_ = nullptr;
-        unsigned char *buffer = nullptr;
-        Win_IO_RW_Context() { Completion = 0; }
-        void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
-        {
-            completionhandler = std::move(c);
-            Completion = 1;
-        }
-        std::function<void(StatusCode, size_t)> getCompletionHandler()
-        {
-            if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
-                return std::move(completionhandler);
-            }
-            std::function<void(StatusCode, size_t)> t;
-            return t;
-        }
-
-        void reset()
-        {
-            Socket_ = INVALID_SOCKET;
-            transfered_bytes = 0;
-            bufferlen = 0;
-            buffer = nullptr;
-            Completion = 1;
-            completionhandler = nullptr;
-            Win_IO_Context::reset();
-        }
-    };
-
     namespace INTERNAL {
         PlatformSocket Socket(AddressFamily family);
     };
@@ -138,6 +87,8 @@ namespace NET {
             return s;
         }
         Context *getContext() const { return &context; }
+        INTERNAL::Win_IO_RW_Context *getReadContext() const { return &socket.ReadContext; }
+        INTERNAL::Win_IO_RW_Context *getWriteContext() const { return &socket.WriteContext; }
         std::atomic<int> &getPendingIO() const { return context.PendingIO; }
 
 #if WIN32
@@ -148,7 +99,7 @@ namespace NET {
 #endif
     };
 
-    void continue_io(bool success, Win_IO_RW_Context *context, std::atomic<int> &pendingio);
+    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio);
     void continue_connect(bool success, Win_IO_Connect_Context *context);
     void handle_accept(bool success, Win_IO_Accept_Context *context, Socket &&s);
 
