@@ -2,7 +2,10 @@
 #include "Socket_Lite.h"
 #include "defs.h"
 #include <assert.h>
-
+#if !_WIN32 
+#include <sys/socket.h>
+#include <sys/types.h>
+#endif
 namespace SL {
     namespace NET {
 
