@@ -102,9 +102,27 @@ namespace NET {
         handle = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
             CloseSocket(t);
+        }  
+#if !_WIN32  
+        auto whandler(WriteContext.getCompletionHandler());
+        if (whandler) {
+            WriteContext.reset();
+            Context_->PendingIO -= 1;
+            whandler(StatusCode::SC_CLOSED, 0);
         }
+        auto whandler1(ReadContext.getCompletionHandler());
+        if (whandler1) {
+            ReadContext.reset();
+            Context_->PendingIO -= 1;
+            whandler1(StatusCode::SC_CLOSED, 0);
+        }
+#endif
+    } 
+    Socket::Socket(Context &c) : context(c) { 
+        handle = INVALID_SOCKET; 
+        WriteContext.Context_ = ReadContext.Context_ = Context_;
+        WriteContext.Socket_ = ReadContext.Socket_ = this;
     }
-    Socket::Socket(Context &c) : context(c) { handle = INVALID_SOCKET; }
     Socket::Socket(Socket &&sock) : handle(sock.handle), context(sock.context) { sock.handle = INVALID_SOCKET; }
     Socket::~Socket() { close(); }
     StatusCode SocketGetter::bind(sockaddr addr)

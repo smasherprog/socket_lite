@@ -1,6 +1,4 @@
-
-#include "Context.h"
-#include "Socket.h"
+#include "Socket_Lite.h"
 #include <assert.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -11,36 +9,8 @@ namespace SL
 {
 namespace NET
 {
+ 
 
-Socket::Socket(Context *context, AddressFamily family) : Socket(context)
-{
-    handle = INTERNAL::Socket(family);
-}
-Socket::Socket(Context *context) : Context_(context)
-{
-    WriteContext.Context_ = ReadContext.Context_ = Context_;
-    WriteContext.Socket_ = ReadContext.Socket_ = this;
-}
-Socket::~Socket()
-{
-    Socket::close();
-}
-void Socket::close()
-{
-    ISocket::close();
-    auto whandler(WriteContext.getCompletionHandler());
-    if (whandler) {
-        WriteContext.reset();
-        Context_->PendingIO -= 1;
-        whandler(StatusCode::SC_CLOSED, 0);
-    }
-    auto whandler1(ReadContext.getCompletionHandler());
-    if (whandler1) {
-        ReadContext.reset();
-        Context_->PendingIO -= 1;
-        whandler1(StatusCode::SC_CLOSED, 0);
-    }
-}
 void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
