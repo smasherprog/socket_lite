@@ -19,13 +19,9 @@ namespace NET {
         DWORD bytes = 0;
         WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
 
-        GUID acceptex_guid = WSAID_ACCEPTEX;
-        bytes = 0;
-        WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_, sizeof(AcceptEx_), &bytes, NULL,
-                 NULL);
 
         closesocket(handle);
-        if (IOCPHandle == NULL || AcceptEx_ == nullptr || ConnectEx_ == nullptr) {
+        if (IOCPHandle == NULL || ConnectEx_ == nullptr) {
             abort();
         }
     }

@@ -122,8 +122,7 @@ namespace SL {
             ThreadCount ThreadCount_;
 #if WIN32
             WSADATA wsaData;
-            LPFN_CONNECTEX ConnectEx_ = nullptr;
-            LPFN_ACCEPTEX AcceptEx_ = nullptr;
+            LPFN_CONNECTEX ConnectEx_ = nullptr; 
             HANDLE IOCPHandle = NULL;
 #else
             int EventWakeFd = -1;
