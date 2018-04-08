@@ -81,11 +81,7 @@ namespace NET {
 
                     case INTERNAL::IO_OPERATION::IoConnect:
                         continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
-                        break;
-                    case INTERNAL::IO_OPERATION::IoAccept:
-                        handle_accept(bSuccess, static_cast<Win_IO_Accept_Context *>(overlapped),
-                                      sockcreator(*this, static_cast<Win_IO_Accept_Context *>(overlapped)->Socket_));
-                        break;
+                        break; 
                     case INTERNAL::IO_OPERATION::IoRead:
                     case INTERNAL::IO_OPERATION::IoWrite:
                         static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;

@@ -94,9 +94,7 @@ namespace NET {
         }
         freeaddrinfo(result);
         return std::make_tuple(StatusCode::SC_SUCCESS, ret);
-    }
-    Listener::Listener(Listener &&l) : Context_(l.Context_), ListenSocket(std::move(ListenSocket)), Family(l.Family) {}
-
+    } 
     bool Socket::isopen() const { return handle != INVALID_SOCKET; }
     void Socket::close()
     {
@@ -172,18 +170,29 @@ namespace NET {
         return std::nullopt;
     }
 
-    PlatformSocket INTERNAL::Socket(AddressFamily family)
+    PlatformSocket INTERNAL::Socket(AddressFamily family, bool blocking)
     {
         PlatformSocket handle = INVALID_SOCKET;
 #if _WIN32
-        if (family == AddressFamily::IPV4) {
-            handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+        if (blocking) {
+            if (family == AddressFamily::IPV4) {
+                handle = socket(AF_INET, SOCK_STREAM , IPPROTO_IP);
+            }
+            else {
+                handle = socket(AF_INET6, SOCK_STREAM , IPPROTO_IP);
+            }
         }
         else {
-            handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+
+            if (family == AddressFamily::IPV4) {
+                handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+            }
+            else {
+                handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+            }
+            u_long iMode = 1;
+            ioctlsocket(handle, FIONBIO, &iMode);
         }
-        u_long iMode = 1;
-        ioctlsocket(handle, FIONBIO, &iMode);
 #else
         if (family == AddressFamily::IPV4) {
             handle = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);

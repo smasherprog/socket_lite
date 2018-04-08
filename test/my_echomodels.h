@@ -41,33 +41,9 @@ class session : public std::enable_shared_from_this<session> {
             }
         });
     }
+    void close() { socket_.close(); }
     SL::NET::Socket socket_;
-};
-
-class asioserver : public std::enable_shared_from_this<asioserver> {
-  public:
-    asioserver(SL::NET::Context &io_context, SL::NET::PortNumber port) : Listener(io_context, port, SL::NET::AddressFamily::IPV4, ec)
-    {
-        if (ec != SL::NET::StatusCode::SC_SUCCESS) {
-            std::cout << "Listener failed to create code:" << ec << std::endl;
-        }
-    }
-    void do_accept()
-    {
-        auto self(shared_from_this());
-        Listener.accept([self](SL::NET::StatusCode code, SL::NET::Socket socket) {
-            if (keepgoing) {
-                auto s = std::make_shared<session>(socket);
-                s->do_read();
-                s->do_write();
-                self->do_accept();
-            }
-        });
-    }
-    void close() { Listener.close(); }
-    SL::NET::StatusCode ec;
-    SL::NET::Listener Listener;
-};
+}; 
 class asioclient {
   public:
     std::vector<SL::NET::sockaddr> Addresses;

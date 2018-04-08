@@ -54,6 +54,7 @@ add_library(${PROJECT_NAME}
 	include/Internal/spinlock.h   
 	include/Internal/defs.h 
 	src/Socket_Lite.cpp
+	src/Acceptor.cpp 
 	${SOCKET_LITE_PLATFORM_SRC}
 )
 

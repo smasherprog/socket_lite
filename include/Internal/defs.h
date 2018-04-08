@@ -70,7 +70,7 @@ namespace NET {
     };
 
     namespace INTERNAL {
-        PlatformSocket Socket(AddressFamily family);
+        PlatformSocket Socket(AddressFamily family, bool blocking = false);
     };
     class SocketGetter {
         Socket &socket;
@@ -100,8 +100,8 @@ namespace NET {
     };
 
     void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio);
-    void continue_connect(bool success, Win_IO_Connect_Context *context);
-    void handle_accept(bool success, Win_IO_Accept_Context *context, Socket &&s);
+    void continue_connect(bool success, Win_IO_Connect_Context *context); 
+    void CloseSocket(PlatformSocket &handle);
 
 } // namespace NET
 } // namespace SL

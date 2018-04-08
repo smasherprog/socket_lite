@@ -72,6 +72,11 @@ namespace NET {
                     handler(TranslateError(&lasterr), 0);
                 }
             }
+            if (context->IOOperation == INTERNAL::IO_OPERATION::IoRead) {
+                auto r = nRet;
+                auto ls = lasterr;
+                int k = 6;
+            }
         }
     }
     void BindSocket(SOCKET sock, AddressFamily family)
