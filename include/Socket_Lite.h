@@ -23,6 +23,12 @@
 #else
 #define SOCKET_LITE_EXTERN
 #endif
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+#ifndef SOCKET_ERROR
+#define SOCKET_ERROR -1
+#endif
 namespace SL {
     namespace NET {
         template <typename T, typename Meaning> struct Explicit {

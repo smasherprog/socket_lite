@@ -170,38 +170,18 @@ namespace NET {
         return std::nullopt;
     }
 
-    PlatformSocket INTERNAL::Socket(AddressFamily family, bool blocking)
+    PlatformSocket INTERNAL::Socket(AddressFamily family)
     {
-        PlatformSocket handle = INVALID_SOCKET;
-#if _WIN32
-        if (blocking) {
-            if (family == AddressFamily::IPV4) {
-                handle = socket(AF_INET, SOCK_STREAM , IPPROTO_IP);
-            }
-            else {
-                handle = socket(AF_INET6, SOCK_STREAM , IPPROTO_IP);
-            }
-        }
-        else {
-
-            if (family == AddressFamily::IPV4) {
-                handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-            }
-            else {
-                handle = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-            }
-            u_long iMode = 1;
-            ioctlsocket(handle, FIONBIO, &iMode);
-        }
-#else
-        if (family == AddressFamily::IPV4) {
-            handle = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-        }
-        else {
-            handle = socket(AF_INET6, SOCK_STREAM | SOCK_NONBLOCK, 0);
-        }
+        int typ = SOCK_STREAM;
+#if !_WIN32 
+        typ |= SOCK_NONBLOCK;
 #endif
-        return handle;
+        if (family == AddressFamily::IPV4) {
+            return socket(AF_INET, typ, 0);
+        }
+        else {
+            return socket(AF_INET6, typ, 0);
+        } 
     }
     std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_DEBUG(PlatformSocket handle)
     {

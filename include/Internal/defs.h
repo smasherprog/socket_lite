@@ -5,12 +5,7 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-#ifndef SOCKET_ERROR
-#define SOCKET_ERROR -1
-#endif
+
 namespace SL {
 namespace NET {
 
@@ -70,7 +65,7 @@ namespace NET {
     };
 
     namespace INTERNAL {
-        PlatformSocket Socket(AddressFamily family, bool blocking = false);
+        PlatformSocket Socket(AddressFamily family);
     };
     class SocketGetter {
         Socket &socket;

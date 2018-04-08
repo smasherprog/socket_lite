@@ -16,7 +16,7 @@ namespace SL {
             }
             else {
                 for (auto &address : addresses) {
-                    auto handle = INTERNAL::Socket(family, true);
+                    auto handle = INTERNAL::Socket(family);
                     if (::bind(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen()) == SOCKET_ERROR) {
                         ec = TranslateError();
                         CloseSocket(handle);
