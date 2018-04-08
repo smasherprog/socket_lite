@@ -3,9 +3,8 @@
 #include "defs.h"
 #include <assert.h>
 #if !_WIN32
-
-- #include <sys/epoll.h>
-- #include <netinet/ip.h>
+#include <sys/epoll.h>
+#include <netinet/ip.h>
 #endif
 namespace SL {
     namespace NET {
