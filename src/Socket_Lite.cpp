@@ -120,11 +120,47 @@ namespace NET {
     } 
     Socket::Socket(Context &c) : context(c) { 
         handle = INVALID_SOCKET; 
-        WriteContext.Context_ = ReadContext.Context_ = Context_;
-        WriteContext.Socket_ = ReadContext.Socket_ = this;
+        WriteContext.Context_ = ReadContext.Context_ = &c; 
     }
     Socket::Socket(Socket &&sock) : handle(sock.handle), context(sock.context) { sock.handle = INVALID_SOCKET; }
     Socket::~Socket() { close(); }
+    void recv(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        if (!socket.isopen())
+            return;
+        SocketGetter sg(socket);
+        auto context = sg.getReadContext();
+        context->buffer = buffer;
+        context->transfered_bytes = 0;
+        context->bufferlen = buffer_size;
+        context->Context_ = sg.getContext();
+        context->Socket_ = sg.getSocket();
+        context->setCompletionHandler(std::move(handler));
+        context->IOOperation = INTERNAL::IO_OPERATION::IoRead;
+#if !_WIN32  
+        context->Context_->PendingIO += 1;
+#endif
+        continue_io(true, context, sg.getPendingIO());
+
+    }
+    void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        if (!socket.isopen())
+            return;
+        SocketGetter sg(socket);
+        auto context = sg.getWriteContext();
+        context->buffer = buffer;
+        context->transfered_bytes = 0;
+        context->bufferlen = buffer_size;
+        context->Context_ = sg.getContext();
+        context->Socket_ = sg.getSocket();
+        context->setCompletionHandler(std::move(handler));
+        context->IOOperation = INTERNAL::IO_OPERATION::IoWrite;
+#if !_WIN32  
+        context->Context_->PendingIO += 1;
+#endif
+        continue_io(true, context, sg.getPendingIO());
+    }
     StatusCode SocketGetter::bind(sockaddr addr)
     {
         if (socket.handle == INVALID_SOCKET) {

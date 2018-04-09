@@ -6,36 +6,6 @@
 namespace SL {
 namespace NET {
 
-    void recv(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-    {
-        if (!socket.isopen())
-            return;
-        SocketGetter sg(socket);
-        auto context = sg.getReadContext();
-        context->buffer = buffer;
-        context->transfered_bytes = 0;
-        context->bufferlen = buffer_size;
-        context->Context_ = sg.getContext();
-        context->Socket_ = sg.getSocket();
-        context->setCompletionHandler(std::move(handler));
-        context->IOOperation = INTERNAL::IO_OPERATION::IoRead;
-        continue_io(true, context, sg.getPendingIO());
-    }
-    void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-    {
-        if (!socket.isopen())
-            return;
-        SocketGetter sg(socket);
-        auto context = sg.getWriteContext();
-        context->buffer = buffer;
-        context->transfered_bytes = 0;
-        context->bufferlen = buffer_size;
-        context->Context_ = sg.getContext();
-        context->Socket_ = sg.getSocket();
-        context->setCompletionHandler(std::move(handler));
-        context->IOOperation = INTERNAL::IO_OPERATION::IoWrite;
-        continue_io(true, context, sg.getPendingIO());
-    }
     void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio)
     {
         if (!success) {
@@ -100,22 +70,16 @@ namespace NET {
     void continue_connect(bool success, Win_IO_Connect_Context *context)
     {
         auto h = context->getCompletionHandler();
-        if (success && ::setsockopt(context->Socket_, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-            if (h) {
-                delete context;
+        auto sock = context->Socket_;
+        delete context;
+        if (success && ::setsockopt(sock, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+            if (h) { 
                 h(StatusCode::SC_SUCCESS);
-            }
-            else {
-                delete context;
-            }
+            } 
         }
-        else if (h) {
-            delete context;
+        else if (h) { 
             h(TranslateError());
-        }
-        else {
-            delete context;
-        }
+        } 
     }
     void connect(Socket &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {

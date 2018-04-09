@@ -86,12 +86,9 @@ void Context::run()
                     if (epollevents[i].data.fd != EventWakeFd) {
                         auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
                         switch (ctx->IOOperation) {
-                        case IO_OPERATION::IoConnect:
+                        case IO_OPERATION::IoConnect: 
                             Socket::continue_connect(true, static_cast<Win_IO_RW_Context *>(ctx));
-                            break;
-                        case IO_OPERATION::IoAccept:
-                            Listener::handle_accept(true, static_cast<Win_IO_Accept_Context *>(ctx));
-                            break;
+                            break; 
                         case IO_OPERATION::IoRead:
                         case IO_OPERATION::IoWrite:
                             Socket::continue_io(true, static_cast<Win_IO_RW_Context *>(ctx));
@@ -99,10 +96,10 @@ void Context::run()
                         default:
                             break;
                         }
+                        if (--PendingIO <= 0) {
+                            return;
+                        }
                     }
-                }
-                if (PendingIO <= 0) {
-                    return;
                 }
             }
         }));

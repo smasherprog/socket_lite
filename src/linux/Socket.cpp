@@ -11,11 +11,11 @@ namespace NET
 {
  
 
-void Socket::connect(SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
+void connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&handler)
 {
-    assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
-    ISocket::close();
-    handle = INTERNAL::Socket(address.get_Family());
+    SocketGetter sg(socket);
+    auto handle = sg.setSocket(INTERNAL::Socket(address.get_Family()));
+
     auto ret = ::connect(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen());
     if (ret == -1) { // will complete some time later
         auto err = errno;
@@ -23,21 +23,22 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
             handler(TranslateError(&err));
         } else {
             //need to allocate for the epoll call
-            Context_->PendingIO += 1;
-            WriteContext.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) {
-                ihandler(s);
-            });
-            WriteContext.IOOperation = IO_OPERATION::IoConnect;
+            sg.getPendingIO() += 1;
+
+            auto context = new Win_IO_Connect_Context();
+            context->Context_ = sg.getContext();
+            context->setCompletionHandler(std::move(handler));
+            context->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
+            context->Socket_ = handle; 
 
             epoll_event ev = {0};
             ev.data.ptr = &WriteContext;
             ev.events = EPOLLOUT | EPOLLONESHOT;
-            if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_ADD, handle, &ev) == -1) {
-                auto h = WriteContext.getCompletionHandler();
-                if (h) {
-                    WriteContext.reset();
-                    Context_->PendingIO -= 1;
-                    h(TranslateError(), 0);
+            if (epoll_ctl(sg.getIOCPHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
+                if (auto h(context->getCompletionHandler()); h) {
+                    sg.getPendingIO() -= 1;
+                    delete context;
+                    h(TranslateError());
                 }
             }
         }
@@ -50,94 +51,23 @@ void Socket::connect(SL::NET::sockaddr &address, const std::function<void(Status
         }
     }
 }
-void Socket::continue_connect(bool success, Win_IO_RW_Context *context)
+void continue_connect(bool success, Win_IO_Connect_Context *context)
 {
     auto h = context->getCompletionHandler();
-    if (h) {
-        context->Context_->PendingIO -= 1;
-        context->reset();
-        auto[suc, errocode] = context->Socket_->getsockopt<SocketOptions::O_ERROR>();
+    auto handle = context->Socket_;
+    delete context;
+    if (h) {  
+        auto[suc, errocode] = INTERNAL::setsockopt_factory_impl<SL::NET::SocketOptions::O_ERROR>::setsockopt_(handle);
         if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
-            h(StatusCode::SC_SUCCESS, 0);
+            h(StatusCode::SC_SUCCESS);
         } else {
-            h(TranslateError(), 0);
+            h(TranslateError());
         }
     }
 }
 
-void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+void continue_io(bool success, Win_IO_RW_Context *context)
 {
-    assert(WriteContext.IOOperation == IO_OPERATION::IoNone);
-    WriteContext.transfered_bytes = 0;
-    auto count = ::write(handle, buffer, buffer_size);
-    if (count < 0) { // possible error or continue
-        if (errno != EAGAIN && errno != EINTR) {
-            close();
-            return handler(TranslateError(), 0);
-        }
-    } else {
-        WriteContext.transfered_bytes = static_cast<size_t>(count);
-    }
-    if (count > 0 && static_cast<size_t>(count) == buffer_size) {
-        return handler(StatusCode::SC_SUCCESS, buffer_size);
-    }
-    WriteContext.buffer = buffer;
-    WriteContext.bufferlen = buffer_size;
-    WriteContext.setCompletionHandler(std::move(handler));
-    WriteContext.IOOperation = IO_OPERATION::IoWrite;
-    epoll_event ev = {0};
-    ev.data.ptr = &WriteContext;
-    ev.events = EPOLLOUT |  EPOLLONESHOT;
-    Context_->PendingIO += 1;
-    if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_MOD, handle, &ev) == -1) {
-        auto h(WriteContext.getCompletionHandler());
-        if (h) {
-            WriteContext.reset();
-            close();
-            Context_->PendingIO -= 1;
-            h(TranslateError(), 0);
-        }
-    }
-}
-void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-{
-    assert(ReadContext.IOOperation == IO_OPERATION::IoNone);
-    ReadContext.transfered_bytes = 0;
-    auto count = ::read(handle, buffer, buffer_size);
-    if (count <= 0) { // possible error or continue
-        if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-            close();
-            return handler(TranslateError(), 0);
-        }
-    } else {
-        ReadContext.transfered_bytes = static_cast<size_t>(count);
-    }
-    if (count>0 && static_cast<size_t>(count) == buffer_size) {
-        return handler(StatusCode::SC_SUCCESS, buffer_size);
-    }
-    ReadContext.buffer = buffer;
-    ReadContext.bufferlen = buffer_size;
-    ReadContext.setCompletionHandler(std::move(handler));
-    ReadContext.IOOperation = IO_OPERATION::IoRead;
-
-    epoll_event ev = {0};
-    ev.data.ptr = &ReadContext;
-    ev.events = EPOLLIN |  EPOLLONESHOT;
-    Context_->PendingIO += 1;
-    if (epoll_ctl(Context_->IOCPHandle, EPOLL_CTL_MOD, handle, &ev) == -1) {
-        auto h(ReadContext.getCompletionHandler());
-        if (h) {
-            ReadContext.reset();
-            close();
-            Context_->PendingIO -= 1;
-            h(TranslateError(), 0);
-        }
-    }
-}
-
-void Socket::continue_io(bool success, Win_IO_RW_Context *context)
-{
-    context->Context_->PendingIO -= 1;
     auto bytestowrite = context->bufferlen - context->transfered_bytes;
     auto count = 0;
     if (context->IOOperation == IO_OPERATION::IoRead) {
