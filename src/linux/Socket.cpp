@@ -11,7 +11,7 @@ namespace SL
 namespace NET
 {
  
-void connect(Socket &socket, SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
+void connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&handler)
 {
     SocketGetter sg(socket);
     auto writecontext = sg.getWriteContext();

@@ -58,7 +58,7 @@ class asioclient {
     {
         if (Addresses.empty())
             return;
-        connect(socket_->socket_, Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect(socket_->socket_, Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 socket_->do_write();
                 socket_->do_read();
