@@ -10,23 +10,7 @@ using namespace std::chrono_literals;
 namespace SL
 {
 namespace NET
-{
-std::shared_ptr<ISocket> Context::CreateSocket()
-{
-    return std::make_shared<Socket>(this);
-}
-std::shared_ptr<IListener> Context::CreateListener(std::shared_ptr<ISocket> &&listensocket)
-{
-    auto addr = listensocket->getsockname();
-    if (!addr.has_value()) {
-        return std::shared_ptr<IListener>();
-    }
-    return std::make_shared<Listener>(this, std::forward<std::shared_ptr<ISocket>>(listensocket), addr.value());
-}
-std::shared_ptr<IContext> CreateContext(ThreadCount threadcount)
-{
-    return std::make_shared<Context>(threadcount);
-}
+{ 
 Context::Context(ThreadCount threadcount)
     : ThreadCount_(threadcount)
 {
@@ -84,14 +68,14 @@ void Context::run()
                 }
                 for (auto i = 0; i < count; i++) { 
                     if (epollevents[i].data.fd != EventWakeFd) {
-                        auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
+                        auto ctx = static_cast<INTERNAL::Win_IO_Context *>(epollevents[i].data.ptr);
                         switch (ctx->IOOperation) {
-                        case IO_OPERATION::IoConnect: 
-                            Socket::continue_connect(true, static_cast<Win_IO_RW_Context *>(ctx));
+                        case INTERNAL::IO_OPERATION::IoConnect: 
+                            continue_connect(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx));
                             break; 
-                        case IO_OPERATION::IoRead:
-                        case IO_OPERATION::IoWrite:
-                            Socket::continue_io(true, static_cast<Win_IO_RW_Context *>(ctx));
+                        case INTERNAL::IO_OPERATION::IoRead:
+                        case INTERNAL::IO_OPERATION::IoWrite:
+                            continue_io(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx), PendingIO, IOCPHandle);
                             break;
                         default:
                             break;

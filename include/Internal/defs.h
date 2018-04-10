@@ -66,7 +66,7 @@ namespace NET {
 
     namespace INTERNAL {
         PlatformSocket Socket(AddressFamily family);
-    };
+    }
     class SocketGetter {
         Socket &socket;
         Context &context;
@@ -94,8 +94,20 @@ namespace NET {
 #endif
     };
 
-    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio);
-    void continue_connect(bool success, Win_IO_Connect_Context *context); 
+    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio,
+#if !WIN32    
+    int iocphandle
+#endif
+    );
+    
+    void continue_connect(bool success, 
+#if WIN32
+    Win_IO_Connect_Context 
+#else
+    INTERNAL::Win_IO_RW_Context
+#endif
+    *context); 
+    
     void CloseSocket(PlatformSocket &handle);
 
 } // namespace NET

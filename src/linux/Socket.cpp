@@ -1,4 +1,5 @@
 #include "Socket_Lite.h"
+#include "defs.h"
 #include <assert.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -10,12 +11,12 @@ namespace SL
 namespace NET
 {
  
-
-void connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&handler)
+void connect(Socket &socket, SL::NET::sockaddr &address, const std::function<void(StatusCode)> &&handler)
 {
     SocketGetter sg(socket);
-    auto handle = sg.setSocket(INTERNAL::Socket(address.get_Family()));
-
+    auto writecontext = sg.getWriteContext();
+    assert(writecontext->IOOperation == INTERNAL::IO_OPERATION::IoNone);
+    auto handle = writecontext->Socket_ = INTERNAL::Socket(address.get_Family());
     auto ret = ::connect(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen());
     if (ret == -1) { // will complete some time later
         auto err = errno;
@@ -24,26 +25,24 @@ void connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(Stat
         } else {
             //need to allocate for the epoll call
             sg.getPendingIO() += 1;
-
-            auto context = new Win_IO_Connect_Context();
-            context->Context_ = sg.getContext();
-            context->setCompletionHandler(std::move(handler));
-            context->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
-            context->Socket_ = handle; 
+            writecontext->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) {
+                ihandler(s);
+            });
+            writecontext->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
 
             epoll_event ev = {0};
-            ev.data.ptr = &WriteContext;
+            ev.data.ptr = writecontext;
             ev.events = EPOLLOUT | EPOLLONESHOT;
-            if (epoll_ctl(sg.getIOCPHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
-                if (auto h(context->getCompletionHandler()); h) {
+            if (epoll_ctl(sg.getIOCPHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) { 
+                if (auto h = writecontext->getCompletionHandler(); h) {
+                    writecontext->reset();
                     sg.getPendingIO() -= 1;
-                    delete context;
-                    h(TranslateError());
+                    h(TranslateError(), 0);
                 }
             }
         }
     } else { // connection completed
-        auto[suc, errocode] = getsockopt<SocketOptions::O_ERROR>();
+        auto[suc, errocode] = INTERNAL::getsockopt_O_ERROR(handle);
         if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
             handler(StatusCode::SC_SUCCESS);
         } else {
@@ -51,32 +50,28 @@ void connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(Stat
         }
     }
 }
-void continue_connect(bool success, Win_IO_Connect_Context *context)
+void continue_connect(bool success, INTERNAL::Win_IO_RW_Context *context)
 {
     auto h = context->getCompletionHandler();
-    auto handle = context->Socket_;
-    delete context;
-    if (h) {  
-        auto[suc, errocode] = INTERNAL::setsockopt_factory_impl<SL::NET::SocketOptions::O_ERROR>::setsockopt_(handle);
+    if (h) { 
+        context->reset();
+        auto[suc, errocode] = INTERNAL::getsockopt_O_ERROR(context->Socket_);
         if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
-            h(StatusCode::SC_SUCCESS);
+            h(StatusCode::SC_SUCCESS, 0);
         } else {
-            h(TranslateError());
+            h(TranslateError(), 0);
         }
     }
 }
-
-void continue_io(bool success, Win_IO_RW_Context *context)
+void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio, int iocphandle)
 {
     auto bytestowrite = context->bufferlen - context->transfered_bytes;
     auto count = 0;
-    if (context->IOOperation == IO_OPERATION::IoRead) {
-        count = ::read(context->Socket_->get_handle(), context->buffer + context->transfered_bytes, bytestowrite);
+    if (context->IOOperation == INTERNAL::IO_OPERATION::IoRead) {
+        count = ::read(context->Socket_, context->buffer + context->transfered_bytes, bytestowrite);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                auto h(context->getCompletionHandler());
-                if (h) {
-                    context->Socket_->close();
+                if (auto h(context->getCompletionHandler()); h) { 
                     context->reset();
                     h(TranslateError(), 0);
                 }
@@ -86,12 +81,10 @@ void continue_io(bool success, Win_IO_RW_Context *context)
             }
         }
     } else {
-        count = ::write(context->Socket_->get_handle(), context->buffer + context->transfered_bytes, bytestowrite);
+        count = ::write(context->Socket_, context->buffer + context->transfered_bytes, bytestowrite);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
-                auto h(context->getCompletionHandler());
-                if (h) {
-                    context->Socket_->close();
+                if (auto h(context->getCompletionHandler()); h) { 
                     context->reset();
                     h(TranslateError(), 0);
                 }
@@ -113,15 +106,14 @@ void continue_io(bool success, Win_IO_RW_Context *context)
 
     epoll_event ev = {0};
     ev.data.ptr = context;
-    ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
+    ev.events = context->IOOperation == INTERNAL::IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
     ev.events |= EPOLLONESHOT;
-    context->Context_->PendingIO += 1;
-    if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_MOD, context->Socket_->get_handle(), &ev) == -1) {
+    pendingio += 1;
+    if (epoll_ctl(iocphandle, EPOLL_CTL_MOD, context->Socket_ , &ev) == -1) {
         auto h(context->getCompletionHandler());
         if (h) {
-            context->reset();
-            context->Socket_->close();
-            context->Context_->PendingIO -= 1;
+            context->reset(); 
+            pendingio -= 1;
             h(TranslateError(), 0);
         }
     }

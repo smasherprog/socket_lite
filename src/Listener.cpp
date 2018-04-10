@@ -29,7 +29,7 @@ namespace SL {
 #else
                         epoll_event ev = { 0 };
                         ev.events = EPOLLONESHOT;
-                        if (epoll_ctl(sg1.getIOCPHandle(), EPOLL_CTL_ADD, i, &ev) == -1) {
+                        if (epoll_ctl(sg1.getIOCPHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                             continue;// this shouldnt happen but what ever
                         }
 #endif

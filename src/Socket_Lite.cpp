@@ -104,16 +104,17 @@ namespace NET {
             CloseSocket(t);
         }  
 #if !_WIN32  
+        SocketGetter sg1(*this);
         auto whandler(WriteContext.getCompletionHandler());
         if (whandler) {
             WriteContext.reset();
-            Context_->PendingIO -= 1;
+            sg1.getPendingIO() -= 1;
             whandler(StatusCode::SC_CLOSED, 0);
         }
         auto whandler1(ReadContext.getCompletionHandler());
         if (whandler1) {
             ReadContext.reset();
-            Context_->PendingIO -= 1;
+            sg1.getPendingIO()  -= 1;
             whandler1(StatusCode::SC_CLOSED, 0);
         }
 #endif
@@ -138,9 +139,11 @@ namespace NET {
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = INTERNAL::IO_OPERATION::IoRead;
 #if !_WIN32  
-        context->Context_->PendingIO += 1;
-#endif
+        sg.getPendingIO()  += 1;
+        continue_io(true, context, sg.getPendingIO(), sg.getIOCPHandle());
+#else
         continue_io(true, context, sg.getPendingIO());
+#endif
 
     }
     void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -157,9 +160,11 @@ namespace NET {
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = INTERNAL::IO_OPERATION::IoWrite;
 #if !_WIN32  
-        context->Context_->PendingIO += 1;
-#endif
+        sg.getPendingIO()  += 1;
+        continue_io(true, context, sg.getPendingIO(), sg.getIOCPHandle());
+#else
         continue_io(true, context, sg.getPendingIO());
+#endif
     }
     StatusCode SocketGetter::bind(sockaddr addr)
     {
