@@ -6,7 +6,7 @@
 namespace SL {
 namespace NET {
 
-    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio)
+    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context,  std::atomic<int> &pendingio)
     {
         if (!success) {
             if (auto handler(context->getCompletionHandler()); handler) {
@@ -41,12 +41,7 @@ namespace NET {
                     context->reset();
                     handler(TranslateError(&lasterr), 0);
                 }
-            }
-            if (context->IOOperation == INTERNAL::IO_OPERATION::IoRead) {
-                auto r = nRet;
-                auto ls = lasterr;
-                int k = 6;
-            }
+            } 
         }
     }
     void BindSocket(SOCKET sock, AddressFamily family)

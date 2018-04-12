@@ -97,6 +97,7 @@ namespace NET {
     void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio
 #if !WIN32    
     ,int iocphandle
+    ,int& stacklevel,
 #endif
     );
     

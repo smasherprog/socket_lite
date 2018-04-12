@@ -114,7 +114,25 @@ namespace SL {
             unsigned short get_Port() const;
             AddressFamily get_Family() const;
         };
-
+        namespace INTERNAL {
+            enum IO_OPERATION { IoConnect, IoRead, IoWrite, IoNone };
+            struct Win_IO_Context {
+#ifdef _WIN32
+                WSAOVERLAPPED Overlapped = { 0 };
+#endif
+                IO_OPERATION IOOperation = IO_OPERATION::IoNone;
+                void reset()
+                {
+#ifdef _WIN32
+                    Overlapped = { 0 };
+#endif
+                    IOOperation = IO_OPERATION::IoNone;
+                }
+            };
+            struct Work :Win_IO_Context {
+                std::function<void(StatusCode)> Callback;
+            };
+        }
         class SocketGetter;
         class SOCKET_LITE_EXTERN Context {
         protected:
@@ -130,6 +148,7 @@ namespace SL {
 #endif
 
             std::atomic<int> PendingIO;
+            void post(INTERNAL::Work * work);
 
         public:
             Context(ThreadCount threadcount);
@@ -252,21 +271,6 @@ namespace SL {
             };
             template <> struct setsockopt_factory_impl<SocketOptions::O_BLOCKING> {
                 static auto setsockopt_(PlatformSocket handle, Blocking_Options b) { return setsockopt_O_BLOCKING(handle, b); }
-            };
-
-            enum IO_OPERATION { IoConnect, IoAccept, IoRead, IoWrite, IoNone };
-            struct Win_IO_Context {
-#ifdef _WIN32
-                WSAOVERLAPPED Overlapped = { 0 };
-#endif
-                IO_OPERATION IOOperation = IO_OPERATION::IoNone;
-                void reset()
-                {
-#ifdef _WIN32
-                    Overlapped = { 0 };
-#endif
-                    IOOperation = IO_OPERATION::IoNone;
-                }
             };
             class Win_IO_RW_Context : public Win_IO_Context {
                 std::function<void(StatusCode, size_t)> completionhandler;

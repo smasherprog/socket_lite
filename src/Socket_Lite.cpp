@@ -139,8 +139,8 @@ namespace NET {
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = INTERNAL::IO_OPERATION::IoRead;
 #if !_WIN32  
-        sg.getPendingIO()  += 1;
-        continue_io(true, context, sg.getPendingIO(), sg.getIOCPHandle());
+        sg.getPendingIO() += 1;
+        continue_io(true, context, sg.getPendingIO(), stacklevel, sg.getIOCPHandle());
 #else
         continue_io(true, context, sg.getPendingIO());
 #endif
@@ -150,6 +150,8 @@ namespace NET {
     {
         if (!socket.isopen())
             return;
+        thread_local int stacklevel = 0;
+        stacklevel += 1;
         SocketGetter sg(socket);
         auto context = sg.getWriteContext();
         context->buffer = buffer;
@@ -161,7 +163,7 @@ namespace NET {
         context->IOOperation = INTERNAL::IO_OPERATION::IoWrite;
 #if !_WIN32  
         sg.getPendingIO()  += 1;
-        continue_io(true, context, sg.getPendingIO(), sg.getIOCPHandle());
+        continue_io(true, context, sg.getPendingIO(), stacklevel, sg.getIOCPHandle());
 #else
         continue_io(true, context, sg.getPendingIO());
 #endif

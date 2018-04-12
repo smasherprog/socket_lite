@@ -49,7 +49,23 @@ namespace NET {
         CloseHandle(IOCPHandle);
         WSACleanup();
     }
-
+    void Context::post(INTERNAL::Work * work) {
+        PendingIO += 1;
+        work->IOOperation = INTERNAL::IO_OPERATION::IoNone;
+        if (PostQueuedCompletionStatus(IOCPHandle, 0, NULL, &(work->Overlapped)) == FALSE) {
+            PendingIO -= 1;
+            if (auto h = work->Callback; h) { 
+                h(StatusCode::SC_CLOSED);
+            }
+            delete work;
+       }
+    }
+    void dowork(INTERNAL::Work * work) {
+        if (auto h = work->Callback; h) {
+            h(StatusCode::SC_CLOSED);
+        }
+        delete work;
+    }
     void Context::run()
     {
         auto sockcreator = [](Context &c, PlatformSocket s) {
@@ -85,6 +101,9 @@ namespace NET {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
                         continue_io(bSuccess, static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped), PendingIO);
+                        break;
+                    case INTERNAL::IO_OPERATION::IoNone:
+                        dowork(static_cast<INTERNAL::Work *>(overlapped));
                         break;
                     default:
                         break;
