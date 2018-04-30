@@ -95,21 +95,33 @@ namespace NET {
     };
 
     void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio
-#if !WIN32    
-    ,int iocphandle
-    ,int& stacklevel,
+#if !WIN32
+                     ,
+                     int iocphandle, int &stacklevel,
 #endif
     );
-    
-    void continue_connect(bool success, 
+
+    void continue_connect(bool success,
 #if WIN32
-    Win_IO_Connect_Context 
+                          Win_IO_Connect_Context
 #else
-    INTERNAL::Win_IO_RW_Context
+                          INTERNAL::Win_IO_RW_Context
 #endif
-    *context); 
-    
+                              *context);
+
     void CloseSocket(PlatformSocket &handle);
+
+    struct sockaddr {
+        unsigned char SocketImpl[65] = {0};
+        int SocketImplLen = 0;
+        std::string Host;
+        unsigned short Port = 0;
+        AddressFamily Family = AddressFamily::IPV4;
+
+        sockaddr() {}
+        sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
+        sockaddr(const sockaddr &addr);
+    };
 
 } // namespace NET
 } // namespace SL

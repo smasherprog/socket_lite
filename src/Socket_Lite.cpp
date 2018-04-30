@@ -42,6 +42,13 @@ namespace NET {
         handle = INVALID_SOCKET;
     }
 #endif
+
+    const unsigned char *SocketAddr(const sockaddr &s) { return s.SocketImpl; }
+    int SocketAddrLen(const sockaddr &s) { return s.SocketImplLen; }
+    const std::string &Host(const sockaddr &s) { return s.Host; }
+    unsigned short Port(const sockaddr &s) { return s.Port; }
+    AddressFamily Family(const sockaddr &s) { return s.Family; }
+
     sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
     {
         memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
@@ -94,7 +101,7 @@ namespace NET {
         }
         freeaddrinfo(result);
         return std::make_tuple(StatusCode::SC_SUCCESS, ret);
-    } 
+    }
     bool Socket::isopen() const { return handle != INVALID_SOCKET; }
     void Socket::close()
     {
@@ -102,8 +109,8 @@ namespace NET {
         handle = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
             CloseSocket(t);
-        }  
-#if !_WIN32  
+        }
+#if !_WIN32
         SocketGetter sg1(*this);
         auto whandler(WriteContext.getCompletionHandler());
         if (whandler) {
@@ -114,14 +121,15 @@ namespace NET {
         auto whandler1(ReadContext.getCompletionHandler());
         if (whandler1) {
             ReadContext.reset();
-            sg1.getPendingIO()  -= 1;
+            sg1.getPendingIO() -= 1;
             whandler1(StatusCode::SC_CLOSED, 0);
         }
 #endif
-    } 
-    Socket::Socket(Context &c) : context(c) { 
-        handle = INVALID_SOCKET; 
-        WriteContext.Context_ = ReadContext.Context_ = &c; 
+    }
+    Socket::Socket(Context &c) : context(c)
+    {
+        handle = INVALID_SOCKET;
+        WriteContext.Context_ = ReadContext.Context_ = &c;
     }
     Socket::Socket(Socket &&sock) : handle(sock.handle), context(sock.context) { sock.handle = INVALID_SOCKET; }
     Socket::~Socket() { close(); }
@@ -138,13 +146,12 @@ namespace NET {
         context->Socket_ = sg.getSocket();
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = INTERNAL::IO_OPERATION::IoRead;
-#if !_WIN32  
+#if !_WIN32
         sg.getPendingIO() += 1;
         continue_io(true, context, sg.getPendingIO(), stacklevel, sg.getIOCPHandle());
 #else
         continue_io(true, context, sg.getPendingIO());
 #endif
-
     }
     void send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
@@ -161,8 +168,8 @@ namespace NET {
         context->Socket_ = sg.getSocket();
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = INTERNAL::IO_OPERATION::IoWrite;
-#if !_WIN32  
-        sg.getPendingIO()  += 1;
+#if !_WIN32
+        sg.getPendingIO() += 1;
         continue_io(true, context, sg.getPendingIO(), stacklevel, sg.getIOCPHandle());
 #else
         continue_io(true, context, sg.getPendingIO());
@@ -234,7 +241,7 @@ namespace NET {
     PlatformSocket INTERNAL::Socket(AddressFamily family)
     {
         int typ = SOCK_STREAM;
-#if !_WIN32 
+#if !_WIN32
         typ |= SOCK_NONBLOCK;
 #endif
         if (family == AddressFamily::IPV4) {
@@ -242,7 +249,7 @@ namespace NET {
         }
         else {
             return socket(AF_INET6, typ, 0);
-        } 
+        }
     }
     std::tuple<StatusCode, std::optional<SockOptStatus>> INTERNAL::getsockopt_O_DEBUG(PlatformSocket handle)
     {
