@@ -12,6 +12,14 @@ using namespace std::chrono_literals;
 
 namespace myechotest {
 
+    //PlatformSocket handle(family);
+    //if (handle.bind(s) == StatusCode::SC_SUCCESS) {
+    //    if (handle.listen(5) == StatusCode::SC_SUCCESS) {
+    //        handle.setsockopt(REUSEADDRTag{}, SockOptStatus::ENABLED);
+    //        return CallbackStatus::FINISHED;
+    //    }
+    //}
+
     void myechotest()
     {
         std::cout << "Starting My Echo Test" << std::endl;

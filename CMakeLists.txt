@@ -50,8 +50,9 @@ include_directories(
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h   
 	include/Internal/defs.h 
+	include/Socket_Liteimpl.h 
 	src/Socket_Lite.cpp
-	src/Acceptor.cpp 
+	src/PlatformSocket.cpp 
 	src/Listener.cpp 
 	${SOCKET_LITE_PLATFORM_SRC}
 )

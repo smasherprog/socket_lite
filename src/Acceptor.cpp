@@ -43,5 +43,30 @@ namespace NET {
     Acceptor::Acceptor(Acceptor &&a) : AcceptSocket(std::move(a.AcceptSocket)), Family(std::move(a.Family)), handler(std::move(a.handler)) {}
     void Acceptor::close() { CloseSocket(AcceptSocket); }
 
+    StatusCode  getListenSocket(PortNumber port, AddressFamily family, const std::function<CallbackStatus(const PlatformSocket&)>& callback) {
+
+        return SL::NET::getaddrinfo(nullptr, port, family, [&](NET::sockaddr& s) {
+
+              
+
+                if (::bind(handle, (::sockaddr *)SocketAddr(s), SocketAddrLen(address)) == SOCKET_ERROR) {
+                    ec = TranslateError();
+                    CloseSocket(handle);
+                }
+                else {
+                    if (::listen(handle, 5) == SOCKET_ERROR) {
+                        ec = TranslateError();
+                        CloseSocket(handle);
+                    }
+                    else {
+                        INTERNAL::setsockopt_factory_impl<SL::NET::SocketOptions::O_REUSEADDR>::setsockopt_(handle, SL::NET::SockOptStatus::ENABLED);
+                        ec = StatusCode::SC_SUCCESS;
+                        AcceptSocket = handle;
+                        return;
+                    }
+                
+            }
+        }); 
+    }
 } // namespace NET
 } // namespace SL

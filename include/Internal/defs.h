@@ -16,7 +16,7 @@ namespace NET {
         std::atomic<int> Completion;
 
       public:
-        PlatformSocket Socket_ = INVALID_SOCKET;
+          PlatformSocket Socket_;
         Context *Context_ = nullptr;
         Win_IO_Connect_Context() { Completion = 0; }
         void setCompletionHandler(std::function<void(StatusCode)> &&c)
@@ -35,7 +35,7 @@ namespace NET {
 
         void reset()
         {
-            Socket_ = INVALID_SOCKET;
+            Socket_.close();
             Completion = 1;
             completionhandler = nullptr;
             Win_IO_Context::reset();
@@ -49,8 +49,8 @@ namespace NET {
 #endif
         AddressFamily Family = AddressFamily::IPV4;
         Context *Context_ = nullptr;
-        PlatformSocket Socket_ = INVALID_SOCKET;
-        PlatformSocket ListenSocket = INVALID_SOCKET;
+        PlatformSocket Socket_;
+        PlatformSocket ListenSocket;
         std::function<void(StatusCode, Socket)> completionhandler;
         void reset()
         {
@@ -59,39 +59,10 @@ namespace NET {
             Listener_ = nullptr;
 #endif
             Family = AddressFamily::IPV4;
-            Socket_ = ListenSocket = INVALID_SOCKET;
+            Socket_.close();
+            ListenSocket.close();
             completionhandler = nullptr;
         }
-    };
-
-    namespace INTERNAL {
-        PlatformSocket Socket(AddressFamily family);
-    }
-    class SocketGetter {
-        Socket &socket;
-        Context &context;
-
-      public:
-        SocketGetter(Socket &s) : socket(s), context(s.context) {}
-        StatusCode bind(sockaddr addr);
-        StatusCode listen(int backlog);
-        PlatformSocket getSocket() const { return socket.handle; }
-        PlatformSocket setSocket(PlatformSocket s)
-        {
-            socket.handle = s;
-            return s;
-        }
-        Context *getContext() const { return &context; }
-        INTERNAL::Win_IO_RW_Context *getReadContext() const { return &socket.ReadContext; }
-        INTERNAL::Win_IO_RW_Context *getWriteContext() const { return &socket.WriteContext; }
-        std::atomic<int> &getPendingIO() const { return context.PendingIO; }
-
-#if WIN32
-        LPFN_CONNECTEX ConnectEx() const { return context.ConnectEx_; }
-        HANDLE getIOCPHandle() const { return context.IOCPHandle; }
-#else
-        int getIOCPHandle() const { return context.IOCPHandle; }
-#endif
     };
 
     void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio
@@ -110,7 +81,7 @@ namespace NET {
                               *context);
 
     void CloseSocket(PlatformSocket &handle);
-
+     
     struct sockaddr {
         unsigned char SocketImpl[65] = {0};
         int SocketImplLen = 0;
