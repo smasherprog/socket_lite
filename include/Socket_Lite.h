@@ -90,11 +90,11 @@ namespace SL {
         class SOCKET_LITE_EXTERN PlatformSocket {
             SocketHandle Handle_;
         public:
-            PlatformSocket();
+            PlatformSocket(); 
             PlatformSocket(SocketHandle h);
             PlatformSocket(const AddressFamily& family);
             ~PlatformSocket();
-            PlatformSocket(PlatformSocket &) = delete;
+            PlatformSocket(const PlatformSocket &) = delete;
             PlatformSocket(PlatformSocket &&);
             PlatformSocket &operator=(PlatformSocket &) = delete;
             operator bool() const;
@@ -153,14 +153,14 @@ namespace SL {
             void run();
 
             friend class Listener; 
+            friend class Socket;
         };
 
         class SOCKET_LITE_EXTERN Socket {
         protected:
-            PlatformSocket handle;
-            Context &context;
-            INTERNAL::Win_IO_RW_Context ReadContext;
-            INTERNAL::Win_IO_RW_Context WriteContext;
+            PlatformSocket PlatformSocket_;
+            Context &Context_;
+            INTERNAL::Win_IO_RW_Context ReadContext, WriteContext;
 
         public:
             Socket(Context &, PlatformSocket&&);
@@ -169,9 +169,11 @@ namespace SL {
             Socket(Context &);
             ~Socket();
             Socket &operator=(const Socket &) = delete;
-            PlatformSocket& Handle() { return handle; }
-            const PlatformSocket& Handle() const { return handle; }
+            PlatformSocket& Handle() { return PlatformSocket_; }
+            const PlatformSocket& Handle() const { return PlatformSocket_; }
 
+            void recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+            void send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
 
         };
         struct Acceptor {
@@ -199,13 +201,11 @@ namespace SL {
             void stop();
             bool isStopped() const;
         };
-        enum CallbackStatus { CONTINUE, FINISHED };
+        enum GetAddrInfoCBStatus { CONTINUE, FINISHED };
         //this is a synch call and will call the callback for each address found 
-        StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family, const std::function<CallbackStatus(const sockaddr&)>& callback);
+        StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family, const std::function<GetAddrInfoCBStatus(const sockaddr&)>& callback);
 
         void SOCKET_LITE_EXTERN connect(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
-        void SOCKET_LITE_EXTERN recv(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        void SOCKET_LITE_EXTERN send(Socket &socket, size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
 
     } // namespace NET
 } // namespace SL

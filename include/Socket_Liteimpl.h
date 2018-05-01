@@ -17,15 +17,18 @@ namespace SL {
         class Context;
         namespace INTERNAL {
             struct ContextImpl {
+                
                 std::vector<std::thread> Threads;
                 ThreadCount ThreadCount_;
 #if WIN32
+                ContextImpl() : ThreadCount_(0), ConnectEx_(nullptr), IOCPHandle(NULL) { PendingIO = 0; }
                 WSADATA wsaData;
-                LPFN_CONNECTEX ConnectEx_ = nullptr;
-                HANDLE IOCPHandle = NULL;
+                LPFN_CONNECTEX ConnectEx_;
+                HANDLE IOCPHandle;
 #else
-                int EventWakeFd = -1;
-                int IOCPHandle = -1;
+                ContextImpl() : ThreadCount_(0), EventWakeFd(-1), IOCPHandle(-1) { PendingIO = 0; }
+                int EventWakeFd;
+                int IOCPHandle;
 #endif
 
                 std::atomic<int> PendingIO;
@@ -52,12 +55,12 @@ namespace SL {
                 std::atomic<int> Completion;
 
             public:
-                size_t transfered_bytes = 0;
-                size_t bufferlen = 0;
-                PlatformSocket Socket_;
-                Context *Context_ = nullptr;
-                unsigned char *buffer = nullptr;
-                Win_IO_RW_Context() { Completion = 0; }
+                size_t transfered_bytes;
+                size_t bufferlen;
+                SocketHandle Socket_;
+                Context *Context_;
+                unsigned char *buffer;
+                Win_IO_RW_Context() :Socket_(INVALID_SOCKET) { reset(); }
                 void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
                 {
                     completionhandler = std::move(c);
@@ -70,11 +73,10 @@ namespace SL {
                     }
                     std::function<void(StatusCode, size_t)> t;
                     return t;
-                }
-
+                } 
                 void reset()
                 {
-                    Socket_.close();
+                    Socket_.value = INVALID_SOCKET;
                     transfered_bytes = 0;
                     bufferlen = 0;
                     buffer = nullptr;

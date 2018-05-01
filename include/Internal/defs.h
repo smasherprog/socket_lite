@@ -16,7 +16,7 @@ namespace NET {
         std::atomic<int> Completion;
 
       public:
-          PlatformSocket Socket_;
+        PlatformSocket Socket_;
         Context *Context_ = nullptr;
         Win_IO_Connect_Context() { Completion = 0; }
         void setCompletionHandler(std::function<void(StatusCode)> &&c)

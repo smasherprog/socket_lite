@@ -16,12 +16,10 @@ else()
 endif()
 
 if(WIN32)
-    set(SOCKET_LITE_PLATFORM_SRC     
-		src/windows/Context.cpp
+    set(SOCKET_LITE_PLATFORM_SRC      
 		src/windows/Socket.cpp 
     )
     set(SOCKET_LITE_PLATFORM_INC  
-		include/windows
     )
 
 elseif(APPLE)
@@ -29,15 +27,12 @@ elseif(APPLE)
     set(SOCKET_LITE_PLATFORM_SRC 
     )
     set(SOCKET_LITE_PLATFORM_INC
-		include/ios 
     )
 else()
-	set(SOCKET_LITE_PLATFORM_SRC  
-		src/linux/Context.cpp 
+	set(SOCKET_LITE_PLATFORM_SRC   
 		src/linux/Socket.cpp  
     )
 	set(SOCKET_LITE_PLATFORM_INC
-		include/linux 
     )	
 endif()
 
@@ -52,6 +47,7 @@ add_library(${PROJECT_NAME}
 	include/Internal/defs.h 
 	include/Socket_Liteimpl.h 
 	src/Socket_Lite.cpp
+	src/Context.cpp
 	src/PlatformSocket.cpp 
 	src/Listener.cpp 
 	${SOCKET_LITE_PLATFORM_SRC}
