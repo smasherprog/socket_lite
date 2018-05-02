@@ -81,10 +81,12 @@ namespace NET {
         freeaddrinfo(result);
         return StatusCode::SC_SUCCESS;
     }
-    Socket::Socket(Context & c, PlatformSocket&& p) :Context_(c), PlatformSocket_(std::move(p)) { }
-    Socket::Socket(Context &c) : Context_(c)
+    Socket::Socket(INTERNAL::ContextImpl &c) :Context_(c){}
+    Socket::Socket(INTERNAL::ContextImpl &c, PlatformSocket&& p) :Context_(c), PlatformSocket_(std::move(p)) {}
+    Socket::Socket(Context & c, PlatformSocket&& p) :Context_(c.ContextImpl_), PlatformSocket_(std::move(p)) { }
+    Socket::Socket(Context &c) : Context_(c.ContextImpl_)
     { 
-        WriteContext.Context_ = ReadContext.Context_ = &c;
+        WriteContext.Context_ = ReadContext.Context_ = &c.ContextImpl_;
     }
     Socket::Socket(Socket &&sock) : PlatformSocket_(std::move(sock.PlatformSocket_)), Context_(sock.Context_) {  }
     Socket::~Socket() { 
@@ -119,7 +121,7 @@ namespace NET {
 #if !_WIN32
         sg.getPendingIO() += 1;
 #endif
-        continue_io(true, &ReadContext, Context_.ContextImpl_.PendingIO);
+        continue_io(true, &ReadContext, Context_.PendingIO);
     }
     void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
@@ -135,7 +137,7 @@ namespace NET {
 #if !_WIN32
         sg.getPendingIO() += 1; 
 #endif
-        continue_io(true, &WriteContext, Context_.ContextImpl_.PendingIO);
+        continue_io(true, &WriteContext, Context_.PendingIO);
     }   
 
     StatusCode TranslateError(int *errcode)

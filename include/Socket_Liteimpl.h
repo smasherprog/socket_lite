@@ -58,7 +58,7 @@ namespace SL {
                 size_t transfered_bytes;
                 size_t bufferlen;
                 SocketHandle Socket_;
-                Context *Context_;
+                ContextImpl *Context_;
                 unsigned char *buffer;
                 Win_IO_RW_Context() :Socket_(INVALID_SOCKET) { reset(); }
                 void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)

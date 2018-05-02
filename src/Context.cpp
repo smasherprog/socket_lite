@@ -50,15 +50,13 @@ namespace SL {
             while (ContextImpl_.PendingIO > 0) {
                 std::this_thread::sleep_for(5ms);
                 // make sure to wake up the threads
-#if _WIN32
-                PostQueuedCompletionStatus(ContextImpl_.IOCPHandle, 0, (DWORD)NULL, NULL);
-#else
+#ifndef _WIN32
                 eventfd_write(EventWakeFd, 1);
 #endif
-            }
-
-
-
+            } 
+#if _WIN32
+            PostQueuedCompletionStatus(ContextImpl_.IOCPHandle, 0, (DWORD)NULL, NULL);
+#endif
             for (auto &t : ContextImpl_.Threads) {
 
                 if (t.joinable()) {
@@ -97,11 +95,11 @@ namespace SL {
                         INTERNAL::Win_IO_Context *overlapped = nullptr;
                         void *completionkey = nullptr;
 
-                        auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
+                        auto bSuccess = GetQueuedCompletionStatus(ContextImpl_.IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                             (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
-                        if (PendingIO <= 0) {
-                            PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
+                        if (ContextImpl_.PendingIO <= 0) {
+                            PostQueuedCompletionStatus(ContextImpl_.IOCPHandle, 0, (DWORD)NULL, NULL);
                             return;
                         }
                         switch (overlapped->IOOperation) {
@@ -115,13 +113,13 @@ namespace SL {
                             if (numberofbytestransfered == 0 && static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                                 bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                             }
-                            continue_io(bSuccess, static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped), PendingIO);
+                            continue_io(bSuccess, static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped), ContextImpl_.PendingIO);
                             break; 
                         default:
                             break;
                         }
-                        if (--PendingIO <= 0) {
-                            PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
+                        if (--ContextImpl_.PendingIO <= 0) {
+                            PostQueuedCompletionStatus(ContextImpl_.IOCPHandle, 0, (DWORD)NULL, NULL);
                             return;
                         }
                     }
@@ -129,14 +127,14 @@ namespace SL {
                     std::vector<epoll_event> epollevents;
                     epollevents.resize(MAXEVENTS);
                     while (true) {
-                        auto count = epoll_wait(IOCPHandle, epollevents.data(), MAXEVENTS, 500);
+                        auto count = epoll_wait(ContextImpl_.IOCPHandle, epollevents.data(), MAXEVENTS, 500);
                         if (count == -1) {
-                            if (errno == EINTR && PendingIO > 0) {
+                            if (errno == EINTR && ContextImpl_.PendingIO > 0) {
                                 continue;
                             }
                         }
                         for (auto i = 0; i < count; i++) {
-                            if (epollevents[i].data.fd != EventWakeFd) {
+                            if (epollevents[i].data.fd != ContextImpl_.EventWakeFd) {
                                 auto ctx = static_cast<INTERNAL::Win_IO_Context *>(epollevents[i].data.ptr);
                                 switch (ctx->IOOperation) {
                                 case INTERNAL::IO_OPERATION::IoConnect:
@@ -149,7 +147,7 @@ namespace SL {
                                 default:
                                     break;
                                 }
-                                if (--PendingIO <= 0) {
+                                if (--ContextImpl_.PendingIO <= 0) {
                                     return;
                                 }
                             }

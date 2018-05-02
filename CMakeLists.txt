@@ -16,8 +16,7 @@ else()
 endif()
 
 if(WIN32)
-    set(SOCKET_LITE_PLATFORM_SRC      
-		src/windows/Socket.cpp 
+    set(SOCKET_LITE_PLATFORM_SRC    
     )
     set(SOCKET_LITE_PLATFORM_INC  
     )
@@ -29,8 +28,7 @@ elseif(APPLE)
     set(SOCKET_LITE_PLATFORM_INC
     )
 else()
-	set(SOCKET_LITE_PLATFORM_SRC   
-		src/linux/Socket.cpp  
+	set(SOCKET_LITE_PLATFORM_SRC    
     )
 	set(SOCKET_LITE_PLATFORM_INC
     )	
@@ -48,6 +46,7 @@ add_library(${PROJECT_NAME}
 	include/Socket_Liteimpl.h 
 	src/Socket_Lite.cpp
 	src/Context.cpp
+	src/Socket.cpp
 	src/PlatformSocket.cpp 
 	src/Listener.cpp 
 	${SOCKET_LITE_PLATFORM_SRC}
@@ -64,10 +63,10 @@ if(${BUILD_SHARED_LIBS})
 		target_link_libraries(${PROJECT_NAME} Ws2_32 )
 	elseif(APPLE) 
 		find_package(Threads REQUIRED)
-		target_link_libraries(${PROJECT_NAME} ${ZLIB_LIBRARIES} ${OPENSSL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} )
+		target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} )
 	else()
 		find_package(Threads REQUIRED)
-		target_link_libraries(${PROJECT_NAME} ${ZLIB_LIBRARIES} ${OPENSSL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} dl)
+		target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} dl)
 	endif()
 endif()
 

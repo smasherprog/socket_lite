@@ -48,11 +48,18 @@ namespace SL {
             p.Handle_.value = INVALID_SOCKET;
         }
 
+        PlatformSocket & PlatformSocket::operator=(PlatformSocket && p)
+        {
+            close();
+            Handle_.value = p.Handle_.value;
+            p.Handle_.value = INVALID_SOCKET;
+            return *this;
+        }
+
         PlatformSocket::operator bool() const
         {
             return Handle_.value != INVALID_SOCKET;
-        }
-
+        } 
         StatusCode PlatformSocket::close()
         {
             auto t = Handle_.value;
