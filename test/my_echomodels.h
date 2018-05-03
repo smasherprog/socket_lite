@@ -10,65 +10,82 @@
 using namespace std::chrono_literals;
 
 namespace myechomodels {
-
-char writeecho[] = "echo test";
-char readecho[] = "echo test";
-auto readechos = 0.0;
-auto writeechos = 0.0;
-bool keepgoing = true;
-
-class session : public std::enable_shared_from_this<session> {
-  public:
-    session(SL::NET::Socket &socket) : socket_(std::move(socket)) {}
-    session(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
-    void do_read()
-    {
-        auto self(shared_from_this());
-        SL::NET::recv(socket_, sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_read();
+    SL::NET::PlatformSocket listengetaddrinfo(const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family) {
+        SL::NET::PlatformSocket handle;
+        SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr& s) {
+            SL::NET::PlatformSocket h(SL::NET::AddressFamily::IPV4);
+            if (h.bind(s) == SL::NET::StatusCode::SC_SUCCESS) {
+                if (h.listen(5) == SL::NET::StatusCode::SC_SUCCESS) {
+                    h.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
+                    handle = std::move(h);
+                    return SL::NET::GetAddrInfoCBStatus::FINISHED;
+                }
             }
+            return SL::NET::GetAddrInfoCBStatus::CONTINUE;
         });
+        return handle;
     }
 
-    void do_write()
-    {
-        auto self(shared_from_this());
-        SL::NET::send(socket_, sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                writeechos += 1.0;
-                self->do_write();
-            }
-        });
-    }
-    void close() { socket_.close(); }
-    SL::NET::Socket socket_;
-}; 
-class asioclient {
-  public:
-    std::vector<SL::NET::sockaddr> Addresses;
-    std::shared_ptr<session> socket_;
-    asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
-    {
-        socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
-    }
-    void close() { socket_->socket_.close(); }
 
-    void do_connect()
-    {
-        if (Addresses.empty())
-            return;
-        SL::NET::connect(socket_->socket_, Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
-            if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                socket_->do_write();
-                socket_->do_read();
-            }
-            else {
-                Addresses.pop_back();
-                do_connect();
-            }
-        });
-    }
-};
+    char writeecho[] = "echo test";
+    char readecho[] = "echo test";
+    auto readechos = 0.0;
+    auto writeechos = 0.0;
+    bool keepgoing = true;
+
+    class session : public std::enable_shared_from_this<session> {
+    public:
+        session(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
+        void do_read()
+        {
+            auto self(shared_from_this());
+            socket_.recv(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
+                if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                    self->do_read();
+                }
+            });
+        }
+
+        void do_write()
+        {
+            auto self(shared_from_this());
+            socket_.send(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
+                if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                    writeechos += 1.0;
+                    self->do_write();
+                }
+            });
+        } 
+        SL::NET::Socket socket_;
+    };
+    class asioclient {
+    public: 
+        std::shared_ptr<session> socket_;
+        SL::NET::Context &Context_;
+        std::vector<SL::NET::sockaddr> addrs;
+        asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family) :Context_(io_context)
+        {
+            SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr& s) {
+                addrs.push_back(s);
+                return SL::NET::GetAddrInfoCBStatus::CONTINUE;
+            }); 
+        }
+        void close() { socket_.reset(); }
+
+        void do_connect()
+        {
+            SL::NET::connect(Context_, addrs.back(), [this](SL::NET::StatusCode connectstatus, SL::NET::Socket&& socket) {
+                socket_ = std::make_shared<session>(std::move(socket));
+                if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
+                    socket_->do_write();
+                    socket_->do_read();
+                }
+                else {
+                    addrs.pop_back();
+                    do_connect();
+                }
+            });
+        }
+    };
 
 } // namespace myechomodels

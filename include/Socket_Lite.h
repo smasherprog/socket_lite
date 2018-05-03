@@ -200,7 +200,6 @@ namespace SL {
             Listener(const Listener &) = delete;
             Listener(Listener &&) = delete;
             Listener &operator=(Listener &) = delete;
-            void close();
             void start();
             void stop();
             bool isStopped() const;

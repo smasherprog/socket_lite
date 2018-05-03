@@ -453,30 +453,6 @@ namespace SL {
 #endif  
         }
 
-        StatusCode TranslateError(int *errcode)
-        {
-#if _WIN32
-            auto originalerr = WSAGetLastError();
-            auto errorcode = errcode != nullptr ? *errcode : originalerr;
-            switch (errorcode) {
-            case WSAECONNRESET:
-                return StatusCode::SC_ECONNRESET;
-            case WSAETIMEDOUT:
-            case WSAECONNABORTED:
-                return StatusCode::SC_ETIMEDOUT;
-            case WSAEWOULDBLOCK:
-                return StatusCode::SC_EWOULDBLOCK;
-#else
-            auto originalerror = errno;
-            auto errorcode = errcode != nullptr ? *errcode : originalerror;
-            switch (errorcode) {
-
-#endif
-
-            default:
-                return StatusCode::SC_CLOSED;
-            };
-        } // namespace NET
-
+      
     } // namespace NET
 } // namespace SL

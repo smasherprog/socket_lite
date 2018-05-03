@@ -20,9 +20,8 @@ bool keepgoing = true;
 std::vector<SL::NET::sockaddr> addresses;
 
 void connect(SL::NET::Context &iocontext)
-{
-    auto socket_ = std::make_shared<SL::NET::Socket>(iocontext);
-    SL::NET::connect(*socket_, addresses.back(), [&iocontext, socket_](SL::NET::StatusCode connectstatus) {
+{ 
+    SL::NET::connect(iocontext, addresses.back(), [&iocontext](SL::NET::StatusCode connectstatus, SL::NET::Socket&& sock) {
         connections += 1.0;
         //   std::cout << "connect" << connectstatus << std::endl;
         if (keepgoing) {

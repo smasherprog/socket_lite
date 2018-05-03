@@ -12,18 +12,15 @@ namespace NET {
     Listener::Listener(Context &context, Acceptor &&acceptor) : Context_(context), Acceptor_(std::move(acceptor)) { Keepgoing = false; }
     Listener::~Listener()
     {
-        close();
+        stop();
         if (Runner.joinable()) {
             Runner.join();
         }
     }
-    void Listener::close()
-    {
-        Keepgoing = false;
-        Acceptor_.AcceptSocket.close();
-    }
+
     void Listener::stop()
     {
+        Acceptor_.AcceptSocket.close();
         Keepgoing = false;
         if (Runner.get_id() != std::this_thread::get_id() && Runner.joinable()) {
             Runner.join();
