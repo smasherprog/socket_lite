@@ -35,22 +35,17 @@ void myconnectiontest()
     connections = 0.0;
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    SL::NET::StatusCode ec;
-    SL::NET::Acceptor acceptor(SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, ec);
-    if (ec != SL::NET::StatusCode::SC_SUCCESS) {
-        std::cout << "Acceptor failed to create code:" << ec << std::endl;
-    }
-    acceptor.set_handler([](SL::NET::Socket socket) {
 
-    });
-
-    SL::NET::Listener Listener(iocontext, std::move(acceptor));
- 
-    auto[code, addrs] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    if (code != SL::NET::StatusCode::SC_SUCCESS) {
-        std::cout << "Error code:" << code << std::endl;
-    }
-    addresses = addrs;
+    SL::NET::Acceptor a;
+    a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+    a.AcceptHandler = ([](SL::NET::Socket socket) { });
+    a.Family = SL::NET::AddressFamily::IPV4; 
+    SL::NET::Listener Listener(iocontext, std::move(a));
+    Listener.start();
+    SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr& s) {
+        addresses.push_back(s);
+        return SL::NET::GetAddrInfoCBStatus::CONTINUE;
+    }); 
     iocontext.run();
     connect(iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds

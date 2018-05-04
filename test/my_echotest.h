@@ -17,6 +17,7 @@ namespace myechotest {
         myechomodels::writeechos = 0;
         myechomodels::keepgoing = true;
         auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
+        SL::NET::Context iocontext(SL::NET::ThreadCount(1));
 
         SL::NET::Acceptor a;
         a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
@@ -25,9 +26,9 @@ namespace myechotest {
             s->do_read();
             s->do_write();
         };
-        a.Family = SL::NET::AddressFamily::IPV4;
-        SL::NET::Context iocontext(SL::NET::ThreadCount(1));
+        a.Family = SL::NET::AddressFamily::IPV4; 
         SL::NET::Listener Listener(iocontext, std::move(a));  
+        Listener.start();
         myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
         c.do_connect();
         iocontext.run();

@@ -16,8 +16,7 @@ namespace mytransfertest {
     double writeechos = 0.0;
     bool keepgoing = true;
     class session : public std::enable_shared_from_this<session> {
-    public:
-        session(SL::NET::Socket &socket) : socket_(std::move(socket)) {}
+    public: 
         session(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
 
         void do_read()
@@ -46,15 +45,16 @@ namespace mytransfertest {
 
     class asioclient {
     public:
-        asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
+        asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints): Context_(io_context)
         {
             socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
         }
-        void close() { socket_->socket_.close(); }
+        void close() { socket_.reset();  }
         void do_connect()
         {
-            SL::NET::connect(socket_->socket_, Addresses.back(), [this](SL::NET::StatusCode connectstatus) {
+            SL::NET::connect(Context_, Addresses.back(), [this](SL::NET::StatusCode connectstatus, SL::NET::Socket&& s) {
                 if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
+                    socket_ = std::make_shared<session>(std::move(s));
                     socket_->do_write();
                 }
                 else {
@@ -63,6 +63,7 @@ namespace mytransfertest {
                 }
             });
         }
+        SL::NET::Context &Context_;
         std::vector<SL::NET::sockaddr> Addresses;
         std::shared_ptr<session> socket_;
     };
@@ -75,20 +76,20 @@ namespace mytransfertest {
         writebuffer.resize(1024 * 1024 * 8);
         readbuffer.resize(1024 * 1024 * 8);
         SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-        SL::NET::StatusCode ec;
-        SL::NET::Acceptor acceptor(SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, ec);
-        if (ec != SL::NET::StatusCode::SC_SUCCESS) {
-            std::cout << "Acceptor failed to create code:" << ec << std::endl;
-        } 
-        acceptor.set_handler([&](SL::NET::Socket socket) {
+        SL::NET::Acceptor a;
+        a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+        a.AcceptHandler = [](SL::NET::Socket socket) {
             std::make_shared<session>(socket)->do_read();
+        };
+        a.Family = SL::NET::AddressFamily::IPV4;
+        SL::NET::Listener Listener(iocontext, std::move(a));
+        Listener.start(); 
+        std::vector<SL::NET::sockaddr> addresses;
+        SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr& s) {
+            addresses.push_back(s);
+            return SL::NET::GetAddrInfoCBStatus::CONTINUE;
         });
-        SL::NET::Listener Listener(iocontext, std::move(acceptor));
 
-        auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-        if (code != SL::NET::StatusCode::SC_SUCCESS) {
-            std::cout << "Error code:" << code << std::endl;
-        }
         auto c = std::make_shared<asioclient>(iocontext, addresses);
         c->do_connect();
         iocontext.run();

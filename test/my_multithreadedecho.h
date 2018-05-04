@@ -19,27 +19,20 @@ void myechotest()
     myechomodels::keepgoing = true;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     SL::NET::Context iocontext(SL::NET::ThreadCount(4));
-    SL::NET::StatusCode ec;
-    SL::NET::Acceptor acceptor(SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, ec);
-    if (ec != SL::NET::StatusCode::SC_SUCCESS) {
-        std::cout << "Acceptor failed to create code:" << ec << std::endl;
-    }
-    std::vector<std::shared_ptr<myechomodels::session>> clients;
-    acceptor.set_handler([&](SL::NET::Socket socket) {
+
+    SL::NET::Acceptor a;
+    a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+    a.AcceptHandler = [](SL::NET::Socket socket) {
         auto s = std::make_shared<myechomodels::session>(socket);
         s->do_read();
         s->do_write();
-        clients.push_back(s);
-    });
-    SL::NET::Listener Listener(iocontext, std::move(acceptor));
-     
-    auto[code, addresses] = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    if (code != SL::NET::StatusCode::SC_SUCCESS) {
-        std::cout << "Error code:" << code << std::endl;
-    }
-    myechomodels::asioclient c(iocontext, addresses);
-    myechomodels::asioclient c1(iocontext, addresses);
-    myechomodels::asioclient c2(iocontext, addresses);
+    };
+    a.Family = SL::NET::AddressFamily::IPV4;
+    SL::NET::Listener Listener(iocontext, std::move(a));
+    Listener.start();
+    myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+    myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+    myechomodels::asioclient c2(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     c.do_connect();
     c1.do_connect();
     c2.do_connect();
@@ -50,10 +43,7 @@ void myechotest()
     std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
     c.close();
     c1.close();
-    c2.close(); 
-    for (auto &p : clients) {
-        p->close();
-    }
+    c2.close();  
 }
 
 } // namespace mymultithreadedechotest
