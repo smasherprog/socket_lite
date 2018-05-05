@@ -71,7 +71,17 @@ namespace SL {
             std::chrono::seconds l_linger; /* linger time */
         };
         enum class AddressFamily { IPV4, IPV6 };
-        struct SOCKET_LITE_EXTERN sockaddr;
+        struct SOCKET_LITE_EXTERN sockaddr {
+            unsigned char SocketImpl[65] = { 0 };
+            int SocketImplLen = 0;
+            std::string Host;
+            unsigned short Port = 0;
+            AddressFamily Family = AddressFamily::IPV4;
+
+            sockaddr() {}
+            sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
+            sockaddr(const sockaddr &addr);
+        };
         const unsigned char *SOCKET_LITE_EXTERN SocketAddr(const sockaddr &);
         int SOCKET_LITE_EXTERN SocketAddrLen(const sockaddr &);
         const std::string &SOCKET_LITE_EXTERN Host(const sockaddr &);

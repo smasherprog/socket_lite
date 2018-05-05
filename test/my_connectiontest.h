@@ -1,5 +1,6 @@
 #pragma once
 #include "Socket_Lite.h"
+#include "my_echomodels.h"
 #include <chrono>
 #include <iostream>
 #include <optional>

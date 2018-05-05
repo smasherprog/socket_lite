@@ -81,18 +81,6 @@ namespace NET {
                               *context);
 
     void CloseSocket(PlatformSocket &handle);
-     
-    struct sockaddr {
-        unsigned char SocketImpl[65] = {0};
-        int SocketImplLen = 0;
-        std::string Host;
-        unsigned short Port = 0;
-        AddressFamily Family = AddressFamily::IPV4;
-
-        sockaddr() {}
-        sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
-        sockaddr(const sockaddr &addr);
-    };
 
 } // namespace NET
 } // namespace SL

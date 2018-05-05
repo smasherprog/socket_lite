@@ -22,7 +22,7 @@ namespace mytransfertest {
         void do_read()
         {
             auto self(shared_from_this());
-            SL::NET::recv(socket_, readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
+            socket_.recv(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
                 if (code == SL::NET::StatusCode::SC_SUCCESS) {
                     writeechos += 1.0;
                     self->do_read();
@@ -32,20 +32,19 @@ namespace mytransfertest {
         void do_write()
         {
             auto self(shared_from_this());
-            SL::NET::send(socket_, writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
+            socket_.send(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
                 if (code == SL::NET::StatusCode::SC_SUCCESS) {
                     self->do_write();
                 }
             });
-        }
-        void close() { socket_.close(); }
+        } 
         SL::NET::Socket socket_;
     };
 
 
     class asioclient {
     public:
-        asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints): Context_(io_context)
+        asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints), Context_(io_context)
         {
             socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
         }
@@ -79,7 +78,7 @@ namespace mytransfertest {
         SL::NET::Acceptor a;
         a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
         a.AcceptHandler = [](SL::NET::Socket socket) {
-            std::make_shared<session>(socket)->do_read();
+            std::make_shared<session>(std::move(socket))->do_read();
         };
         a.Family = SL::NET::AddressFamily::IPV4;
         SL::NET::Listener Listener(iocontext, std::move(a));

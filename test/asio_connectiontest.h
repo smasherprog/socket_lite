@@ -23,7 +23,7 @@ auto keepgoing = true;
 using asio::ip::tcp;
 class asioserver : public std::enable_shared_from_this<asioserver> {
   public:
-    asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {}
+    asioserver(asio::io_context &io_context, SL::NET::PortNumber port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port.value)) {}
 
     void do_accept()
     {
