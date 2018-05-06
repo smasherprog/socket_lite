@@ -61,7 +61,7 @@ void connectiontest()
     endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
 
     connect(iocontext);
-    std::thread t([iocontext]() { iocontext->run(); }); 
+    std::thread t([iocontext]() { iocontext->run(); });
     connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
@@ -71,6 +71,6 @@ void connectiontest()
     s->acceptor_.cancel();
     s->acceptor_.close();
 
-    t.join(); 
+    t.join();
 }
 } // namespace asioconnectiontest

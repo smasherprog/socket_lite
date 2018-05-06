@@ -20,7 +20,7 @@ namespace NET {
 
     void Listener::stop()
     {
-        Acceptor_.AcceptSocket.close();
+        UNUSED(Acceptor_.AcceptSocket.close());
         Keepgoing = false;
         if (Runner.get_id() != std::this_thread::get_id() && Runner.joinable()) {
             Runner.join();
@@ -34,11 +34,9 @@ namespace NET {
         Runner = std::thread([&]() {
             while (Keepgoing) {
                 auto handle = ::accept(Acceptor_.AcceptSocket.Handle().value, NULL, NULL);
-                if (handle != INVALID_SOCKET) { 
+                if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
-                    s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
-                    Socket sock(Context_, std::move(s));
-
+                    UNUSED(s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING));
 
 #if _WIN32
                     if (CreateIoCompletionPort((HANDLE)handle, Context_.ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
@@ -52,9 +50,9 @@ namespace NET {
                     }
 #endif
 
-                    Acceptor_.AcceptHandler(std::move(sock));
+                    Acceptor_.AcceptHandler(Socket(Context_, std::move(s)));
                 }
-            } 
+            }
             Acceptor_.AcceptHandler = nullptr;
         });
     }

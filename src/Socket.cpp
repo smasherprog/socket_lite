@@ -14,39 +14,39 @@
 namespace SL {
 namespace NET {
 #if _WIN32
-    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio)
+    void continue_io(bool success, INTERNAL::Win_IO_RW_Context &context)
     {
         if (!success) {
-            if (auto handler(context->getCompletionHandler()); handler) {
-                context->reset();
+            if (auto handler(context.getCompletionHandler()); handler) {
+                context.reset();
                 handler(TranslateError(), 0);
             }
         }
-        else if (context->bufferlen == context->transfered_bytes) {
-            if (auto handler(context->getCompletionHandler()); handler) {
-                context->reset();
-                handler(StatusCode::SC_SUCCESS, context->transfered_bytes);
+        else if (context.bufferlen == context.transfered_bytes) {
+            if (auto handler(context.getCompletionHandler()); handler) {
+                context.reset();
+                handler(StatusCode::SC_SUCCESS, context.transfered_bytes);
             }
         }
         else {
             WSABUF wsabuf;
-            auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
-            wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
+            auto bytesleft = static_cast<decltype(wsabuf.len)>(context.bufferlen - context.transfered_bytes);
+            wsabuf.buf = (char *)context.buffer + context.transfered_bytes;
             wsabuf.len = bytesleft;
             DWORD dwSendNumBytes(0), dwFlags(0);
-            pendingio += 1;
+            context.Context_->IncrementPendingIO();
             DWORD nRet = 0;
-            if (context->IOOperation == INTERNAL::IO_OPERATION::IoRead) {
-                nRet = WSARecv(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
+            if (context.IOOperation == INTERNAL::IO_OPERATION::IoRead) {
+                nRet = WSARecv(context.Socket_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
             }
             else {
-                nRet = WSASend(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
+                nRet = WSASend(context.Socket_.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context.Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                if (auto handler(context->getCompletionHandler()); handler) {
-                    pendingio -= 1;
-                    context->reset();
+                if (auto handler(context.getCompletionHandler()); handler) {
+                    context.Context_->DecrementPendingIO();
+                    context.reset();
                     handler(TranslateError(&lasterr), 0);
                 }
             }
@@ -65,7 +65,7 @@ namespace NET {
             }
         }
 
-        if (context->Context_->DecrementPendingIO() == 0) {
+        if (context->DecrementRef() == 0) {
             // safe to delete
             delete context;
         }
@@ -99,7 +99,7 @@ namespace NET {
         if (bindret != StatusCode::SC_SUCCESS) {
             return std::tuple<StatusCode, Socket>(bindret, Socket(c));
         }
-        if (CreateIoCompletionPort((HANDLE)handle.Handle().value, c.ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
+        if (CreateIoCompletionPort((HANDLE)handle.Handle().value, c.ContextImpl_.IOCPHandle, 57, NULL) == NULL) {
             return std::tuple<StatusCode, Socket>(TranslateError(), Socket(c));
         }
 
@@ -108,32 +108,36 @@ namespace NET {
         context->setCompletionHandler(std::move(handler));
         context->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
         context->Socket_ = std::move(handle);
-        c.ContextImpl_.IncrementPendingIO();
         context->IncrementRef();
+        c.ContextImpl_.IncrementPendingIO();
 
-        auto connectres =
-            c.ContextImpl_.ConnectEx_(handle, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0, (LPOVERLAPPED)&context->Overlapped);
+        auto connectres = c.ContextImpl_.ConnectEx_(context->Socket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0,
+                                                    0, (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
             if (auto h = context->getCompletionHandler(); h) {
-                Socket sock(Socket(*context->Context_, std::move(context->Socket_)));
                 if (::setsockopt(context->Socket_.Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-                    return std::tuple<StatusCode, Socket>(StatusCode::SC_SUCCESS, std::move(sock));
+                    return std::tuple<StatusCode, Socket>(StatusCode::SC_SUCCESS, Socket(*context->Context_, std::move(context->Socket_)));
                 }
                 else {
-                    return std::tuple<StatusCode, Socket>(TranslateError(), std::move(sock));
+                    return std::tuple<StatusCode, Socket>(TranslateError(), Socket(*context->Context_));
                 }
             }
 
-            if (c.ContextImpl_.DecrementPendingIO() == 0) {
+            if (context->DecrementRef() == 0) {
                 // safe to delete
                 delete context;
             }
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
+            c.ContextImpl_.DecrementPendingIO();
             // safe to delete
             delete context;
             return std::tuple<StatusCode, Socket>(TranslateError(), Socket(c));
+        }
+        else if (context->DecrementRef() == 0) {
+            // safe to delete
+            delete context;
         }
         return std::tuple<StatusCode, Socket>(StatusCode::SC_PENDINGIO, Socket(c));
     }

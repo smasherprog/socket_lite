@@ -42,7 +42,7 @@ namespace SL {
             }
         }
         PlatformSocket::~PlatformSocket() {
-            close();
+           UNUSED(close());
         }
         PlatformSocket::PlatformSocket(PlatformSocket && p) : Handle_(p.Handle_) {
             p.Handle_.value = INVALID_SOCKET;

@@ -41,12 +41,13 @@ namespace NET {
         };
         enum IO_OPERATION { IoConnect, IoRead, IoWrite, IoNone };
         class Win_IO_Context {
-            std::atomic<int> RefCount;
-
           public:
 #ifdef _WIN32
             WSAOVERLAPPED Overlapped = {0};
 #endif
+
+            std::atomic<int> RefCount;
+
             IO_OPERATION IOOperation = IO_OPERATION::IoNone;
             Win_IO_Context() { RefCount = 1; }
             int IncrementRef() { return RefCount.fetch_add(1, std::memory_order_acquire) + 1; }

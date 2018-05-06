@@ -66,22 +66,8 @@ namespace NET {
     typedef Explicit<unsigned short, ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
 
-    enum StatusCode {
-        SC_EAGAIN,
-        SC_EWOULDBLOCK,
-        SC_EBADF,
-        SC_ECONNRESET,
-        SC_EINTR,
-        SC_EINVAL,
-        SC_ENOTCONN,
-        SC_ENOTSOCK,
-        SC_EOPNOTSUPP,
-        SC_ETIMEDOUT,
-        SC_CLOSED,
-        SC_NOTSUPPORTED,
-        SC_PENDINGIO,
-        SC_SUCCESS = 0
-    };
+    enum[[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
+                                 SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
     struct LingerOption {
@@ -136,7 +122,7 @@ namespace NET {
         PlatformSocket &operator=(PlatformSocket &&);
         operator bool() const;
         StatusCode close();
-        SocketHandle Handle() const { return Handle_; };
+        [[nodiscard]] SocketHandle Handle() const { return Handle_; };
 
         StatusCode getsockopt(DEBUGTag, const std::function<void(const SockOptStatus &)> &callback) const;
         StatusCode getsockopt(ACCEPTCONNTag, const std::function<void(const SockOptStatus &)> &callback) const;
@@ -210,7 +196,7 @@ namespace NET {
         Socket(INTERNAL::ContextImpl &);
         ~Socket();
         Socket &operator=(const Socket &) = delete;
-        PlatformSocket &Handle() { return PlatformSocket_; }
+        [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         const PlatformSocket &Handle() const { return PlatformSocket_; }
 
         void recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
@@ -238,15 +224,15 @@ namespace NET {
         Listener &operator=(Listener &) = delete;
         void start();
         void stop();
-        bool isStopped() const;
+        [[nodiscard]] bool isStopped() const;
     };
     enum GetAddrInfoCBStatus { CONTINUE, FINISHED };
     // this is a sync call and will call the callback for each address found
-    StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
-                                              const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
+    [[nodiscard]] StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
+                                                            const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
 
-    std::tuple<StatusCode, Socket> SOCKET_LITE_EXTERN connect(Context &context, SL::NET::sockaddr &address,
-                                                              std::function<void(StatusCode, Socket)> &&);
+    [[nodiscard]] std::tuple<StatusCode, Socket> SOCKET_LITE_EXTERN connect(Context &context, SL::NET::sockaddr &address,
+                                                                            std::function<void(StatusCode, Socket)> &&);
 
 } // namespace NET
 } // namespace SL
