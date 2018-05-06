@@ -12,24 +12,24 @@ namespace NET {
     StatusCode TranslateError(int *errcode = nullptr);
 
     class Win_IO_Connect_Context : public INTERNAL::Win_IO_Context {
-        std::function<void(StatusCode, Socket&&)> completionhandler;
+        std::function<void(StatusCode, Socket &&)> completionhandler;
         std::atomic<int> Completion;
 
       public:
         PlatformSocket Socket_;
         INTERNAL::ContextImpl *Context_ = nullptr;
         Win_IO_Connect_Context() { Completion = 0; }
-        void setCompletionHandler(std::function<void(StatusCode, Socket&&)> &&c)
+        void setCompletionHandler(std::function<void(StatusCode, Socket &&)> &&c)
         {
             completionhandler = std::move(c);
             Completion = 1;
         }
-        std::function<void(StatusCode, Socket&&)> getCompletionHandler()
+        std::function<void(StatusCode, Socket &&)> getCompletionHandler()
         {
             if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
                 return std::move(completionhandler);
             }
-            std::function<void(StatusCode, Socket&&)> t;
+            std::function<void(StatusCode, Socket &&)> t;
             return t;
         }
 
@@ -51,7 +51,7 @@ namespace NET {
         Context *Context_ = nullptr;
         PlatformSocket Socket_;
         PlatformSocket ListenSocket;
-        std::function<void(StatusCode, Socket&&)> completionhandler;
+        std::function<void(StatusCode, Socket &&)> completionhandler;
         void reset()
         {
             Win_IO_Context::reset();
@@ -65,12 +65,7 @@ namespace NET {
         }
     };
 
-    void continue_io(bool success, INTERNAL::Win_IO_RW_Context *context, std::atomic<int> &pendingio
-#if !WIN32
-                     ,
-                     int iocphandle, int &stacklevel,
-#endif
-    );
+    void continue_io(bool success, INTERNAL::Win_IO_RW_Context &context);
 
     void continue_connect(bool success,
 #if WIN32
