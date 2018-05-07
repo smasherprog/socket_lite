@@ -21,11 +21,11 @@ namespace NET {
 
             std::atomic<int> PendingIO;
             ThreadCount ThreadCount_;
-            ThreadPool ThreadPool_;
+
           public:
             std::vector<std::thread> Threads;
 #if WIN32
-            ContextImpl(const ThreadCount &t) : ThreadCount_(t), ConnectEx_(nullptr), IOCPHandle(NULL), ThreadPool_(t.value){ PendingIO = 0; }
+            ContextImpl(const ThreadCount &t) : ThreadCount_(t), ConnectEx_(nullptr), IOCPHandle(NULL) { PendingIO = 0; }
             WSADATA wsaData;
             LPFN_CONNECTEX ConnectEx_;
             HANDLE IOCPHandle;

@@ -22,8 +22,13 @@ namespace NET {
     {
         Keepgoing = false;
         [[maybe_unused]] auto ret = Acceptor_.AcceptSocket.close();
-        if (Runner.get_id() != std::this_thread::get_id() && Runner.joinable()) {
-            Runner.join();
+        if (Runner.joinable()) {
+            if (Runner.get_id() != std::this_thread::get_id()) {
+                Runner.detach();
+            }
+            else {
+                Runner.join();
+            }
         }
     }
     bool Listener::isStopped() const { return Keepgoing; }

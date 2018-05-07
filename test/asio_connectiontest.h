@@ -70,7 +70,7 @@ void connectiontest()
     iocontext->stop();
     s->acceptor_.cancel();
     s->acceptor_.close();
-
-    t.join();
+    if (t.joinable())
+        t.join();
 }
 } // namespace asioconnectiontest
