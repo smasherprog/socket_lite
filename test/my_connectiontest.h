@@ -30,7 +30,7 @@ void continue_connect(SL::NET::Context &iocontext)
 void connect(SL::NET::Context &iocontext)
 {
     while (keepgoing) {
-        auto[ec, sock] =
+        auto [ec, sock] =
             SL::NET::connect(iocontext, addresses.back(), [&iocontext](SL::NET::StatusCode, SL::NET::Socket sock) { continue_connect(iocontext); });
         if (ec == SL::NET::StatusCode::SC_SUCCESS) {
             // connection completed immediatly, and the callback will not be call, must handle it here

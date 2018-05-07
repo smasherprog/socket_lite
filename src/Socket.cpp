@@ -69,6 +69,9 @@ namespace NET {
             // safe to delete
             delete context;
         }
+        else {
+            int k = 6;
+        }
     }
     StatusCode BindSocket(SOCKET sock, AddressFamily family)
     {
@@ -174,7 +177,7 @@ namespace NET {
             }
         }
         else { // connection completed
-            auto[suc, errocode] = INTERNAL::getsockopt_O_ERROR(handle);
+            auto [suc, errocode] = INTERNAL::getsockopt_O_ERROR(handle);
             if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
                 handler(StatusCode::SC_SUCCESS);
             }
@@ -188,7 +191,7 @@ namespace NET {
         auto h = context->getCompletionHandler();
         if (h) {
             context->reset();
-            auto[suc, errocode] = INTERNAL::getsockopt_O_ERROR(context->Socket_);
+            auto [suc, errocode] = INTERNAL::getsockopt_O_ERROR(context->Socket_);
             if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
                 h(StatusCode::SC_SUCCESS, 0);
             }

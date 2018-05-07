@@ -5,7 +5,7 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
-#define UNUSED(x) {};
+
 namespace SL {
 namespace NET {
 
@@ -38,7 +38,7 @@ namespace NET {
             Completion = 1;
             completionhandler = nullptr;
             Win_IO_Context::reset();
-            UNUSED(Socket_.close());
+            [[maybe_unused]] auto ret = Socket_.close();
         }
     };
     struct Win_IO_Accept_Context : INTERNAL::Win_IO_Context {
@@ -59,8 +59,8 @@ namespace NET {
             Listener_ = nullptr;
 #endif
             Family = AddressFamily::IPV4;
-            UNUSED(Socket_.close());
-            UNUSED(ListenSocket.close());
+            [[maybe_unused]] auto ret = Socket_.close();
+            [[maybe_unused]] auto ret1 = ListenSocket.close();
             completionhandler = nullptr;
         }
     };

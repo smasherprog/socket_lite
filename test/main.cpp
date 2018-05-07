@@ -21,8 +21,29 @@ int main()
 {
     std::cout << "Starting Network Benchmarks\n";
     std::srand(std::time(nullptr));
+    bool startwatching = true;
+    float totalusage = 0.0f;
+    float counts = 0.0f;
+    SL::NET::CPUMemMonitor cpumemmom;
+    cpumemmom.getCPUUsage();
+    std::thread t([&] {
+        while (startwatching) {
+            auto temp = cpumemmom.getCPUUsage();
+            totalusage += temp.ProcessUse;
+            counts += 1.0f;
+            std::this_thread::sleep_for(200ms);
+        }
+    });
 
     myconnectiontest::myconnectiontest();
+    std::cout << std::fixed;
+    std::cout << std::setprecision(2);
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+
+    asioconnectiontest::connectiontest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
 
     return 0;
 }

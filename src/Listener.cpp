@@ -20,8 +20,8 @@ namespace NET {
 
     void Listener::stop()
     {
-        UNUSED(Acceptor_.AcceptSocket.close());
         Keepgoing = false;
+        [[maybe_unused]] auto ret = Acceptor_.AcceptSocket.close();
         if (Runner.get_id() != std::this_thread::get_id() && Runner.joinable()) {
             Runner.join();
         }
@@ -36,7 +36,7 @@ namespace NET {
                 auto handle = ::accept(Acceptor_.AcceptSocket.Handle().value, NULL, NULL);
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
-                    UNUSED(s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING));
+                    [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
 
 #if _WIN32
                     if (CreateIoCompletionPort((HANDLE)handle, Context_.ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {

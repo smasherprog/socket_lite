@@ -63,11 +63,11 @@ namespace NET {
     };
 
     enum class Blocking_Options { BLOCKING, NON_BLOCKING };
-    typedef Explicit<unsigned short, ThreadCountTag> ThreadCount;
+    typedef Explicit<unsigned int, ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
 
-    enum[[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
-                                 SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
+    enum [[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
+                                  SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
     struct LingerOption {
@@ -168,7 +168,7 @@ namespace NET {
         INTERNAL::ContextImpl ContextImpl_;
 
       public:
-        Context(ThreadCount threadcount);
+        Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();
         Context() = delete;
         Context(const Context &) = delete;
