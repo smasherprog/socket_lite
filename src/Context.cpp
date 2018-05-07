@@ -91,7 +91,7 @@ namespace NET {
 #if _WIN32
                 while (true) {
                     DWORD numberofbytestransfered = 0;
-                    INTERNAL::Win_IO_Context *overlapped = nullptr;
+                    Win_IO_Context *overlapped = nullptr;
                     void *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(ContextImpl_.IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
@@ -103,16 +103,16 @@ namespace NET {
                     }
                     switch (overlapped->IOOperation) {
 
-                    case INTERNAL::IO_OPERATION::IoConnect:
+                    case IO_OPERATION::IoConnect:
                         continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
                         break;
-                    case INTERNAL::IO_OPERATION::IoRead:
-                    case INTERNAL::IO_OPERATION::IoWrite:
-                        static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
-                        if (numberofbytestransfered == 0 && static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
+                    case IO_OPERATION::IoRead:
+                    case IO_OPERATION::IoWrite:
+                        static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
+                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        continue_io(bSuccess, *static_cast<INTERNAL::Win_IO_RW_Context *>(overlapped));
+                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
                         break;
                     default:
                         break;
@@ -136,11 +136,11 @@ namespace NET {
                         if (epollevents[i].data.fd != ContextImpl_.EventWakeFd) {
                             auto ctx = static_cast<INTERNAL::Win_IO_Context *>(epollevents[i].data.ptr);
                             switch (ctx->IOOperation) {
-                            case INTERNAL::IO_OPERATION::IoConnect:
+                            case IO_OPERATION::IoConnect:
                                 continue_connect(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx));
                                 break;
-                            case INTERNAL::IO_OPERATION::IoRead:
-                            case INTERNAL::IO_OPERATION::IoWrite:
+                            case IO_OPERATION::IoRead:
+                            case IO_OPERATION::IoWrite:
                                 continue_io(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx), PendingIO, IOCPHandle);
                                 break;
                             default:

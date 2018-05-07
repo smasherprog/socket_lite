@@ -13,40 +13,161 @@
 #endif
 namespace SL {
 namespace NET {
+
+    Socket::Socket(INTERNAL::ContextImpl &c) : Context_(c) {}
+    Socket::Socket(INTERNAL::ContextImpl &c, PlatformSocket &&p) : Context_(c), PlatformSocket_(std::move(p)) {}
+    Socket::Socket(Context &c, PlatformSocket &&p) : Context_(c.ContextImpl_), PlatformSocket_(std::move(p)) {}
+    Socket::Socket(Context &c) : Context_(c.ContextImpl_) {}
+    Socket::Socket(Socket &&sock) : PlatformSocket_(std::move(sock.PlatformSocket_)), Context_(sock.Context_) {}
+    Socket::~Socket()
+    {
+#if !_WIN32
+        SocketGetter sg1(*this);
+        auto whandler(WriteContext.getCompletionHandler());
+        if (whandler) {
+            WriteContext.reset();
+            sg1.getPendingIO() -= 1;
+            whandler(StatusCode::SC_CLOSED, 0);
+        }
+        auto whandler1(ReadContext.getCompletionHandler());
+        if (whandler1) {
+            ReadContext.reset();
+            sg1.getPendingIO() -= 1;
+            whandler1(StatusCode::SC_CLOSED, 0);
+        }
+#endif
+    }
+    void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        auto context = new Win_IO_RW_Context();
+        context->buffer = buffer;
+        context->transfered_bytes = 0;
+        context->bufferlen = buffer_size;
+        context->Context_ = &Context_;
+        context->Socket_ = PlatformSocket_.Handle();
+        context->setCompletionHandler(std::move(handler));
+        context->IOOperation = IO_OPERATION::IoRead;
+        continue_io(true, context);
+    }
+    std::tuple<StatusCode, size_t> Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        auto count = ::recv(PlatformSocket_.Handle().value, (char *)buffer, buffer_size, 0);
+        if (count <= 0) { // possible error or continue
+            if (auto err = WSAGetLastError(); err == WSAEWOULDBLOCK && count == SOCKET_ERROR) {
+                auto context = new Win_IO_RW_Context();
+                context->buffer = buffer;
+                context->transfered_bytes = 0;
+                context->bufferlen = buffer_size;
+                context->Context_ = &Context_;
+                context->Socket_ = PlatformSocket_.Handle();
+                context->setCompletionHandler(std::move(handler));
+                context->IOOperation = IO_OPERATION::IoRead;
+                continue_io(true, context);
+                return std::tuple<StatusCode, size_t>(StatusCode::SC_PENDINGIO, 0);
+            }
+            else {
+                return std::tuple<StatusCode, size_t>(TranslateError(&err), 0);
+            }
+        }
+        else if (count == buffer_size || buffer_size == 0) {
+            return std::tuple<StatusCode, size_t>(StatusCode::SC_SUCCESS, buffer_size);
+        }
+        else { // more work to do...
+            auto context = new Win_IO_RW_Context();
+            context->buffer = buffer;
+            context->transfered_bytes = 0;
+            context->bufferlen = buffer_size - count;
+            context->Context_ = &Context_;
+            context->Socket_ = PlatformSocket_.Handle();
+            context->setCompletionHandler(std::move(handler));
+            context->IOOperation = IO_OPERATION::IoRead;
+            continue_io(true, context);
+            return std::tuple<StatusCode, size_t>(StatusCode::SC_PENDINGIO, 0);
+        }
+    }
+    void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        auto context = new Win_IO_RW_Context();
+        context->buffer = buffer;
+        context->transfered_bytes = 0;
+        context->bufferlen = buffer_size;
+        context->Context_ = &Context_;
+        context->Socket_ = PlatformSocket_.Handle();
+        context->setCompletionHandler(std::move(handler));
+        context->IOOperation = IO_OPERATION::IoWrite;
+        continue_io(true, context);
+    }
+    std::tuple<StatusCode, size_t> Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        auto count = ::send(PlatformSocket_.Handle().value, (char *)buffer, buffer_size, 0);
+        if (count <= 0) { // possible error or continue
+            if (auto err = WSAGetLastError(); err == WSAEWOULDBLOCK && count == SOCKET_ERROR) {
+                auto context = new Win_IO_RW_Context();
+                context->buffer = buffer;
+                context->transfered_bytes = 0;
+                context->bufferlen = buffer_size;
+                context->Context_ = &Context_;
+                context->Socket_ = PlatformSocket_.Handle();
+                context->setCompletionHandler(std::move(handler));
+                context->IOOperation = IO_OPERATION::IoWrite;
+                continue_io(true, context);
+                return std::tuple<StatusCode, size_t>(StatusCode::SC_PENDINGIO, 0);
+            }
+            else {
+                return std::tuple<StatusCode, size_t>(TranslateError(&err), 0);
+            }
+        }
+        else if (count == buffer_size || buffer_size == 0) {
+            return std::tuple<StatusCode, size_t>(StatusCode::SC_SUCCESS, buffer_size);
+        }
+        else { // more work to do...
+            auto context = new Win_IO_RW_Context();
+            context->buffer = buffer;
+            context->transfered_bytes = 0;
+            context->bufferlen = buffer_size - count;
+            context->Context_ = &Context_;
+            context->Socket_ = PlatformSocket_.Handle();
+            context->setCompletionHandler(std::move(handler));
+            context->IOOperation = IO_OPERATION::IoWrite;
+            continue_io(true, context);
+            return std::tuple<StatusCode, size_t>(StatusCode::SC_PENDINGIO, 0);
+        }
+    }
+
 #if _WIN32
-    void continue_io(bool success, INTERNAL::Win_IO_RW_Context &context)
+    void continue_io(bool success, Win_IO_RW_Context *context)
     {
         if (!success) {
-            if (auto handler(context.getCompletionHandler()); handler) {
-                context.reset();
+            if (auto handler(context->getCompletionHandler()); handler) {
+                delete context;
                 handler(TranslateError(), 0);
             }
         }
-        else if (context.bufferlen == context.transfered_bytes) {
-            if (auto handler(context.getCompletionHandler()); handler) {
-                context.reset();
-                handler(StatusCode::SC_SUCCESS, context.transfered_bytes);
+        else if (context->bufferlen == context->transfered_bytes) {
+            if (auto handler(context->getCompletionHandler()); handler) {
+                delete context;
+                handler(StatusCode::SC_SUCCESS, context->transfered_bytes);
             }
         }
         else {
             WSABUF wsabuf;
-            auto bytesleft = static_cast<decltype(wsabuf.len)>(context.bufferlen - context.transfered_bytes);
-            wsabuf.buf = (char *)context.buffer + context.transfered_bytes;
+            auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
+            wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
             wsabuf.len = bytesleft;
             DWORD dwSendNumBytes(0), dwFlags(0);
-            context.Context_->IncrementPendingIO();
+            context->Context_->IncrementPendingIO();
             DWORD nRet = 0;
-            if (context.IOOperation == INTERNAL::IO_OPERATION::IoRead) {
-                nRet = WSARecv(context.Socket_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
+            if (context->IOOperation == IO_OPERATION::IoRead) {
+                nRet = WSARecv(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
             }
             else {
-                nRet = WSASend(context.Socket_.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context.Overlapped), NULL);
+                nRet = WSASend(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                if (auto handler(context.getCompletionHandler()); handler) {
-                    context.Context_->DecrementPendingIO();
-                    context.reset();
+                if (auto handler(context->getCompletionHandler()); handler) {
+                    context->Context_->DecrementPendingIO();
+                    delete context;
                     handler(TranslateError(&lasterr), 0);
                 }
             }
@@ -64,13 +185,9 @@ namespace NET {
                 h(TranslateError(), std::move(sock));
             }
         }
-
         if (context->DecrementRef() == 0) {
             // safe to delete
             delete context;
-        }
-        else {
-            int k = 6;
         }
     }
     StatusCode BindSocket(SOCKET sock, AddressFamily family)
@@ -102,14 +219,13 @@ namespace NET {
         if (bindret != StatusCode::SC_SUCCESS) {
             return std::tuple<StatusCode, Socket>(bindret, Socket(c));
         }
-        if (CreateIoCompletionPort((HANDLE)handle.Handle().value, c.ContextImpl_.IOCPHandle, 57, NULL) == NULL) {
+        if (CreateIoCompletionPort((HANDLE)handle.Handle().value, c.ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
             return std::tuple<StatusCode, Socket>(TranslateError(), Socket(c));
         }
-
         auto context = new Win_IO_Connect_Context();
         context->Context_ = &c.ContextImpl_;
         context->setCompletionHandler(std::move(handler));
-        context->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
+        context->IOOperation = IO_OPERATION::IoConnect;
         context->Socket_ = std::move(handle);
         context->IncrementRef();
         c.ContextImpl_.IncrementPendingIO();
@@ -150,7 +266,7 @@ namespace NET {
     {
         SocketGetter sg(socket);
         auto writecontext = sg.getWriteContext();
-        assert(writecontext->IOOperation == INTERNAL::IO_OPERATION::IoNone);
+        assert(writecontext->IOOperation == IO_OPERATION::IoNone);
         auto handle = writecontext->Socket_ = INTERNAL::Socket(address.get_Family());
         auto ret = ::connect(handle, (::sockaddr *)address.get_SocketAddr(), address.get_SocketAddrLen());
         if (ret == -1) { // will complete some time later
@@ -162,7 +278,7 @@ namespace NET {
                 // need to allocate for the epoll call
                 sg.getPendingIO() += 1;
                 writecontext->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
-                writecontext->IOOperation = INTERNAL::IO_OPERATION::IoConnect;
+                writecontext->IOOperation = IO_OPERATION::IoConnect;
 
                 epoll_event ev = {0};
                 ev.data.ptr = writecontext;
@@ -204,7 +320,7 @@ namespace NET {
     {
         auto bytestowrite = context->bufferlen - context->transfered_bytes;
         auto count = 0;
-        if (context->IOOperation == INTERNAL::IO_OPERATION::IoRead) {
+        if (context->IOOperation == IO_OPERATION::IoRead) {
             count = ::read(context->Socket_, context->buffer + context->transfered_bytes, bytestowrite);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
@@ -246,7 +362,7 @@ namespace NET {
 
         epoll_event ev = {0};
         ev.data.ptr = context;
-        ev.events = context->IOOperation == INTERNAL::IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
+        ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
         ev.events |= EPOLLONESHOT;
         pendingio += 1;
         if (epoll_ctl(iocphandle, EPOLL_CTL_MOD, context->Socket_, &ev) == -1) {

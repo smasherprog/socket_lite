@@ -185,7 +185,6 @@ namespace NET {
       protected:
         PlatformSocket PlatformSocket_;
         INTERNAL::ContextImpl &Context_;
-        INTERNAL::Win_IO_RW_Context ReadContext, WriteContext;
 
       public:
         Socket(Context &, PlatformSocket &&);
@@ -199,8 +198,13 @@ namespace NET {
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         const PlatformSocket &Handle() const { return PlatformSocket_; }
 
-        void recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        void send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+        [[nodiscard]] std::tuple<StatusCode, size_t> recv(size_t buffer_size, unsigned char *buffer,
+                                                          std::function<void(StatusCode, size_t)> &&handler);
+        [[nodiscard]] std::tuple<StatusCode, size_t> send(size_t buffer_size, unsigned char *buffer,
+                                                          std::function<void(StatusCode, size_t)> &&handler);
+        // guarantees async behavior and will not complete immediatly, but some time later
+        void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+        void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
     };
     struct Acceptor {
         PlatformSocket AcceptSocket;

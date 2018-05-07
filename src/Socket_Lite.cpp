@@ -87,62 +87,6 @@ namespace NET {
         freeaddrinfo(result);
         return StatusCode::SC_SUCCESS;
     }
-    Socket::Socket(INTERNAL::ContextImpl &c) : Context_(c) {}
-    Socket::Socket(INTERNAL::ContextImpl &c, PlatformSocket &&p) : Context_(c), PlatformSocket_(std::move(p)) {}
-    Socket::Socket(Context &c, PlatformSocket &&p) : Context_(c.ContextImpl_), PlatformSocket_(std::move(p)) {}
-    Socket::Socket(Context &c) : Context_(c.ContextImpl_) { WriteContext.Context_ = ReadContext.Context_ = &c.ContextImpl_; }
-    Socket::Socket(Socket &&sock) : PlatformSocket_(std::move(sock.PlatformSocket_)), Context_(sock.Context_) {}
-    Socket::~Socket()
-    {
-#if !_WIN32
-        SocketGetter sg1(*this);
-        auto whandler(WriteContext.getCompletionHandler());
-        if (whandler) {
-            WriteContext.reset();
-            sg1.getPendingIO() -= 1;
-            whandler(StatusCode::SC_CLOSED, 0);
-        }
-        auto whandler1(ReadContext.getCompletionHandler());
-        if (whandler1) {
-            ReadContext.reset();
-            sg1.getPendingIO() -= 1;
-            whandler1(StatusCode::SC_CLOSED, 0);
-        }
-#endif
-    }
-    void Socket::recv(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-    {
-        if (!PlatformSocket_)
-            return;
-        ReadContext.buffer = buffer;
-        ReadContext.transfered_bytes = 0;
-        ReadContext.bufferlen = buffer_size;
-        ReadContext.Context_ = &Context_;
-        ReadContext.Socket_ = PlatformSocket_.Handle();
-        ReadContext.setCompletionHandler(std::move(handler));
-        ReadContext.IOOperation = INTERNAL::IO_OPERATION::IoRead;
-#if !_WIN32
-        sg.getPendingIO() += 1;
-#endif
-        continue_io(true, ReadContext);
-    }
-    void Socket::send(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
-    {
-        if (!PlatformSocket_)
-            return;
-        WriteContext.buffer = buffer;
-        WriteContext.transfered_bytes = 0;
-        WriteContext.bufferlen = buffer_size;
-        WriteContext.Context_ = &Context_;
-        WriteContext.Socket_ = PlatformSocket_.Handle();
-        WriteContext.setCompletionHandler(std::move(handler));
-        WriteContext.IOOperation = INTERNAL::IO_OPERATION::IoWrite;
-#if !_WIN32
-        sg.getPendingIO() += 1;
-#endif
-        continue_io(true, WriteContext);
-    }
-
     StatusCode TranslateError(int *errcode)
     {
 #if _WIN32
