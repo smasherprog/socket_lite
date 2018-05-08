@@ -40,7 +40,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        auto [code, bytesread] = socket_.recv(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
+        socket_.recv_async(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             }
@@ -75,25 +75,16 @@ class asioclient {
         });
     }
     void close() { socket_->socket_.close(); }
-    SL::NET::StatusCode handleconnect(SL::NET::StatusCode connectstatus, SL::NET::Socket &socket)
-    {
-        if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-            socket_ = std::make_shared<session>(std::move(socket));
-            socket_->do_write();
-            socket_->do_read();
-        }
-        return connectstatus;
-    }
+    SL::NET::StatusCode handleconnect(SL::NET::StatusCode connectstatus, SL::NET::Socket &socket) { return connectstatus; }
     void do_connect()
     {
-        while (keepgoing) {
-            auto [ec, sock] = SL::NET::connect(
-                Context_, addrs.back(), [this](SL::NET::StatusCode connectstatus, SL::NET::Socket socket) { handleconnect(connectstatus, socket); });
-            if (handleconnect(ec, sock) == SL::NET::StatusCode::SC_PENDINGIO) {
-                // the callback will be executed some time later
-                break;
+        SL::NET::connect_async(Context_, addrs.back(), [this](SL::NET::StatusCode connectstatus, SL::NET::Socket socket) {
+            if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
+                socket_ = std::make_shared<session>(std::move(socket));
+                socket_->do_write();
+                socket_->do_read();
             }
-        }
+        });
     }
 };
 

@@ -158,14 +158,10 @@ namespace NET {
         StatusCode listen(int backlog);
         StatusCode bind(const sockaddr &addr);
     };
-} // namespace NET
-} // namespace SL
-#include "Socket_Liteimpl.h"
-namespace SL {
-namespace NET {
+    class ContextImpl;
     class SOCKET_LITE_EXTERN Context {
       protected:
-        INTERNAL::ContextImpl ContextImpl_;
+        ContextImpl *ContextImpl_;
 
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
@@ -178,31 +174,27 @@ namespace NET {
 
         friend class Listener;
         friend class Socket;
-        friend std::tuple<StatusCode, Socket> connect(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
+        friend StatusCode connect_async(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
     };
 
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
-        INTERNAL::ContextImpl &Context_;
+        ContextImpl &Context_;
 
       public:
         Socket(Context &, PlatformSocket &&);
-        Socket(INTERNAL::ContextImpl &, PlatformSocket &&);
+        Socket(ContextImpl &, PlatformSocket &&);
         Socket(Socket &&);
         Socket(const Socket &) = delete;
         Socket(Context &);
-        Socket(INTERNAL::ContextImpl &);
+        Socket(ContextImpl &);
         ~Socket();
         Socket &operator=(const Socket &) = delete;
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         const PlatformSocket &Handle() const { return PlatformSocket_; }
         void close();
 
-        [[nodiscard]] std::tuple<StatusCode, size_t> recv(size_t buffer_size, unsigned char *buffer,
-                                                          std::function<void(StatusCode, size_t)> &&handler);
-        [[nodiscard]] std::tuple<StatusCode, size_t> send(size_t buffer_size, unsigned char *buffer,
-                                                          std::function<void(StatusCode, size_t)> &&handler);
         // guarantees async behavior and will not complete immediatly, but some time later
         void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
         void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
@@ -215,7 +207,7 @@ namespace NET {
 
     class SOCKET_LITE_EXTERN Listener {
       protected:
-        Context &Context_;
+        ContextImpl &ContextImpl_;
         Acceptor Acceptor_;
         std::thread Runner;
         bool Keepgoing;
@@ -236,8 +228,7 @@ namespace NET {
     [[nodiscard]] StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
                                                             const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
 
-    [[nodiscard]] std::tuple<StatusCode, Socket> SOCKET_LITE_EXTERN connect(Context &context, SL::NET::sockaddr &address,
-                                                                            std::function<void(StatusCode, Socket)> &&);
+    StatusCode SOCKET_LITE_EXTERN connect_async(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
 
 } // namespace NET
 } // namespace SL

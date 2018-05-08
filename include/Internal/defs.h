@@ -1,10 +1,21 @@
 #pragma once
 
 #include "Socket_Lite.h"
-
 #include <atomic>
 #include <functional>
 #include <mutex>
+
+#if defined(WINDOWS) || defined(_WIN32)
+#include <WinSock2.h>
+#include <Windows.h>
+#include <mswsock.h>
+#endif
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+#ifndef SOCKET_ERROR
+#define SOCKET_ERROR -1
+#endif
 
 namespace SL {
 namespace NET {
@@ -42,7 +53,7 @@ namespace NET {
         size_t transfered_bytes;
         size_t bufferlen;
         SocketHandle Socket_;
-        INTERNAL::ContextImpl *Context_;
+        ContextImpl *Context_;
         unsigned char *buffer;
         Win_IO_RW_Context() : Socket_(INVALID_SOCKET) { reset(); }
         void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
@@ -70,24 +81,24 @@ namespace NET {
         }
     };
     class Win_IO_Connect_Context : public Win_IO_Context {
-        std::function<void(StatusCode, Socket &&)> completionhandler;
+        std::function<void(StatusCode, Socket)> completionhandler;
         std::atomic<int> Completion;
 
       public:
         PlatformSocket Socket_;
-        INTERNAL::ContextImpl *Context_ = nullptr;
+        ContextImpl *Context_ = nullptr;
         Win_IO_Connect_Context() { Completion = 0; }
-        void setCompletionHandler(std::function<void(StatusCode, Socket &&)> &&c)
+        void setCompletionHandler(std::function<void(StatusCode, Socket)> &&c)
         {
             completionhandler = std::move(c);
             Completion = 1;
         }
-        std::function<void(StatusCode, Socket &&)> getCompletionHandler()
+        std::function<void(StatusCode, Socket)> getCompletionHandler()
         {
             if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
                 return std::move(completionhandler);
             }
-            std::function<void(StatusCode, Socket &&)> t;
+            std::function<void(StatusCode, Socket)> t;
             return t;
         }
 
@@ -101,16 +112,31 @@ namespace NET {
     };
 
     void continue_io(bool success, Win_IO_RW_Context *context);
+    void continue_connect(bool success, Win_IO_Connect_Context *context);
 
-    void continue_connect(bool success,
+    class ContextImpl {
+
+        std::atomic<int> PendingIO;
+        ThreadCount ThreadCount_;
+
+      public:
+        std::vector<std::thread> Threads;
 #if WIN32
-                          Win_IO_Connect_Context
+        ContextImpl::ContextImpl(const ThreadCount &t) : ThreadCount_(t), ConnectEx_(nullptr), IOCPHandle(NULL) { PendingIO = 0; }
+        WSADATA wsaData;
+        LPFN_CONNECTEX ConnectEx_;
+        HANDLE IOCPHandle;
 #else
-                          INTERNAL::Win_IO_RW_Context
+        ContextImpl::ContextImpl(const ThreadCount &t) : ThreadCount_(t), EventWakeFd(-1), IOCPHandle(-1) { PendingIO = 0; }
+        int EventWakeFd;
+        int IOCPHandle;
 #endif
-                              *context);
 
-    void CloseSocket(PlatformSocket &handle);
+        int IncrementPendingIO() { return PendingIO.fetch_add(1, std::memory_order_acquire) + 1; }
+        int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
+        int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
+        int getThreadCount() const { return ThreadCount_.value; }
+    };
 
 } // namespace NET
 } // namespace SL

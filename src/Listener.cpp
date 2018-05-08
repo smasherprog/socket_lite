@@ -9,7 +9,10 @@
 namespace SL {
 namespace NET {
 
-    Listener::Listener(Context &context, Acceptor &&acceptor) : Context_(context), Acceptor_(std::move(acceptor)) { Keepgoing = false; }
+    Listener::Listener(Context &context, Acceptor &&acceptor) : ContextImpl_(*context.ContextImpl_), Acceptor_(std::move(acceptor))
+    {
+        Keepgoing = false;
+    }
     Listener::~Listener()
     {
         stop();
@@ -43,7 +46,7 @@ namespace NET {
                     PlatformSocket s(handle);
 
 #if _WIN32
-                    if (CreateIoCompletionPort((HANDLE)handle, Context_.ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
+                    if (CreateIoCompletionPort((HANDLE)handle, ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
                         continue; // this shouldnt happen but what ever
                     }
 #else
@@ -54,7 +57,7 @@ namespace NET {
                     }
 #endif
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
-                    Acceptor_.AcceptHandler(Socket(Context_, std::move(s)));
+                    Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
             }
             Acceptor_.AcceptHandler = nullptr;

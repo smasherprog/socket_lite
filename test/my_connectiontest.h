@@ -19,28 +19,16 @@ auto connections = 0.0;
 bool keepgoing = true;
 
 std::vector<SL::NET::sockaddr> addresses;
-void connect(SL::NET::Context &iocontext);
-void continue_connect(SL::NET::Context &iocontext)
-{
-    connections += 1.0;
-    if (keepgoing) {
-        connect(iocontext);
-    }
-}
+
 void connect(SL::NET::Context &iocontext)
 {
-    while (keepgoing) {
-        auto [ec, sock] =
-            SL::NET::connect(iocontext, addresses.back(), [&iocontext](SL::NET::StatusCode, SL::NET::Socket sock) { continue_connect(iocontext); });
-        if (ec == SL::NET::StatusCode::SC_SUCCESS) {
-            // connection completed immediatly, and the callback will not be call, must handle it here
-            connections += 1.0;
+
+    SL::NET::connect_async(iocontext, addresses.back(), [&iocontext](SL::NET::StatusCode, SL::NET::Socket sock) {
+        connections += 1.0;
+        if (keepgoing) {
+            connect(iocontext);
         }
-        else if (ec == SL::NET::StatusCode::SC_PENDINGIO) {
-            // the callback will be executed some time later
-            break;
-        }
-    }
+    });
 }
 void myconnectiontest()
 {

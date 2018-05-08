@@ -50,18 +50,18 @@ int main()
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
 
-    // asiotransfertest::asiotransfertest();
-    // std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    // counts = totalusage = 0;
-    // mytransfertest::mytransfertest();
-    // std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    // counts = totalusage = 0;
-    // asio_multithreadedechotest::asioechotest();
-    // std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    // counts = totalusage = 0;
-    // mymultithreadedechotest::myechotest();
-    // std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    // counts = totalusage = 0;
+    asiotransfertest::asiotransfertest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    mytransfertest::mytransfertest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asio_multithreadedechotest::asioechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    mymultithreadedechotest::myechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
 
     startwatching = false;
     t.join();
