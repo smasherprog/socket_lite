@@ -96,30 +96,7 @@ namespace NET {
             Completion = 1;
             completionhandler = nullptr;
             Win_IO_Context::reset();
-            [[maybe_unused]] auto ret = Socket_.close();
-        }
-    };
-    struct Win_IO_Accept_Context : Win_IO_Context {
-#ifdef _WIN32
-        char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
-#else
-        Listener *Listener_ = nullptr;
-#endif
-        AddressFamily Family = AddressFamily::IPV4;
-        Context *Context_ = nullptr;
-        PlatformSocket Socket_;
-        PlatformSocket ListenSocket;
-        std::function<void(StatusCode, Socket &&)> completionhandler;
-        void reset()
-        {
-            Win_IO_Context::reset();
-#ifndef _WIN32
-            Listener_ = nullptr;
-#endif
-            Family = AddressFamily::IPV4;
-            [[maybe_unused]] auto ret = Socket_.close();
-            [[maybe_unused]] auto ret1 = ListenSocket.close();
-            completionhandler = nullptr;
+            Socket_.close();
         }
     };
 

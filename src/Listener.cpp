@@ -21,7 +21,7 @@ namespace NET {
     void Listener::stop()
     {
         Keepgoing = false;
-        [[maybe_unused]] auto ret = Acceptor_.AcceptSocket.close();
+        Acceptor_.AcceptSocket.close();
         if (Runner.joinable()) {
             if (Runner.get_id() != std::this_thread::get_id()) {
                 Runner.detach();
@@ -41,7 +41,6 @@ namespace NET {
                 auto handle = ::accept(Acceptor_.AcceptSocket.Handle().value, NULL, NULL);
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
-                    [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
 
 #if _WIN32
                     if (CreateIoCompletionPort((HANDLE)handle, Context_.ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
@@ -54,7 +53,7 @@ namespace NET {
                         continue; // this shouldnt happen but what ever
                     }
 #endif
-
+                    [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
                     Acceptor_.AcceptHandler(Socket(Context_, std::move(s)));
                 }
             }

@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #endif
+
 namespace SL {
 namespace NET {
 
@@ -37,6 +38,7 @@ namespace NET {
         }
 #endif
     }
+    void Socket::close() { return PlatformSocket_.close(); }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         auto context = new Win_IO_RW_Context();
@@ -157,6 +159,7 @@ namespace NET {
             DWORD dwSendNumBytes(0), dwFlags(0);
             context->Context_->IncrementPendingIO();
             DWORD nRet = 0;
+
             if (context->IOOperation == IO_OPERATION::IoRead) {
                 nRet = WSARecv(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
             }
@@ -177,12 +180,11 @@ namespace NET {
     void continue_connect(bool success, Win_IO_Connect_Context *context)
     {
         if (auto h = context->getCompletionHandler(); h) {
-            Socket sock(Socket(*context->Context_, std::move(context->Socket_)));
             if (success && ::setsockopt(context->Socket_.Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-                h(StatusCode::SC_SUCCESS, std::move(sock));
+                h(StatusCode::SC_SUCCESS, Socket(*context->Context_, std::move(context->Socket_)));
             }
             else {
-                h(TranslateError(), std::move(sock));
+                h(TranslateError(), Socket(*context->Context_, std::move(context->Socket_)));
             }
         }
         if (context->DecrementRef() == 0) {

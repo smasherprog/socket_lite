@@ -41,32 +41,29 @@ namespace NET {
             Handle_.value = socket(AF_INET6, typ, 0);
         }
     }
-    PlatformSocket::~PlatformSocket() { [[maybe_unused]] auto ret = close(); }
+    PlatformSocket::~PlatformSocket() { close(); }
     PlatformSocket::PlatformSocket(PlatformSocket &&p) : Handle_(p.Handle_) { p.Handle_.value = INVALID_SOCKET; }
 
     PlatformSocket &PlatformSocket::operator=(PlatformSocket &&p)
     {
-        [[maybe_unused]] auto ret = close();
+        close();
         Handle_.value = p.Handle_.value;
         p.Handle_.value = INVALID_SOCKET;
         return *this;
     }
 
     PlatformSocket::operator bool() const { return Handle_.value != INVALID_SOCKET; }
-    StatusCode PlatformSocket::close()
+    void PlatformSocket::close()
     {
         auto t = Handle_.value;
         Handle_.value = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
 #ifdef _WIN32
-            if (closesocket(t) == SOCKET_ERROR) {
+            closesocket(t);
 #else
-            if (::close(t) == SOCKET_ERROR) {
+            ::close(t);
 #endif
-                return TranslateError();
-            }
         }
-        return StatusCode::SC_SUCCESS;
     }
 
     StatusCode PlatformSocket::bind(const sockaddr &addr)

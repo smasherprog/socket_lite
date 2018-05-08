@@ -121,7 +121,7 @@ namespace NET {
         PlatformSocket &operator=(PlatformSocket &) = delete;
         PlatformSocket &operator=(PlatformSocket &&);
         operator bool() const;
-        StatusCode close();
+        void close();
         [[nodiscard]] SocketHandle Handle() const { return Handle_; };
 
         StatusCode getsockopt(DEBUGTag, const std::function<void(const SockOptStatus &)> &callback) const;
@@ -197,6 +197,7 @@ namespace NET {
         Socket &operator=(const Socket &) = delete;
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         const PlatformSocket &Handle() const { return PlatformSocket_; }
+        void close();
 
         [[nodiscard]] std::tuple<StatusCode, size_t> recv(size_t buffer_size, unsigned char *buffer,
                                                           std::function<void(StatusCode, size_t)> &&handler);

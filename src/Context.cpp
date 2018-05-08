@@ -10,6 +10,7 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #endif
+
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
@@ -101,6 +102,8 @@ namespace NET {
                         PostQueuedCompletionStatus(ContextImpl_.IOCPHandle, 0, (DWORD)NULL, NULL);
                         return;
                     }
+                    // std::cout << " type " << overlapped->IOOperation << std::endl;
+
                     switch (overlapped->IOOperation) {
 
                     case IO_OPERATION::IoConnect:

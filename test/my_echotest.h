@@ -17,7 +17,7 @@ void myechotest()
     myechomodels::writeechos = 0;
     myechomodels::keepgoing = true;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    SL::NET::Context iocontext(SL::NET::ThreadCount(2));
+    SL::NET::Context iocontext(SL::NET::ThreadCount(1));
 
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
