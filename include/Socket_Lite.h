@@ -159,23 +159,25 @@ namespace NET {
         StatusCode listen(int backlog);
         StatusCode bind(const sockaddr &addr);
     };
-    //forward declares
+    // forward declares
     class ContextImpl;
     class Context;
+    class Win_IO_RW_Context;
 
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
         ContextImpl &Context_;
+        Win_IO_RW_Context *ReadContext_, *WriteContext;
 
       public:
         Socket(Context &, PlatformSocket &&);
         Socket(ContextImpl &, PlatformSocket &&);
         Socket(Socket &&);
-        Socket(const Socket &) = delete;
         Socket(Context &);
         Socket(ContextImpl &);
         ~Socket();
+        Socket(const Socket &) = delete;
         Socket &operator=(const Socket &) = delete;
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         const PlatformSocket &Handle() const { return PlatformSocket_; }
@@ -185,7 +187,7 @@ namespace NET {
         void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
         void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
     };
-       class SOCKET_LITE_EXTERN Context {
+    class SOCKET_LITE_EXTERN Context {
       protected:
         ContextImpl *ContextImpl_;
 
