@@ -236,7 +236,7 @@ namespace NET {
         timeval value = {0};
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-                callback(std::chrono::seconds(value.tv_sec)));// convert from ms to seconds
+                callback(std::chrono::seconds(value.tv_sec));// convert from ms to seconds
                 return StatusCode::SC_SUCCESS;
         }
 #endif
@@ -256,7 +256,7 @@ namespace NET {
         timeval value = {0};
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-                callback(std::chrono::seconds(value.tv_sec)));// convert from ms to seconds
+                callback(std::chrono::seconds(value.tv_sec));// convert from ms to seconds
                 return StatusCode::SC_SUCCESS;
         }
 #endif
