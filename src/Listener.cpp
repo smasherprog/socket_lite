@@ -13,20 +13,14 @@ namespace NET {
     {
         Keepgoing = false;
     }
-    Listener::~Listener()
-    {
-        stop();
-        if (Runner.joinable()) {
-            Runner.join();
-        }
-    }
+    Listener::~Listener() { stop(); }
 
     void Listener::stop()
     {
         Keepgoing = false;
         Acceptor_.AcceptSocket.close();
         if (Runner.joinable()) {
-            if (Runner.get_id() != std::this_thread::get_id()) {
+            if (Runner.get_id() == std::this_thread::get_id()) {
                 Runner.detach();
             }
             else {
