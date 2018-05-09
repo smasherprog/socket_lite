@@ -32,5 +32,10 @@
      <td>214%:fire:</td>
      <td></td>  
     </tr>
+      <tr>
+     <td>ST Bulk Transfer Bytes Per Second</td>
+     <td>0% (Usually equal)</td>
+     <td></td>  
+    </tr>
 </tbody>
 </table>
