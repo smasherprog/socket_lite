@@ -19,7 +19,7 @@
   <tbody>
      <tr>
      <td>ST Connections Per Second</td>
-     <td style="color:green;">625%</td>
+      <td>625%:fire:</td>
      <td></td>  
     </tr>
   <tr>
@@ -29,7 +29,7 @@
     </tr>
    <tr>
      <td>MT Echos Per Second</td>
-     <td style="color:green;">214%</td>
+     <td>214%:fire:</td>
      <td></td>  
     </tr>
 </tbody>
