@@ -122,12 +122,12 @@ namespace NET {
       public:
         std::vector<std::thread> Threads;
 #if WIN32
-        ContextImpl::ContextImpl(const ThreadCount &t) : ThreadCount_(t), ConnectEx_(nullptr), IOCPHandle(NULL) { PendingIO = 0; }
+        ContextImpl(const ThreadCount &t) : ThreadCount_(t), ConnectEx_(nullptr), IOCPHandle(NULL) { PendingIO = 0; }
         WSADATA wsaData;
         LPFN_CONNECTEX ConnectEx_;
         HANDLE IOCPHandle;
 #else
-        ContextImpl::ContextImpl(const ThreadCount &t) : ThreadCount_(t), EventWakeFd(-1), IOCPHandle(-1) { PendingIO = 0; }
+        ContextImpl(const ThreadCount &t) : ThreadCount_(t), EventWakeFd(-1), IOCPHandle(-1) { PendingIO = 0; }
         int EventWakeFd;
         int IOCPHandle;
 #endif

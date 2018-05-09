@@ -159,24 +159,9 @@ namespace NET {
         StatusCode listen(int backlog);
         StatusCode bind(const sockaddr &addr);
     };
+    //forward declares
     class ContextImpl;
-    class SOCKET_LITE_EXTERN Context {
-      protected:
-        ContextImpl *ContextImpl_;
-
-      public:
-        Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
-        ~Context();
-        Context() = delete;
-        Context(const Context &) = delete;
-        Context(Context &&) = delete;
-        Context &operator=(Context &) = delete;
-        void run();
-
-        friend class Listener;
-        friend class Socket;
-        friend StatusCode connect_async(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
-    };
+    class Context;
 
     class SOCKET_LITE_EXTERN Socket {
       protected:
@@ -199,6 +184,23 @@ namespace NET {
         // guarantees async behavior and will not complete immediatly, but some time later
         void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
         void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+    };
+       class SOCKET_LITE_EXTERN Context {
+      protected:
+        ContextImpl *ContextImpl_;
+
+      public:
+        Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
+        ~Context();
+        Context() = delete;
+        Context(const Context &) = delete;
+        Context(Context &&) = delete;
+        Context &operator=(Context &) = delete;
+        void run();
+
+        friend class Listener;
+        friend class Socket;
+        friend StatusCode connect_async(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
     };
     struct Acceptor {
         PlatformSocket AcceptSocket;
