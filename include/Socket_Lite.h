@@ -62,19 +62,20 @@ namespace NET {
     struct BLOCKINGTag {
     };
 
-    enum class Blocking_Options { BLOCKING, NON_BLOCKING };
     typedef Explicit<unsigned int, ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
-
-    enum [[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
-                                  SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
+    enum class Blocking_Options { BLOCKING, NON_BLOCKING };
+    enum class [[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
+                                        SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
+    enum class AddressFamily { IPV4, IPV6 };
+
     struct LingerOption {
         LingerOptions l_onoff;         /* option on/off */
         std::chrono::seconds l_linger; /* linger time */
     };
-    enum class AddressFamily { IPV4, IPV6 };
+
     class SOCKET_LITE_EXTERN sockaddr {
         unsigned char SocketImpl[65] = {0};
         int SocketImplLen = 0;
@@ -220,6 +221,7 @@ namespace NET {
         Listener(Listener &&) = delete;
         Listener &operator=(Listener &) = delete;
         void start();
+        // this will block
         void stop();
         [[nodiscard]] bool isStopped() const;
     };
@@ -228,7 +230,8 @@ namespace NET {
     [[nodiscard]] StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
                                                             const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
 
-    StatusCode SOCKET_LITE_EXTERN connect_async(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
+    [[nodiscard]] StatusCode SOCKET_LITE_EXTERN connect_async(Context &context, SL::NET::sockaddr &address,
+                                                              std::function<void(StatusCode, Socket)> &&);
 
 } // namespace NET
 } // namespace SL
