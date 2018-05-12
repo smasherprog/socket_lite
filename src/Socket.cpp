@@ -57,11 +57,13 @@ namespace NET {
         PlatformSocket_.close();
         if (ReadContext_) {
             if (auto handler(ReadContext_->getCompletionHandler()); handler) {
+                 Context_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
         if (WriteContext) {
             if (auto handler(WriteContext->getCompletionHandler()); handler) {
+                 Context_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
@@ -78,7 +80,21 @@ namespace NET {
         ReadContext_->Socket_ = &PlatformSocket_;
         ReadContext_->setCompletionHandler(std::move(handler));
         ReadContext_->IOOperation = IO_OPERATION::IoRead;
+      
+#ifndef _WIN32
+        epoll_event ev = {0};
+        ev.data.ptr = ReadContext_;
+        ev.events =  EPOLLIN | EPOLLONESHOT;
+        Context_.IncrementPendingIO();
+        if (epoll_ctl(Context_.IOCPHandle, EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
+            if (auto h(ReadContext_->getCompletionHandler()); h) {
+                Context_.DecrementPendingIO();
+                h(TranslateError(), 0);
+            }
+        }
+#else
         continue_io(true, ReadContext_);
+#endif
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
@@ -92,7 +108,21 @@ namespace NET {
         WriteContext->Socket_ = &PlatformSocket_;
         WriteContext->setCompletionHandler(std::move(handler));
         WriteContext->IOOperation = IO_OPERATION::IoWrite;
+        
+#ifndef _WIN32
+        epoll_event ev = {0};
+        ev.data.ptr = WriteContext;
+        ev.events =  EPOLLOUT | EPOLLONESHOT;
+        Context_.IncrementPendingIO();
+        if (epoll_ctl(Context_.IOCPHandle, EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
+            if (auto h(WriteContext->getCompletionHandler()); h) {
+              Context_.DecrementPendingIO();
+                h(TranslateError(), 0);
+            }
+        }
+#else
         continue_io(true, WriteContext);
+#endif
     }
 #if _WIN32
     void continue_io(bool success, Win_IO_Context *context)

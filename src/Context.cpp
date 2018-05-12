@@ -51,7 +51,10 @@ namespace NET {
     Context::~Context()
     {
         while (ContextImpl_->getPendingIO() > 0) {
-            std::this_thread::sleep_for(5ms);
+            std::this_thread::sleep_for(10ms);
+#ifndef _WIN32
+        eventfd_write(ContextImpl_->EventWakeFd, 1);
+#endif
         }
         wakeup();
         for (auto &t : ContextImpl_->Threads) {
