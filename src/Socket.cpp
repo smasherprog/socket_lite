@@ -68,9 +68,9 @@ namespace NET {
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        #if _WIN32
+#if _WIN32
         ReadContext_->Overlapped = {0};
-        #endif
+#endif
         ReadContext_->buffer = buffer;
         ReadContext_->transfered_bytes = 0;
         ReadContext_->bufferlen = buffer_size;
@@ -82,9 +82,9 @@ namespace NET {
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        #if _WIN32
+#if _WIN32
         WriteContext->Overlapped = {0};
-        #endif
+#endif
         WriteContext->buffer = buffer;
         WriteContext->transfered_bytes = 0;
         WriteContext->bufferlen = buffer_size;
@@ -99,13 +99,11 @@ namespace NET {
     {
         if (!success) {
             if (auto handler(context->getCompletionHandler()); handler) {
-                context->reset();
                 handler(TranslateError(), 0);
             }
         }
         else if (context->bufferlen == context->transfered_bytes) {
             if (auto handler(context->getCompletionHandler()); handler) {
-                context->reset();
                 handler(StatusCode::SC_SUCCESS, context->transfered_bytes);
             }
         }
@@ -128,7 +126,6 @@ namespace NET {
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 if (auto handler(context->getCompletionHandler()); handler) {
                     context->Context_->DecrementPendingIO();
-                    context->reset();
                     handler(TranslateError(&lasterr), 0);
                 }
             }
@@ -208,9 +205,9 @@ namespace NET {
 #else
 
     void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
-    {   
+    {
         c.PlatformSocket_ = PlatformSocket(Family(address));
-    
+
         auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;
@@ -218,13 +215,13 @@ namespace NET {
                 return handler(TranslateError(&err));
             }
             else {
-                
-        auto context = c.ReadContext_;
-        context->Context_ = &c.Context_;
-        context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
-        context->IOOperation = IO_OPERATION::IoConnect;
-        context->Socket_ = &c.PlatformSocket_;
-        c.Context_.IncrementPendingIO();
+
+                auto context = c.ReadContext_;
+                context->Context_ = &c.Context_;
+                context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
+                context->IOOperation = IO_OPERATION::IoConnect;
+                context->Socket_ = &c.PlatformSocket_;
+                c.Context_.IncrementPendingIO();
 
                 epoll_event ev = {0};
                 ev.data.ptr = writecontext;
