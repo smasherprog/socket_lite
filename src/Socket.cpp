@@ -36,7 +36,7 @@ namespace NET {
 
     Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context()) {}
     Socket::Socket(ContextImpl &c, PlatformSocket &&p)
-        : PlatformSocket_(std::move(p)),Context_(c),  ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context())
+        : PlatformSocket_(std::move(p)), Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context())
     {
     }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
@@ -226,7 +226,7 @@ namespace NET {
                 epoll_event ev = {0};
                 ev.data.ptr = context;
                 ev.events = EPOLLOUT | EPOLLONESHOT;
-                if (epoll_ctl(c.Context_.IOCPHandle, EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value , &ev) == -1) {
+                if (epoll_ctl(c.Context_.IOCPHandle, EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
                     if (auto h = context->getCompletionHandler(); h) {
                         c.Context_.DecrementPendingIO();
                         h(TranslateError(), 0);
@@ -238,7 +238,7 @@ namespace NET {
             handler(StatusCode::SC_SUCCESS);
         }
     }
-    
+
     void continue_connect(bool success, Win_IO_Context *context)
     {
         if (auto h = context->getCompletionHandler(); h) {
@@ -291,8 +291,8 @@ namespace NET {
         ev.events |= EPOLLONESHOT;
         context->Context_->IncrementPendingIO();
         if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_MOD, context->Socket_->Handle().value, &ev) == -1) {
-            if (auto h(context->getCompletionHandler());h) {
-               context->Context_->DecrementPendingIO();
+            if (auto h(context->getCompletionHandler()); h) {
+                context->Context_->DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }
