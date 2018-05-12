@@ -22,8 +22,8 @@ std::vector<SL::NET::sockaddr> addresses;
 
 void connect(SL::NET::Context &iocontext)
 {
-
-    SL::NET::connect_async(iocontext, addresses.back(), [&iocontext](SL::NET::StatusCode, SL::NET::Socket sock) {
+    auto s = std::make_shared<SL::NET::Socket>(iocontext);
+    SL::NET::connect_async(*s, addresses.back(), [&iocontext, s](SL::NET::StatusCode) {
         connections += 1.0;
         if (keepgoing) {
             connect(iocontext);

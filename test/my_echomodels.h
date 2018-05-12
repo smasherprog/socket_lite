@@ -65,10 +65,10 @@ class session : public std::enable_shared_from_this<session> {
 class asioclient {
   public:
     std::shared_ptr<session> socket_;
-    SL::NET::Context &Context_;
     std::vector<SL::NET::sockaddr> addrs;
-    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family) : Context_(io_context)
+    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family)
     {
+        socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
         SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr &s) {
             addrs.push_back(s);
             return SL::NET::GetAddrInfoCBStatus::CONTINUE;
@@ -78,9 +78,9 @@ class asioclient {
     SL::NET::StatusCode handleconnect(SL::NET::StatusCode connectstatus, SL::NET::Socket &socket) { return connectstatus; }
     void do_connect()
     {
-        SL::NET::connect_async(Context_, addrs.back(), [this](SL::NET::StatusCode connectstatus, SL::NET::Socket socket) {
+        SL::NET::connect_async(socket_->socket_, addrs.back(), [this](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                socket_ = std::make_shared<session>(std::move(socket));
+
                 socket_->do_write();
                 socket_->do_read();
             }

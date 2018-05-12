@@ -50,9 +50,8 @@ class asioclient {
     void close() { socket_->socket_.close(); }
     void do_connect()
     {
-        SL::NET::connect_async(Context_, Addresses.back(), [this](SL::NET::StatusCode connectstatus, SL::NET::Socket &&s) {
+        SL::NET::connect_async(socket_->socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                socket_ = std::make_shared<session>(std::move(s));
                 socket_->do_write();
             }
             else {

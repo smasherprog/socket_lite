@@ -16,27 +16,27 @@
 
 namespace SL {
 namespace NET {
-    void processItem(std::variant<Win_IO_RW_Context, Win_IO_Connect_Context> &item)
-    {
-        /*    std::visit(
-                [](auto &&arg) {
-                    using T = std::decay_t<decltype(arg)>;
-                    if constexpr (std::is_same_v<T, Win_IO_RW_Context>) {
-                        continue_io(true, arg);
-                    }
-                    else if constexpr (std::is_same_v<T, Win_IO_Connect_Context>) {
-                        continue_connect(true, arg);
-                    }
-                    else {
-                        static_assert(always_false<T>::value, "non-exhaustive visitor!");
-                    }
-                },
-                item);*/
-    }
+    //    void processItem(std::variant<Win_IO_Context, Win_IO_Connect_Context1> &item)
+    //    {
+    //        /*    std::visit(
+    //                [](auto &&arg) {
+    //                    using T = std::decay_t<decltype(arg)>;
+    //                    if constexpr (std::is_same_v<T, Win_IO_Context>) {
+    //                        continue_io(true, arg);
+    //                    }
+    //                    else if constexpr (std::is_same_v<T, Win_IO_Connect_Context>) {
+    //                        continue_connect(true, arg);
+    //                    }
+    //                    else {
+    //                        static_assert(always_false<T>::value, "non-exhaustive visitor!");
+    //                    }
+    //                },
+    //                item);*/
+    //    }
 
-    Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_RW_Context()), WriteContext(new Win_IO_RW_Context()) {}
+    Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context()) {}
     Socket::Socket(ContextImpl &c, PlatformSocket &&p)
-        : Context_(c), PlatformSocket_(std::move(p)), ReadContext_(new Win_IO_RW_Context()), WriteContext(new Win_IO_RW_Context())
+        : Context_(c), PlatformSocket_(std::move(p)), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context())
     {
     }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
@@ -72,7 +72,7 @@ namespace NET {
         ReadContext_->transfered_bytes = 0;
         ReadContext_->bufferlen = buffer_size;
         ReadContext_->Context_ = &Context_;
-        ReadContext_->Socket_ = PlatformSocket_.Handle();
+        ReadContext_->Socket_ = &PlatformSocket_;
         ReadContext_->setCompletionHandler(std::move(handler));
         ReadContext_->IOOperation = IO_OPERATION::IoRead;
         continue_io(true, ReadContext_);
@@ -83,13 +83,13 @@ namespace NET {
         WriteContext->transfered_bytes = 0;
         WriteContext->bufferlen = buffer_size;
         WriteContext->Context_ = &Context_;
-        WriteContext->Socket_ = PlatformSocket_.Handle();
+        WriteContext->Socket_ = &PlatformSocket_;
         WriteContext->setCompletionHandler(std::move(handler));
         WriteContext->IOOperation = IO_OPERATION::IoWrite;
         continue_io(true, WriteContext);
     }
 #if _WIN32
-    void continue_io(bool success, Win_IO_RW_Context *context)
+    void continue_io(bool success, Win_IO_Context *context)
     {
         if (!success) {
             if (auto handler(context->getCompletionHandler()); handler) {
@@ -113,10 +113,10 @@ namespace NET {
             DWORD nRet = 0;
 
             if (context->IOOperation == IO_OPERATION::IoRead) {
-                nRet = WSARecv(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
+                nRet = WSARecv(context->Socket_->Handle().value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
             }
             else {
-                nRet = WSASend(context->Socket_.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
+                nRet = WSASend(context->Socket_->Handle().value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
@@ -129,18 +129,15 @@ namespace NET {
         }
     }
 
-    void continue_connect(bool success, Win_IO_Connect_Context *context)
+    void continue_connect(bool success, Win_IO_Context *context)
     {
         if (auto h = context->getCompletionHandler(); h) {
-            if (success && ::setsockopt(context->Socket_.Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-                h(StatusCode::SC_SUCCESS, Socket(*context->Context_, std::move(context->Socket_)));
+            if (success && ::setsockopt(context->Socket_->Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+                h(StatusCode::SC_SUCCESS, 0);
             }
             else {
-                h(TranslateError(), Socket(*context->Context_, std::move(context->Socket_)));
+                h(TranslateError(), 0);
             }
-        }
-        if (context->DecrementRef() == 0) {
-            delete context;
         }
     }
     StatusCode BindSocket(SOCKET sock, AddressFamily family)
@@ -165,50 +162,42 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    StatusCode connect_async(Context &c, sockaddr &address, std::function<void(StatusCode, Socket)> &&handler)
+    void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
-        PlatformSocket handle(Family(address));
-        auto bindret = BindSocket(handle.Handle().value, Family(address));
+        c.PlatformSocket_ = PlatformSocket(Family(address));
+        auto bindret = BindSocket(c.Handle().Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
-            return bindret;
+            return handler(bindret);
         }
-        if (CreateIoCompletionPort((HANDLE)handle.Handle().value, c.ContextImpl_->IOCPHandle, NULL, NULL) == NULL) {
-            return TranslateError();
+        if (CreateIoCompletionPort((HANDLE)c.Handle().Handle().value, c.Context_.IOCPHandle, NULL, NULL) == NULL) {
+            return handler(TranslateError());
         }
-        auto context = new Win_IO_Connect_Context();
-        context->Context_ = c.ContextImpl_;
-        context->setCompletionHandler(std::move(handler));
+        auto context = c.ReadContext_;
+        context->Context_ = &c.Context_;
+        context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
         context->IOOperation = IO_OPERATION::IoConnect;
-        context->Socket_ = std::move(handle);
-        context->IncrementRef();
-        c.ContextImpl_->IncrementPendingIO();
+        context->Socket_ = &c.PlatformSocket_;
+        c.Context_.IncrementPendingIO();
 
-        auto connectres = c.ContextImpl_->ConnectEx_(context->Socket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0,
-                                                     0, (LPOVERLAPPED)&context->Overlapped);
+        auto connectres = c.Context_.ConnectEx_(c.Handle().Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
+                                                (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
             if (auto h = context->getCompletionHandler(); h) {
-                if (::setsockopt(context->Socket_.Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-                    h(StatusCode::SC_SUCCESS, Socket(*context->Context_, std::move(context->Socket_)));
-                    return StatusCode::SC_SUCCESS;
+                if (::setsockopt(c.Handle().Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+                    h(StatusCode::SC_SUCCESS, 0);
                 }
                 else {
-                    return TranslateError();
+                    h(TranslateError(), 0);
                 }
-            }
-            if (context->DecrementRef() == 0) {
-                delete context;
             }
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
-            c.ContextImpl_->DecrementPendingIO();
-            delete context;
-            return TranslateError();
+            c.Context_.DecrementPendingIO();
+            if (auto h = context->getCompletionHandler(); h) {
+                h(TranslateError(), 0);
+            }
         }
-        else if (context->DecrementRef() == 0) {
-            delete context;
-        }
-        return StatusCode::SC_PENDINGIO;
     }
 #else
 
@@ -240,7 +229,7 @@ namespace NET {
             }
         }
         else { // connection completed
-            auto [suc, errocode] = getsockopt_O_ERROR(handle);
+            auto[suc, errocode] = getsockopt_O_ERROR(handle);
             if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
                 return StatusCode::SC_SUCCESS;
             }
@@ -249,12 +238,12 @@ namespace NET {
             }
         }
     }
-    void continue_connect(bool success, Win_IO_RW_Context *context)
+    void continue_connect(bool success, Win_IO_Context *context)
     {
         auto h = context->getCompletionHandler();
         if (h) {
             context->reset();
-            auto [suc, errocode] = getsockopt_O_ERROR(context->Socket_);
+            auto[suc, errocode] = getsockopt_O_ERROR(context->Socket_);
             if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
                 h(StatusCode::SC_SUCCESS, 0);
             }
@@ -263,7 +252,7 @@ namespace NET {
             }
         }
     }
-    void continue_io(bool success, Win_IO_RW_Context *context, std::atomic<int> &pendingio, int iocphandle)
+    void continue_io(bool success, Win_IO_Context *context, std::atomic<int> &pendingio, int iocphandle)
     {
         auto bytestowrite = context->bufferlen - context->transfered_bytes;
         auto count = 0;

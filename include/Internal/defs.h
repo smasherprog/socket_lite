@@ -24,38 +24,24 @@ namespace NET {
 
     enum IO_OPERATION { IoConnect, IoRead, IoWrite, IoNone };
     class Win_IO_Context {
+
       public:
 #ifdef _WIN32
         WSAOVERLAPPED Overlapped = {0};
 #endif
-
-        std::atomic<int> RefCount;
-
         IO_OPERATION IOOperation = IO_OPERATION::IoNone;
-        Win_IO_Context() { RefCount = 1; }
-        int IncrementRef() { return RefCount.fetch_add(1, std::memory_order_acquire) + 1; }
-        int DecrementRef() { return RefCount.fetch_sub(1, std::memory_order_acquire) - 1; }
-        void reset()
-        {
-            RefCount = 1;
-#ifdef _WIN32
-            Overlapped = {0};
-#endif
-            IOOperation = IO_OPERATION::IoNone;
-        }
-    };
 
-    class Win_IO_RW_Context : public Win_IO_Context {
+      protected:
         std::function<void(StatusCode, size_t)> completionhandler;
         std::atomic<int> Completion;
 
       public:
         size_t transfered_bytes;
         size_t bufferlen;
-        SocketHandle Socket_;
+        PlatformSocket *Socket_;
         ContextImpl *Context_;
         unsigned char *buffer;
-        Win_IO_RW_Context() : Socket_(INVALID_SOCKET) { reset(); }
+        Win_IO_Context() { reset(); }
         void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
         {
             completionhandler = std::move(c);
@@ -71,48 +57,21 @@ namespace NET {
         }
         void reset()
         {
-            Socket_.value = INVALID_SOCKET;
+            Socket_ = nullptr;
             transfered_bytes = 0;
             bufferlen = 0;
             buffer = nullptr;
             Completion = 1;
             completionhandler = nullptr;
-            Win_IO_Context::reset();
-        }
-    };
-    class Win_IO_Connect_Context : public Win_IO_Context {
-        std::function<void(StatusCode, Socket)> completionhandler;
-        std::atomic<int> Completion;
-
-      public:
-        PlatformSocket Socket_;
-        ContextImpl *Context_ = nullptr;
-        Win_IO_Connect_Context() { Completion = 0; }
-        void setCompletionHandler(std::function<void(StatusCode, Socket)> &&c)
-        {
-            completionhandler = std::move(c);
-            Completion = 1;
-        }
-        std::function<void(StatusCode, Socket)> getCompletionHandler()
-        {
-            if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
-                return std::move(completionhandler);
-            }
-            std::function<void(StatusCode, Socket)> t;
-            return t;
-        }
-
-        void reset()
-        {
-            Completion = 1;
-            completionhandler = nullptr;
-            Win_IO_Context::reset();
-            Socket_.close();
+#ifdef _WIN32
+            Overlapped = {0};
+#endif
+            IOOperation = IO_OPERATION::IoNone;
         }
     };
 
-    void continue_io(bool success, Win_IO_RW_Context *context);
-    void continue_connect(bool success, Win_IO_Connect_Context *context);
+    void continue_io(bool success, Win_IO_Context *context);
+    void continue_connect(bool success, Win_IO_Context *context);
 
     class ContextImpl {
 

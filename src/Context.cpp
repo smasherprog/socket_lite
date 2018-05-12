@@ -109,15 +109,15 @@ namespace NET {
                     switch (overlapped->IOOperation) {
 
                     case IO_OPERATION::IoConnect:
-                        continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        continue_connect(bSuccess, overlapped);
                         break;
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
-                        static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
-                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
+                        static_cast<Win_IO_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
+                        if (numberofbytestransfered == 0 && overlapped->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        continue_io(bSuccess, overlapped);
                         break;
                     default:
                         break;
@@ -142,11 +142,11 @@ namespace NET {
                             auto ctx = static_cast<INTERNAL::Win_IO_Context *>(epollevents[i].data.ptr);
                             switch (ctx->IOOperation) {
                             case IO_OPERATION::IoConnect:
-                                continue_connect(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx));
+                                continue_connect(true, static_cast<INTERNAL::Win_IO_Context *>(ctx));
                                 break;
                             case IO_OPERATION::IoRead:
                             case IO_OPERATION::IoWrite:
-                                continue_io(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx), PendingIO, IOCPHandle);
+                                continue_io(true, static_cast<INTERNAL::Win_IO_Context *>(ctx), PendingIO, IOCPHandle);
                                 break;
                             default:
                                 break;
