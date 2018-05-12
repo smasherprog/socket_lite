@@ -191,7 +191,7 @@ namespace NET {
     class SOCKET_LITE_EXTERN Context {
       protected:
         ContextImpl *ContextImpl_;
-
+        void wakeup();
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();

@@ -36,7 +36,7 @@ namespace NET {
 
     Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context()) {}
     Socket::Socket(ContextImpl &c, PlatformSocket &&p)
-        : Context_(c), PlatformSocket_(std::move(p)), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context())
+        : PlatformSocket_(std::move(p)),Context_(c),  ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context())
     {
     }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
@@ -224,50 +224,36 @@ namespace NET {
                 c.Context_.IncrementPendingIO();
 
                 epoll_event ev = {0};
-                ev.data.ptr = writecontext;
+                ev.data.ptr = context;
                 ev.events = EPOLLOUT | EPOLLONESHOT;
-                if (epoll_ctl(sg.getIOCPHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
-                    if (auto h = writecontext->getCompletionHandler(); h) {
-                        sg.getPendingIO() -= 1;
+                if (epoll_ctl(c.Context_.IOCPHandle, EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value , &ev) == -1) {
+                    if (auto h = context->getCompletionHandler(); h) {
+                        c.Context_.DecrementPendingIO();
                         h(TranslateError(), 0);
                     }
                 }
             }
         }
         else { // connection completed
-            auto[suc, errocode] = getsockopt_O_ERROR(handle);
-            if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
-                return StatusCode::SC_SUCCESS;
-            }
-            else {
-                return TranslateError();
-            }
+            handler(StatusCode::SC_SUCCESS);
         }
     }
+    
     void continue_connect(bool success, Win_IO_Context *context)
     {
-        auto h = context->getCompletionHandler();
-        if (h) {
-            context->reset();
-            auto[suc, errocode] = getsockopt_O_ERROR(context->Socket_);
-            if (suc == StatusCode::SC_SUCCESS && errocode.has_value() && errocode.value() == 0) {
-                h(StatusCode::SC_SUCCESS, 0);
-            }
-            else {
-                h(TranslateError(), 0);
-            }
+        if (auto h = context->getCompletionHandler(); h) {
+            h(StatusCode::SC_SUCCESS, 0);
         }
     }
-    void continue_io(bool success, Win_IO_Context *context, std::atomic<int> &pendingio, int iocphandle)
+    void continue_io(bool success, Win_IO_Context *context)
     {
         auto bytestowrite = context->bufferlen - context->transfered_bytes;
         auto count = 0;
         if (context->IOOperation == IO_OPERATION::IoRead) {
-            count = ::read(context->Socket_, context->buffer + context->transfered_bytes, bytestowrite);
+            count = ::read(context->Socket_->Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                     if (auto h(context->getCompletionHandler()); h) {
-                        context->reset();
                         h(TranslateError(), 0);
                     }
                     return; // done get out
@@ -278,11 +264,10 @@ namespace NET {
             }
         }
         else {
-            count = ::write(context->Socket_, context->buffer + context->transfered_bytes, bytestowrite);
+            count = ::write(context->Socket_->Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
             if (count < 0) { // possible error or continue
                 if (errno != EAGAIN && errno != EINTR) {
                     if (auto h(context->getCompletionHandler()); h) {
-                        context->reset();
                         h(TranslateError(), 0);
                     }
                     return; // done get out
@@ -294,9 +279,7 @@ namespace NET {
         }
         context->transfered_bytes += count;
         if (context->transfered_bytes == context->bufferlen) {
-            auto h(context->getCompletionHandler());
-            if (h) {
-                context->reset();
+            if (auto h(context->getCompletionHandler()); h) {
                 h(StatusCode::SC_SUCCESS, context->bufferlen);
             }
             return; // done with this get out!!
@@ -306,12 +289,10 @@ namespace NET {
         ev.data.ptr = context;
         ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
         ev.events |= EPOLLONESHOT;
-        pendingio += 1;
-        if (epoll_ctl(iocphandle, EPOLL_CTL_MOD, context->Socket_, &ev) == -1) {
-            auto h(context->getCompletionHandler());
-            if (h) {
-                context->reset();
-                pendingio -= 1;
+        context->Context_->IncrementPendingIO();
+        if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_MOD, context->Socket_->Handle().value, &ev) == -1) {
+            if (auto h(context->getCompletionHandler());h) {
+               context->Context_->DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }

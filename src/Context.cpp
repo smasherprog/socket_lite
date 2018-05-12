@@ -57,12 +57,7 @@ Context::~Context()
     while (ContextImpl_->getPendingIO() > 0) {
         std::this_thread::sleep_for(5ms);
     }
-#if _WIN32
-    PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
-#elseif
-
-        eventfd_write(ContextImpl_->EventWakeFd, 1);
-#endif
+    wakeup();
     for (auto &t : ContextImpl_->Threads) {
 
         if (t.joinable()) {
@@ -87,6 +82,13 @@ Context::~Context()
 #endif
     delete ContextImpl_;
 }
+void Context::wakeup(){
+#if _WIN32
+    PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
+#elseif
+        eventfd_write(ContextImpl_->EventWakeFd, 1);
+#endif
+}
 const auto MAXEVENTS = 10;
 void Context::run()
 {
@@ -103,7 +105,7 @@ void Context::run()
                 (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
                 if (ContextImpl_->getPendingIO() <= 0) {
-                    PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
+                    wakeup();
                     return;
                 }
                 // std::cout << " type " << overlapped->IOOperation << std::endl;
@@ -125,7 +127,7 @@ void Context::run()
                     break;
                 }
                 if (ContextImpl_->DecrementPendingIO() <= 0) {
-                    PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
+                    wakeup();
                     return;
                 }
             }
@@ -134,14 +136,11 @@ void Context::run()
             epollevents.resize(MAXEVENTS);
             while (true) {
                 auto count = epoll_wait(ContextImpl_->IOCPHandle, epollevents.data(), MAXEVENTS, 500);
-                if (count == -1) {
-                    if (errno == EINTR && ContextImpl_->getPendingIO() > 0) {
-                        continue;
-                    }
-                }
+            
                 for (auto i = 0; i < count; i++) {
                     if (epollevents[i].data.fd != ContextImpl_->EventWakeFd) {
                         auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
+                        
                         switch (ctx->IOOperation) {
                         case IO_OPERATION::IoConnect:
                             continue_connect(true, ctx);
@@ -153,17 +152,16 @@ void Context::run()
                         default:
                             break;
                         }
-                        
                         if (ContextImpl_->DecrementPendingIO() <= 0) {
-                            eventfd_write(ContextImpl_->EventWakeFd, 1);
+                            wakeup();
                             return;
                         }
                     }
                 }
                 
                 if (ContextImpl_->getPendingIO() <= 0) {
-                            eventfd_write(ContextImpl_->EventWakeFd, 1);
-                            return;
+                    wakeup();
+                    return;
                 }
             }
 #endif
