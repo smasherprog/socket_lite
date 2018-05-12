@@ -68,6 +68,9 @@ namespace NET {
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
+        #if _WIN32
+        ReadContext_->Overlapped = {0};
+        #endif
         ReadContext_->buffer = buffer;
         ReadContext_->transfered_bytes = 0;
         ReadContext_->bufferlen = buffer_size;
@@ -79,6 +82,9 @@ namespace NET {
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
+        #if _WIN32
+        WriteContext->Overlapped = {0};
+        #endif
         WriteContext->buffer = buffer;
         WriteContext->transfered_bytes = 0;
         WriteContext->bufferlen = buffer_size;
@@ -201,27 +207,30 @@ namespace NET {
     }
 #else
 
-    StatusCode connect_async(Context &c, sockaddr &address, std::function<void(StatusCode, Socket)> &&handler)
-    {
-        PlatformSocket handle(Family(address));
-        auto ret = ::connect(handle.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
+    void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
+    {   
+        c.PlatformSocket_ = PlatformSocket(Family(address));
+    
+        auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;
             if (err != EINPROGRESS) { // error with the socket
-                return TranslateError(&err);
+                return handler(TranslateError(&err));
             }
             else {
-                // need to allocate for the epoll call
-                sg.getPendingIO() += 1;
-                writecontext->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
-                writecontext->IOOperation = IO_OPERATION::IoConnect;
+                
+        auto context = c.ReadContext_;
+        context->Context_ = &c.Context_;
+        context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
+        context->IOOperation = IO_OPERATION::IoConnect;
+        context->Socket_ = &c.PlatformSocket_;
+        c.Context_.IncrementPendingIO();
 
                 epoll_event ev = {0};
                 ev.data.ptr = writecontext;
                 ev.events = EPOLLOUT | EPOLLONESHOT;
                 if (epoll_ctl(sg.getIOCPHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                     if (auto h = writecontext->getCompletionHandler(); h) {
-                        writecontext->reset();
                         sg.getPendingIO() -= 1;
                         h(TranslateError(), 0);
                     }

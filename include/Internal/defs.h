@@ -36,12 +36,12 @@ namespace NET {
         std::atomic<int> Completion;
 
       public:
-        size_t transfered_bytes;
-        size_t bufferlen;
-        PlatformSocket *Socket_;
-        ContextImpl *Context_;
-        unsigned char *buffer;
-        Win_IO_Context() { reset(); }
+        size_t transfered_bytes=0;
+        size_t bufferlen=0;
+        PlatformSocket *Socket_=nullptr;
+        ContextImpl *Context_=nullptr;
+        unsigned char *buffer=nullptr;
+        Win_IO_Context(){ Completion=0;}
         void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
         {
             completionhandler = std::move(c);
@@ -54,19 +54,6 @@ namespace NET {
             }
             std::function<void(StatusCode, size_t)> t;
             return t;
-        }
-        void reset()
-        {
-            Socket_ = nullptr;
-            transfered_bytes = 0;
-            bufferlen = 0;
-            buffer = nullptr;
-            Completion = 1;
-            completionhandler = nullptr;
-#ifdef _WIN32
-            Overlapped = {0};
-#endif
-            IOOperation = IO_OPERATION::IoNone;
         }
     };
 
