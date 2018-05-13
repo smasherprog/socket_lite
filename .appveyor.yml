@@ -19,15 +19,6 @@ matrix:
   fast_finish: true
 
 install:  
-  - mkdir deps
-  - cd deps
-  - set CMAKE_URL="https://cmake.org/files/v3.10/cmake-3.10.1-win64-x64.zip"
-  - appveyor DownloadFile %CMAKE_URL% -FileName cmake.zip
-  - 7z x cmake.zip
-  - move cmake-* cmake # Move to a version-agnostic directory
-  - set PATH=%cd%\cmake\bin;%PATH%
-  - cmake --version
-  - cd ..
   - mkdir build
   - cd build
 
