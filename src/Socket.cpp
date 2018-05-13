@@ -35,7 +35,7 @@ namespace NET {
     //    }
 
     Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context()) {}
-    Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c){ PlatformSocket_ = std::move(p); }
+    Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
     Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
     Socket::Socket(Socket &&sock) : Socket(sock.Context_, std::move(sock.PlatformSocket_)) {}
@@ -54,13 +54,13 @@ namespace NET {
         PlatformSocket_.close();
         if (ReadContext_) {
             if (auto handler(ReadContext_->getCompletionHandler()); handler) {
-                 Context_.DecrementPendingIO();
+                Context_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
         if (WriteContext) {
             if (auto handler(WriteContext->getCompletionHandler()); handler) {
-                 Context_.DecrementPendingIO();
+                Context_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
@@ -74,11 +74,11 @@ namespace NET {
         ReadContext_->Socket_ = &PlatformSocket_;
         ReadContext_->setCompletionHandler(std::move(handler));
         ReadContext_->IOOperation = IO_OPERATION::IoRead;
-      
+
 #ifndef _WIN32
         epoll_event ev = {0};
         ev.data.ptr = ReadContext_;
-        ev.events =  EPOLLIN | EPOLLONESHOT;
+        ev.events = EPOLLIN | EPOLLONESHOT;
         Context_.IncrementPendingIO();
         if (epoll_ctl(Context_.IOCPHandle, EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
             if (auto h(ReadContext_->getCompletionHandler()); h) {
@@ -100,15 +100,15 @@ namespace NET {
         WriteContext->Socket_ = &PlatformSocket_;
         WriteContext->setCompletionHandler(std::move(handler));
         WriteContext->IOOperation = IO_OPERATION::IoWrite;
-        
+
 #ifndef _WIN32
         epoll_event ev = {0};
         ev.data.ptr = WriteContext;
-        ev.events =  EPOLLOUT | EPOLLONESHOT;
+        ev.events = EPOLLOUT | EPOLLONESHOT;
         Context_.IncrementPendingIO();
         if (epoll_ctl(Context_.IOCPHandle, EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
             if (auto h(WriteContext->getCompletionHandler()); h) {
-              Context_.DecrementPendingIO();
+                Context_.DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }
@@ -190,7 +190,7 @@ namespace NET {
     }
     void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
-        c.PlatformSocket_ = PlatformSocket(Family(address));
+        c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto bindret = BindSocket(c.Handle().Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);
