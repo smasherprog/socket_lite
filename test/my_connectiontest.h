@@ -24,7 +24,7 @@ void connect(SL::NET::Context &iocontext)
 {
     auto s = std::make_shared<SL::NET::Socket>(iocontext);
     SL::NET::connect_async(*s, addresses.back(), [&iocontext, s](SL::NET::StatusCode) {
-        connections += 1.0;
+       connections += 1.0;
         if (keepgoing) {
             connect(iocontext);
         }

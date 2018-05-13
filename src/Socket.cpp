@@ -67,9 +67,6 @@ namespace NET {
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        if(!PlatformSocket_){
-            return handler(StatusCode::SC_CLOSED, 0);
-        }
         ReadContext_->buffer = buffer;
         ReadContext_->transfered_bytes = 0;
         ReadContext_->bufferlen = buffer_size;
@@ -96,9 +93,6 @@ namespace NET {
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        if(!PlatformSocket_){
-            return handler(StatusCode::SC_CLOSED, 0);
-        }
         WriteContext->buffer = buffer;
         WriteContext->transfered_bytes = 0;
         WriteContext->bufferlen = buffer_size;
@@ -235,8 +229,7 @@ namespace NET {
 
     void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
-        c.PlatformSocket_ = PlatformSocket(Family(address));
-        
+        c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;

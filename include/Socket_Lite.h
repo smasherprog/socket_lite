@@ -115,7 +115,7 @@ namespace NET {
       public:
         PlatformSocket();
         PlatformSocket(SocketHandle h);
-        PlatformSocket(const AddressFamily &family);
+        PlatformSocket(const AddressFamily &family,Blocking_Options opts);
         ~PlatformSocket();
         PlatformSocket(const PlatformSocket &) = delete;
         PlatformSocket(PlatformSocket &&);

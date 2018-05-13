@@ -28,11 +28,15 @@ namespace NET {
 
     PlatformSocket::PlatformSocket() : Handle_(INVALID_SOCKET) {}
     PlatformSocket::PlatformSocket(SocketHandle h) : Handle_(h) {}
-    PlatformSocket::PlatformSocket(const AddressFamily &family) : Handle_(INVALID_SOCKET)
+    PlatformSocket::PlatformSocket(const AddressFamily &family, Blocking_Options opts) : Handle_(INVALID_SOCKET)
     {
         int typ = SOCK_STREAM;
+        
 #if !_WIN32
+        if(opts == Blocking_Options::NON_BLOCKING){
+            
         typ |= SOCK_NONBLOCK;
+        }
 #endif
         if (family == AddressFamily::IPV4) {
             Handle_.value = socket(AF_INET, typ, 0);
@@ -40,6 +44,12 @@ namespace NET {
         else {
             Handle_.value = socket(AF_INET6, typ, 0);
         }
+        #if _WIN32
+        
+        if(opts == Blocking_Options::NON_BLOCKING){
+            setsockopt(BLOCKINGTag{}, opts);
+        }
+        #endif
     }
     PlatformSocket::~PlatformSocket() { close(); }
     PlatformSocket::PlatformSocket(PlatformSocket &&p) : Handle_(p.Handle_) { p.Handle_.value = INVALID_SOCKET; }
