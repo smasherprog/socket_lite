@@ -34,14 +34,17 @@ namespace NET {
     //                item);*/
     //    }
 
-    Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context(PlatformSocket_, c)), WriteContext(new Win_IO_Context(PlatformSocket_, c)) {}
+    Socket::Socket(ContextImpl &c)
+        : Context_(c), ReadContext_(new Win_IO_Context(PlatformSocket_, c)), WriteContext(new Win_IO_Context(PlatformSocket_, c))
+    {
+    }
     Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
     Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
     Socket::Socket(Socket &&sock) : Socket(sock.Context_, std::move(sock.PlatformSocket_)) {}
     Socket::~Socket()
     {
-        
+
         close();
         if (ReadContext_) {
             delete ReadContext_;
@@ -133,19 +136,19 @@ namespace NET {
             wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
             wsabuf.len = bytesleft;
             DWORD dwSendNumBytes(0), dwFlags(0);
-            context->Context_->IncrementPendingIO();
+            context->Context_.IncrementPendingIO();
             DWORD nRet = 0;
 
             if (context->IOOperation == IO_OPERATION::IoRead) {
-                nRet = WSARecv(context->Socket_->Handle().value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
+                nRet = WSARecv(context->Socket_.Handle().value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
             }
             else {
-                nRet = WSASend(context->Socket_->Handle().value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
+                nRet = WSASend(context->Socket_.Handle().value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 if (auto handler(context->getCompletionHandler()); handler) {
-                    context->Context_->DecrementPendingIO();
+                    context->Context_.DecrementPendingIO();
                     handler(TranslateError(&lasterr), 0);
                 }
             }
@@ -155,7 +158,7 @@ namespace NET {
     void continue_connect(bool success, Win_IO_Context *context)
     {
         if (auto h = context->getCompletionHandler(); h) {
-            if (success && ::setsockopt(context->Socket_->Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+            if (success && ::setsockopt(context->Socket_.Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
                 h(StatusCode::SC_SUCCESS, 0);
             }
             else {
@@ -196,10 +199,8 @@ namespace NET {
             return handler(TranslateError());
         }
         auto context = c.ReadContext_;
-        context->Context_ = &c.Context_;
         context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
         context->IOOperation = IO_OPERATION::IoConnect;
-        context->Socket_ = &c.PlatformSocket_;
         c.Context_.IncrementPendingIO();
 
         auto connectres = c.Context_.ConnectEx_(c.Handle().Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
