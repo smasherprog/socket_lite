@@ -17,13 +17,14 @@ namespace myconnectiontest {
 const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 bool keepgoing = true;
-
+int connectnumber =0;
+int acceptnumber=0;
 std::vector<SL::NET::sockaddr> addresses;
 
 void connect(SL::NET::Context &iocontext)
 {
     auto s = std::make_shared<SL::NET::Socket>(iocontext);
-    SL::NET::connect_async(*s, addresses.back(), [&iocontext, s](SL::NET::StatusCode) {
+    SL::NET::connect_async(*s, addresses.back(), [&iocontext, s](SL::NET::StatusCode code) {
        connections += 1.0;
         if (keepgoing) {
             connect(iocontext);
@@ -32,6 +33,7 @@ void connect(SL::NET::Context &iocontext)
 }
 void myconnectiontest()
 {
+    
     std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
@@ -39,7 +41,8 @@ void myconnectiontest()
 
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = ([](SL::NET::Socket socket) {});
+    a.AcceptHandler = ([](SL::NET::Socket socket) {
+        });
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
     Listener.start();

@@ -41,6 +41,7 @@ namespace NET {
     Socket::Socket(Socket &&sock) : Socket(sock.Context_, std::move(sock.PlatformSocket_)) {}
     Socket::~Socket()
     {
+        
         close();
         if (ReadContext_) {
             delete ReadContext_;

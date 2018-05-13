@@ -65,6 +65,7 @@ namespace NET {
     PlatformSocket::operator bool() const { return Handle_.value != INVALID_SOCKET; }
     void PlatformSocket::close()
     {
+      
         auto t = Handle_.value;
         Handle_.value = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
