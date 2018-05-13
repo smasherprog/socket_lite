@@ -19,7 +19,7 @@
   <tbody>
      <tr>
      <td>ST Connections Per Second</td>
-      <td>625%:fire:</td>
+      <td>1000%(10X):fire:</td>
      <td></td>  
     </tr>
   <tr>
@@ -29,7 +29,7 @@
     </tr>
    <tr>
      <td>MT Echos Per Second</td>
-     <td>214%:fire:</td>
+     <td>248%(2.5X):fire:</td>
      <td></td>  
     </tr>
       <tr>
