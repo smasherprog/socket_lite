@@ -21,16 +21,15 @@ const int MAXRUNTIMES = 10000;
 auto connections = 0.0;
 auto keepgoing = true;
 using asio::ip::tcp;
-class asioserver : public std::enable_shared_from_this<asioserver> {
+class asioserver {
   public:
     asioserver(asio::io_context &io_context, SL::NET::PortNumber port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port.value)) {}
 
     void do_accept()
     {
-        auto self(shared_from_this());
-        acceptor_.async_accept([self](std::error_code ec, tcp::socket socket) {
+        acceptor_.async_accept([&](std::error_code ec, tcp::socket socket) {
             if (keepgoing) {
-                self->do_accept();
+                do_accept();
             }
         });
     }
@@ -54,8 +53,8 @@ void connectiontest()
     connections = 0.0;
     auto iocontext = std::make_shared<asio::io_context>();
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    auto s(std::make_shared<asioserver>(*iocontext, SL::NET::PortNumber(porttouse)));
-    s->do_accept();
+    asioserver s(*iocontext, SL::NET::PortNumber(porttouse));
+    s.do_accept();
 
     tcp::resolver resolver(*iocontext);
     endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
@@ -68,8 +67,8 @@ void connectiontest()
     keepgoing = false;
     std::cout << "Asio Connections per Second " << connections / 10 << std::endl;
     iocontext->stop();
-    s->acceptor_.cancel();
-    s->acceptor_.close();
+    s.acceptor_.cancel();
+    s.acceptor_.close();
     if (t.joinable())
         t.join();
 }
