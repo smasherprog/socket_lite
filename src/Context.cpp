@@ -11,8 +11,6 @@
 #include <unistd.h>
 #endif
 
-#include <iostream>
-
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {

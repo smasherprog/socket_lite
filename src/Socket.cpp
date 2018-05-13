@@ -34,7 +34,7 @@ namespace NET {
     //                item);*/
     //    }
 
-    Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context()) {}
+    Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context(PlatformSocket_, c)), WriteContext(new Win_IO_Context(PlatformSocket_, c)) {}
     Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
     Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
@@ -71,8 +71,6 @@ namespace NET {
         ReadContext_->buffer = buffer;
         ReadContext_->transfered_bytes = 0;
         ReadContext_->bufferlen = buffer_size;
-        ReadContext_->Context_ = &Context_;
-        ReadContext_->Socket_ = &PlatformSocket_;
         ReadContext_->setCompletionHandler(std::move(handler));
         ReadContext_->IOOperation = IO_OPERATION::IoRead;
 
@@ -97,8 +95,6 @@ namespace NET {
         WriteContext->buffer = buffer;
         WriteContext->transfered_bytes = 0;
         WriteContext->bufferlen = buffer_size;
-        WriteContext->Context_ = &Context_;
-        WriteContext->Socket_ = &PlatformSocket_;
         WriteContext->setCompletionHandler(std::move(handler));
         WriteContext->IOOperation = IO_OPERATION::IoWrite;
 
@@ -240,10 +236,8 @@ namespace NET {
             else {
 
                 auto context = c.ReadContext_;
-                context->Context_ = &c.Context_;
                 context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
                 context->IOOperation = IO_OPERATION::IoConnect;
-                context->Socket_ = &c.PlatformSocket_;
                 c.Context_.IncrementPendingIO();
 
                 epoll_event ev = {0};
@@ -273,7 +267,7 @@ namespace NET {
         auto bytestowrite = context->bufferlen - context->transfered_bytes;
         auto count = 0;
         if (context->IOOperation == IO_OPERATION::IoRead) {
-            count = ::read(context->Socket_->Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
+            count = ::read(context->Socket_.Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                     if (auto h(context->getCompletionHandler()); h) {
@@ -287,7 +281,7 @@ namespace NET {
             }
         }
         else {
-            count = ::write(context->Socket_->Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
+            count = ::write(context->Socket_.Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
             if (count < 0) { // possible error or continue
                 if (errno != EAGAIN && errno != EINTR) {
                     if (auto h(context->getCompletionHandler()); h) {
@@ -312,10 +306,10 @@ namespace NET {
         ev.data.ptr = context;
         ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
         ev.events |= EPOLLONESHOT;
-        context->Context_->IncrementPendingIO();
-        if (epoll_ctl(context->Context_->IOCPHandle, EPOLL_CTL_MOD, context->Socket_->Handle().value, &ev) == -1) {
+        context->Context_.IncrementPendingIO();
+        if (epoll_ctl(context->Context_.IOCPHandle, EPOLL_CTL_MOD, context->Socket_.Handle().value, &ev) == -1) {
             if (auto h(context->getCompletionHandler()); h) {
-                context->Context_->DecrementPendingIO();
+                context->Context_.DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }

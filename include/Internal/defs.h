@@ -38,10 +38,10 @@ namespace NET {
       public:
         size_t transfered_bytes=0;
         size_t bufferlen=0;
-        PlatformSocket *Socket_=nullptr;
-        ContextImpl *Context_=nullptr;
+        PlatformSocket& Socket_;
+        ContextImpl& Context_;
         unsigned char *buffer=nullptr;
-        Win_IO_Context(){ Completion=0;}
+        Win_IO_Context(PlatformSocket& s, ContextImpl& c) : Socket_(s), Context_(c){ Completion=0;}
         void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
         {
             completionhandler = std::move(c);
