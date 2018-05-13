@@ -37,10 +37,10 @@ class asioserver {
     tcp::acceptor acceptor_;
 };
 tcp::resolver::results_type endpoints;
-void connect(std::shared_ptr<asio::io_context> io_context)
+void connect(asio::io_context& io_context)
 {
-    auto socket = std::make_shared<tcp::socket>(*io_context);
-    asio::async_connect(*socket, endpoints, [socket, io_context](std::error_code ec, tcp::endpoint) {
+    auto socket = std::make_shared<tcp::socket>(io_context);
+    asio::async_connect(*socket, endpoints, [socket, &io_context](std::error_code ec, tcp::endpoint) {
         connections += 1.0;
         if (keepgoing) {
             connect(io_context);
@@ -51,22 +51,21 @@ void connectiontest()
 {
     std::cout << "Starting Asio Connections per Second Test" << std::endl;
     connections = 0.0;
-    auto iocontext = std::make_shared<asio::io_context>();
+    asio::io_context iocontext;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    asioserver s(*iocontext, SL::NET::PortNumber(porttouse));
+    asioserver s(iocontext, SL::NET::PortNumber(porttouse));
     s.do_accept();
 
-    tcp::resolver resolver(*iocontext);
+    tcp::resolver resolver(iocontext);
     endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
-
-    connect(iocontext);
-    std::thread t([iocontext]() { iocontext->run(); });
+     
+    std::thread t([&]() { iocontext.run(); });
     connect(iocontext);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     std::cout << "Asio Connections per Second " << connections / 10 << std::endl;
-    iocontext->stop();
+    iocontext.stop();
     s.acceptor_.cancel();
     s.acceptor_.close();
     if (t.joinable())

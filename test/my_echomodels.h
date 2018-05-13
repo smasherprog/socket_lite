@@ -16,7 +16,7 @@ SL::NET::PlatformSocket listengetaddrinfo(const char *nodename, SL::NET::PortNum
     auto getaddret = SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr &s) {
         SL::NET::PlatformSocket h(SL::NET::AddressFamily::IPV4, SL::NET::Blocking_Options::BLOCKING);
         if (h.bind(s) == SL::NET::StatusCode::SC_SUCCESS) {
-            if (h.listen(128) == SL::NET::StatusCode::SC_SUCCESS) {
+            if (h.listen(INT_MAX) == SL::NET::StatusCode::SC_SUCCESS) {
                 [[maybe_unused]]auto reter = h.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
                 handle = std::move(h);
                 return SL::NET::GetAddrInfoCBStatus::FINISHED;
