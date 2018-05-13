@@ -32,7 +32,7 @@ void asioechotest()
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     asiomodels::keepgoing = false;
-    std::cout << "ASIO Echo per Second " << asiomodels::writeechos / 20 << std::endl;
+    std::cout << "ASIO Echo per Second " << asiomodels::writeechos / 10 << std::endl;
     iocontext.stop();
     s->acceptor_.cancel();
     s->acceptor_.close();

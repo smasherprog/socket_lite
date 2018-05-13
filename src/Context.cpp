@@ -41,8 +41,8 @@ namespace NET {
         }
         epoll_event ev = {0};
         ev.events = EPOLLIN | EPOLLET;
-        ev.data.fd = EventWakeFd;
-        if (epoll_ctl(ContextImpl_->IOCPHandle, EPOLL_CTL_ADD, EventWakeFd, &ev) == 1) {
+        ev.data.fd = ContextImpl_->EventWakeFd;
+        if (epoll_ctl(ContextImpl_->IOCPHandle, EPOLL_CTL_ADD, ContextImpl_->EventWakeFd, &ev) == 1) {
             abort();
         }
 #endif
@@ -51,15 +51,12 @@ namespace NET {
     Context::~Context()
     {
         while (ContextImpl_->getPendingIO() > 0) {
-            std::this_thread::sleep_for(5ms);
-            // make sure to wake up the threads
+            std::this_thread::sleep_for(10ms);
 #ifndef _WIN32
-            eventfd_write(EventWakeFd, 1);
+        eventfd_write(ContextImpl_->EventWakeFd, 1);
 #endif
         }
-#if _WIN32
-        PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
-#endif
+        wakeup();
         for (auto &t : ContextImpl_->Threads) {
 
             if (t.joinable()) {
@@ -85,12 +82,21 @@ namespace NET {
 #endif
         delete ContextImpl_;
     }
+    void Context::wakeup()
+    {
+#if _WIN32
+        PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
+#else
+        eventfd_write(ContextImpl_->EventWakeFd, 1);
+#endif
+    }
     const auto MAXEVENTS = 10;
     void Context::run()
     {
         ContextImpl_->Threads.reserve(ContextImpl_->getThreadCount());
         for (auto i = 0; i < ContextImpl_->getThreadCount(); i++) {
             ContextImpl_->Threads.push_back(std::thread([&] {
+               
 #if _WIN32
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -101,7 +107,7 @@ namespace NET {
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
 
                     if (ContextImpl_->getPendingIO() <= 0) {
-                        PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
+                        wakeup();
                         return;
                     }
                     // std::cout << " type " << overlapped->IOOperation << std::endl;
@@ -109,21 +115,21 @@ namespace NET {
                     switch (overlapped->IOOperation) {
 
                     case IO_OPERATION::IoConnect:
-                        continue_connect(bSuccess, static_cast<Win_IO_Connect_Context *>(overlapped));
+                        continue_connect(bSuccess, overlapped);
                         break;
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
-                        static_cast<Win_IO_RW_Context *>(overlapped)->transfered_bytes += numberofbytestransfered;
-                        if (numberofbytestransfered == 0 && static_cast<Win_IO_RW_Context *>(overlapped)->bufferlen != 0 && bSuccess) {
+                        overlapped->transfered_bytes += numberofbytestransfered;
+                        if (numberofbytestransfered == 0 && overlapped->bufferlen != 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
-                        continue_io(bSuccess, static_cast<Win_IO_RW_Context *>(overlapped));
+                        continue_io(bSuccess, overlapped);
                         break;
                     default:
                         break;
                     }
                     if (ContextImpl_->DecrementPendingIO() <= 0) {
-                        PostQueuedCompletionStatus(ContextImpl_->IOCPHandle, 0, (DWORD)NULL, NULL);
+                        wakeup();
                         return;
                     }
                 }
@@ -131,34 +137,37 @@ namespace NET {
                 std::vector<epoll_event> epollevents;
                 epollevents.resize(MAXEVENTS);
                 while (true) {
-                    auto count = epoll_wait(ContextImpl_->IOCPHandle, epollevents.data(), MAXEVENTS, 500);
-                    if (count == -1) {
-                        if (errno == EINTR && ContextImpl_->PendingIO > 0) {
-                            continue;
-                        }
-                    }
+                    auto count = epoll_wait(ContextImpl_->IOCPHandle, epollevents.data(), MAXEVENTS, -1);
+
                     for (auto i = 0; i < count; i++) {
                         if (epollevents[i].data.fd != ContextImpl_->EventWakeFd) {
-                            auto ctx = static_cast<INTERNAL::Win_IO_Context *>(epollevents[i].data.ptr);
+                            auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
+
                             switch (ctx->IOOperation) {
                             case IO_OPERATION::IoConnect:
-                                continue_connect(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx));
+                                continue_connect(true, ctx);
                                 break;
                             case IO_OPERATION::IoRead:
                             case IO_OPERATION::IoWrite:
-                                continue_io(true, static_cast<INTERNAL::Win_IO_RW_Context *>(ctx), PendingIO, IOCPHandle);
+                                continue_io(true, ctx);
                                 break;
                             default:
                                 break;
                             }
-                            if (--ContextImpl_->PendingIO <= 0) {
+                            if (ContextImpl_->DecrementPendingIO() <= 0) {
+                                wakeup();
                                 return;
                             }
                         }
                     }
+
+                    if (ContextImpl_->getPendingIO() <= 0) {
+                        wakeup();
+                        return;
+                    }
                 }
-#endif
-            }));
+#endif     
+        }));
         }
     }
 } // namespace NET

@@ -34,7 +34,7 @@ void myechotest()
     iocontext.run();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     myechomodels::keepgoing = false;
-    std::cout << "My Echo per Second " << myechomodels::writeechos / 20 << std::endl;
+    std::cout << "My Echo per Second " << myechomodels::writeechos / 10 << std::endl;
     c.close();
 }
 

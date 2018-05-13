@@ -65,8 +65,8 @@ namespace NET {
     typedef Explicit<unsigned int, ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
     enum class Blocking_Options { BLOCKING, NON_BLOCKING };
-    enum class [[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
-                                        SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
+    enum class[[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
+                                       SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
     enum class AddressFamily { IPV4, IPV6 };
@@ -115,7 +115,7 @@ namespace NET {
       public:
         PlatformSocket();
         PlatformSocket(SocketHandle h);
-        PlatformSocket(const AddressFamily &family);
+        PlatformSocket(const AddressFamily &family,Blocking_Options opts);
         ~PlatformSocket();
         PlatformSocket(const PlatformSocket &) = delete;
         PlatformSocket(PlatformSocket &&);
@@ -162,13 +162,13 @@ namespace NET {
     // forward declares
     class ContextImpl;
     class Context;
-    class Win_IO_RW_Context;
+    class Win_IO_Context;
 
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
         ContextImpl &Context_;
-        Win_IO_RW_Context *ReadContext_, *WriteContext;
+        Win_IO_Context *ReadContext_, *WriteContext;
 
       public:
         Socket(Context &, PlatformSocket &&);
@@ -186,11 +186,12 @@ namespace NET {
         // guarantees async behavior and will not complete immediatly, but some time later
         void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
         void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+        friend void connect_async(Socket &context, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
     };
     class SOCKET_LITE_EXTERN Context {
       protected:
         ContextImpl *ContextImpl_;
-
+        void wakeup();
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();
@@ -202,7 +203,6 @@ namespace NET {
 
         friend class Listener;
         friend class Socket;
-        friend StatusCode connect_async(Context &context, SL::NET::sockaddr &address, std::function<void(StatusCode, Socket)> &&);
     };
     struct Acceptor {
         PlatformSocket AcceptSocket;
@@ -234,8 +234,7 @@ namespace NET {
     [[nodiscard]] StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
                                                             const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
 
-    [[nodiscard]] StatusCode SOCKET_LITE_EXTERN connect_async(Context &context, SL::NET::sockaddr &address,
-                                                              std::function<void(StatusCode, Socket)> &&);
+    void SOCKET_LITE_EXTERN connect_async(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
 
 } // namespace NET
 } // namespace SL

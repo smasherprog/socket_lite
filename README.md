@@ -12,29 +12,37 @@
  <thead>
    <tr>
      <th></th>
-     <th>Windows Socket Lite</th> 
+     <th>Windows Socket Lite DEBUG</th> 
+     <th>Windows Socket Lite RELEASE</th> 
      <th>Linux ASIO</th>
    </tr>
   </thead>
   <tbody>
      <tr>
      <td>ST Connections Per Second</td>
-      <td>625%:fire:</td>
-     <td></td>  
+      <td>1000%(10X):fire:</td>
+      <td>1000%(10X):fire:</td>
+      <td></td>  
     </tr>
   <tr>
      <td>ST Echos Per Second</td>
+     <td>174%(1.7X):fire:</td> 
      <td>0% (Usually equal)</td>
-     <td></td>  
+     <td></td>     
+   <td></td>  
     </tr>
    <tr>
      <td>MT Echos Per Second</td>
-     <td>214%:fire:</td>
+     <td>200%%(2X):fire:</td> 
+     <td>248%(2.5X):fire:</td>
      <td></td>  
+       <td></td>  
     </tr>
       <tr>
      <td>ST Bulk Transfer Bytes Per Second</td>
      <td>0% (Usually equal)</td>
+     <td>0% (Usually equal)</td>
+     <td></td>  
      <td></td>  
     </tr>
 </tbody>
