@@ -49,7 +49,7 @@ namespace NET {
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
                     
                 Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
-                  
+                }
 #else
                 
                 auto handle = ::accept4(Acceptor_.AcceptSocket.Handle().value, NULL, NULL,SOCK_NONBLOCK);

@@ -41,8 +41,7 @@ void myconnectiontest()
 
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = ([](SL::NET::Socket socket) {
-        });
+    a.AcceptHandler = ([](SL::NET::Socket socket) { });
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
     Listener.start();

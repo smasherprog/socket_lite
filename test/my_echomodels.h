@@ -35,17 +35,13 @@ char readecho[] = "echo test";
 auto readechos = 0.0;
 auto writeechos = 0.0;
 bool keepgoing = true;
-auto reads =0;
-auto writes =0;
 class session : public std::enable_shared_from_this<session> {
   public:
     session(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
     void do_read()
     {
         auto self(shared_from_this());
-        reads+=1;
         socket_.recv_async(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t bytesread) {
-            reads-=1;
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             } 
@@ -55,9 +51,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
-        writes +=1;
         socket_.send_async(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t bytesread) {
-            writes -=1;
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();
