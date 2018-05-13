@@ -11,6 +11,8 @@
 #include <unistd.h>
 #endif
 
+#include <iostream>
+
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
@@ -96,6 +98,7 @@ namespace NET {
         ContextImpl_->Threads.reserve(ContextImpl_->getThreadCount());
         for (auto i = 0; i < ContextImpl_->getThreadCount(); i++) {
             ContextImpl_->Threads.push_back(std::thread([&] {
+               
 #if _WIN32
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -136,7 +139,7 @@ namespace NET {
                 std::vector<epoll_event> epollevents;
                 epollevents.resize(MAXEVENTS);
                 while (true) {
-                    auto count = epoll_wait(ContextImpl_->IOCPHandle, epollevents.data(), MAXEVENTS, 500);
+                    auto count = epoll_wait(ContextImpl_->IOCPHandle, epollevents.data(), MAXEVENTS, -1);
 
                     for (auto i = 0; i < count; i++) {
                         if (epollevents[i].data.fd != ContextImpl_->EventWakeFd) {
@@ -165,8 +168,8 @@ namespace NET {
                         return;
                     }
                 }
-#endif
-            }));
+#endif     
+        }));
         }
     }
 } // namespace NET

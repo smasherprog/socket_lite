@@ -35,10 +35,7 @@ namespace NET {
     //    }
 
     Socket::Socket(ContextImpl &c) : Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context()) {}
-    Socket::Socket(ContextImpl &c, PlatformSocket &&p)
-        : PlatformSocket_(std::move(p)), Context_(c), ReadContext_(new Win_IO_Context()), WriteContext(new Win_IO_Context())
-    {
-    }
+    Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c){ PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
     Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
     Socket::Socket(Socket &&sock) : Socket(sock.Context_, std::move(sock.PlatformSocket_)) {}
@@ -70,9 +67,9 @@ namespace NET {
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-#if _WIN32
-        ReadContext_->Overlapped = {0};
-#endif
+        if(!PlatformSocket_){
+            return handler(StatusCode::SC_CLOSED, 0);
+        }
         ReadContext_->buffer = buffer;
         ReadContext_->transfered_bytes = 0;
         ReadContext_->bufferlen = buffer_size;
@@ -93,14 +90,15 @@ namespace NET {
             }
         }
 #else
+        ReadContext_->Overlapped = {0};
         continue_io(true, ReadContext_);
 #endif
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-#if _WIN32
-        WriteContext->Overlapped = {0};
-#endif
+        if(!PlatformSocket_){
+            return handler(StatusCode::SC_CLOSED, 0);
+        }
         WriteContext->buffer = buffer;
         WriteContext->transfered_bytes = 0;
         WriteContext->bufferlen = buffer_size;
@@ -121,6 +119,7 @@ namespace NET {
             }
         }
 #else
+        WriteContext->Overlapped = {0};
         continue_io(true, WriteContext);
 #endif
     }
@@ -237,7 +236,7 @@ namespace NET {
     void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
         c.PlatformSocket_ = PlatformSocket(Family(address));
-
+        
         auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;

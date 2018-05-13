@@ -43,10 +43,11 @@ void myconnectiontest()
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
     Listener.start();
-    SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
+    auto gerro = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
         addresses.push_back(s);
         return SL::NET::GetAddrInfoCBStatus::CONTINUE;
     });
+    
     iocontext.run();
 
     connect(iocontext);
