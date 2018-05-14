@@ -31,11 +31,12 @@ void myechotest()
     Listener.start();
     myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     c.do_connect();
-    iocontext.run();
+     
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     myechomodels::keepgoing = false;
     std::cout << "My Echo per Second " << myechomodels::writeechos / 10 << std::endl;
     c.close();
+
 }
 
 } // namespace myechotest

@@ -42,13 +42,13 @@ namespace NET {
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
 
-
-                    if (CreateIoCompletionPort((HANDLE)handle, ContextImpl_.IOCPHandle, NULL, NULL) == NULL) {
+                    auto& iodata = ContextImpl_.getIOData();
+                    if (CreateIoCompletionPort((HANDLE)handle, iodata.getIOHandle(), NULL, NULL) == NULL) {
                         continue; // this shouldnt happen but what ever
                     }
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
                     
-                Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
+                    Acceptor_.AcceptHandler(Socket(iodata, std::move(s)));
                 }
 #else
                 

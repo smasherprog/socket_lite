@@ -61,7 +61,6 @@ namespace NET {
     };
     struct BLOCKINGTag {
     };
-
     typedef Explicit<unsigned int, ThreadCountTag> ThreadCount;
     typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
     enum class Blocking_Options { BLOCKING, NON_BLOCKING };
@@ -115,7 +114,7 @@ namespace NET {
       public:
         PlatformSocket();
         PlatformSocket(SocketHandle h);
-        PlatformSocket(const AddressFamily &family,Blocking_Options opts);
+        PlatformSocket(const AddressFamily &family, Blocking_Options opts);
         ~PlatformSocket();
         PlatformSocket(const PlatformSocket &) = delete;
         PlatformSocket(PlatformSocket &&);
@@ -163,19 +162,20 @@ namespace NET {
     class ContextImpl;
     class Context;
     class Win_IO_Context;
+    class IOData;
 
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
-        ContextImpl &Context_;
+        IOData &IOData_;
         Win_IO_Context *ReadContext_, *WriteContext;
 
       public:
+        Socket(IOData &, PlatformSocket &&);
         Socket(Context &, PlatformSocket &&);
-        Socket(ContextImpl &, PlatformSocket &&);
         Socket(Socket &&);
         Socket(Context &);
-        Socket(ContextImpl &);
+        Socket(IOData &);
         ~Socket();
         Socket(const Socket &) = delete;
         Socket &operator=(const Socket &) = delete;
@@ -188,19 +188,18 @@ namespace NET {
         void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
         friend void connect_async(Socket &context, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
     };
+
     class SOCKET_LITE_EXTERN Context {
       protected:
         ContextImpl *ContextImpl_;
-        void wakeup();
+        IOData &getIOData();
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();
-        Context() = delete;
         Context(const Context &) = delete;
         Context(Context &&) = delete;
         Context &operator=(Context &) = delete;
-        void run();
-
+    
         friend class Listener;
         friend class Socket;
     };

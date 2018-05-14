@@ -36,12 +36,11 @@ void myconnectiontest()
     
     std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
-    SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-
+    SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = ([](SL::NET::Socket) { });
+    a.AcceptHandler = ([](SL::NET::Socket) {  });
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
     Listener.start();
@@ -49,12 +48,11 @@ void myconnectiontest()
         addresses.push_back(s);
         return SL::NET::GetAddrInfoCBStatus::CONTINUE;
     });
-    
-    iocontext.run();
-
+      
     connect(iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
+
 }
 } // namespace myconnectiontest

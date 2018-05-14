@@ -86,8 +86,7 @@ void mytransfertest()
     });
 
     auto c = std::make_shared<asioclient>(iocontext, addresses);
-    c->do_connect();
-    iocontext.run();
+    c->do_connect(); 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     c->close();

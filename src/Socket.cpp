@@ -16,32 +16,14 @@
 
 namespace SL {
 namespace NET {
-    //    void processItem(std::variant<Win_IO_Context, Win_IO_Connect_Context1> &item)
-    //    {
-    //        /*    std::visit(
-    //                [](auto &&arg) {
-    //                    using T = std::decay_t<decltype(arg)>;
-    //                    if constexpr (std::is_same_v<T, Win_IO_Context>) {
-    //                        continue_io(true, arg);
-    //                    }
-    //                    else if constexpr (std::is_same_v<T, Win_IO_Connect_Context>) {
-    //                        continue_connect(true, arg);
-    //                    }
-    //                    else {
-    //                        static_assert(always_false<T>::value, "non-exhaustive visitor!");
-    //                    }
-    //                },
-    //                item);*/
-    //    }
 
-    Socket::Socket(ContextImpl &c)
-        : Context_(c), ReadContext_(new Win_IO_Context(PlatformSocket_, c)), WriteContext(new Win_IO_Context(PlatformSocket_, c))
+    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(new Win_IO_Context(PlatformSocket_, c)), WriteContext(new Win_IO_Context(PlatformSocket_, c))
     {
     }
-    Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
-    Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
-    Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
-    Socket::Socket(Socket &&sock) : Socket(sock.Context_, std::move(sock.PlatformSocket_)) {}
+    Socket::Socket(IOData &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
+    Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c.getIOData(), std::move(p)) {}
+    Socket::Socket(Context &c) : Socket(c.getIOData()) {}
+    Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
     Socket::~Socket()
     {
 
@@ -58,13 +40,13 @@ namespace NET {
         PlatformSocket_.close();
         if (ReadContext_) {
             if (auto handler(ReadContext_->getCompletionHandler()); handler) {
-                Context_.DecrementPendingIO();
+                IOData_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
         if (WriteContext) {
             if (auto handler(WriteContext->getCompletionHandler()); handler) {
-                Context_.DecrementPendingIO();
+                IOData_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
@@ -195,15 +177,15 @@ namespace NET {
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);
         }
-        if (CreateIoCompletionPort((HANDLE)c.Handle().Handle().value, c.Context_.IOCPHandle, NULL, NULL) == NULL) {
+        if (CreateIoCompletionPort((HANDLE)c.Handle().Handle().value, c.IOData_.getIOHandle(), NULL, NULL) == NULL) {
             return handler(TranslateError());
         }
         auto context = c.ReadContext_;
         context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
         context->IOOperation = IO_OPERATION::IoConnect;
-        c.Context_.IncrementPendingIO();
+        c.IOData_.IncrementPendingIO();
 
-        auto connectres = c.Context_.ConnectEx_(c.Handle().Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
+        auto connectres = c.IOData_.ConnectEx_(c.Handle().Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
                                                 (LPOVERLAPPED)&context->Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
@@ -217,7 +199,7 @@ namespace NET {
             }
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
-            c.Context_.DecrementPendingIO();
+            c.IOData_.DecrementPendingIO();
             if (auto h = context->getCompletionHandler(); h) {
                 h(TranslateError(), 0);
             }
