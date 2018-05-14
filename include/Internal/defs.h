@@ -200,8 +200,8 @@ namespace NET {
         {
             while (getPendingIO() > 0) {
                 std::this_thread::sleep_for(10ms);
+                wakeup();
             }
-            wakeup();
             if (EventWakeFd != -1) {
                 ::close(EventWakeFd);
             }
