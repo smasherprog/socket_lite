@@ -233,8 +233,7 @@ namespace NET {
         {
             for (decltype(ThreadCount_.value) i = 0; i < ThreadCount_.value; i++) {
                 ThreadData[i].stop();
-            }
-            ThreadData.reset();
+            } 
         }
         IOData &getIOData() { return ThreadData[LastThreadIndex++ % ThreadCount_.value]; }
     };
