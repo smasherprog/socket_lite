@@ -202,11 +202,12 @@ namespace NET {
                 std::this_thread::sleep_for(10ms);
                 wakeup();
             }
+            wakeup();
+            Thread.join(); 
             if (EventWakeFd != -1) {
                 ::close(EventWakeFd);
             }
             ::close(IOCPHandle);
-            Thread.join();
         }
         int getIOHandle() const { return IOCPHandle; }
         void wakeup() { eventfd_write(EventWakeFd, 1); }
@@ -233,6 +234,7 @@ namespace NET {
             for (decltype(ThreadCount_.value) i = 0; i < ThreadCount_.value; i++) {
                 ThreadData[i].stop();
             }
+            ThreadData.reset();
         }
         IOData &getIOData() { return ThreadData[LastThreadIndex++ % ThreadCount_.value]; }
     };
