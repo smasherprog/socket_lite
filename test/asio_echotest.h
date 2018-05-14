@@ -21,8 +21,8 @@ void asioechotest()
 
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asio::io_context iocontext;
-    auto s(std::make_shared<asiomodels::asioserver>(iocontext, porttouse));
-    s->do_accept();
+    asiomodels::asioserver s(iocontext, porttouse);
+    s.do_accept();
 
     tcp::resolver resolver(iocontext);
     auto endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
@@ -34,8 +34,8 @@ void asioechotest()
     asiomodels::keepgoing = false;
     std::cout << "ASIO Echo per Second " << asiomodels::writeechos / 10 << std::endl;
     iocontext.stop();
-    s->acceptor_.cancel();
-    s->acceptor_.close();
+    s.acceptor_.cancel();
+    s.acceptor_.close();
     c.close();
     t.join();
 }

@@ -48,19 +48,18 @@ class session : public std::enable_shared_from_this<session> {
     tcp::socket socket_;
 };
 
-class asioserver : public std::enable_shared_from_this<asioserver> {
+class asioserver  {
   public:
     asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {}
 
     void do_accept()
     {
-        auto self(shared_from_this());
-        acceptor_.async_accept([self](std::error_code ec, tcp::socket socket) {
+        acceptor_.async_accept([&](std::error_code ec, tcp::socket socket) {
             if (keepgoing) {
                 auto s = std::make_shared<session>(std::move(socket));
                 s->do_read();
                 s->do_write();
-                self->do_accept();
+                do_accept();
             }
         });
     }
@@ -78,7 +77,7 @@ class asioclient {
     void close() { socket_->socket_.close(); }
     void do_connect(const tcp::resolver::results_type &endpoints)
     {
-        asio::async_connect(socket_->socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
+        asio::async_connect(socket_->socket_, endpoints, [&](std::error_code ec, tcp::endpoint) {
             if (!ec) {
                 socket_->do_write();
                 socket_->do_read();
