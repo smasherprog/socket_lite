@@ -4,11 +4,14 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
+#include <algorithm>
+#include <chrono>
 
 #if defined(WINDOWS) || defined(_WIN32)
 #include <WinSock2.h>
 #include <Windows.h>
 #include <mswsock.h>
+#include <Ws2tcpip.h>
 #endif
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
@@ -16,6 +19,13 @@
 #ifndef SOCKET_ERROR
 #define SOCKET_ERROR -1
 #endif
+
+#ifndef _WIN32 
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
+#include <unistd.h>
+#endif
+
 using namespace std::chrono_literals;
 namespace SL {
 namespace NET {
@@ -137,7 +147,7 @@ namespace NET {
         HANDLE getIOHandle() const { return IOCPHandle; }
         void wakeup() { PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL); }
 #else
-        const auto MAXEVENTS = 10;
+ 
         IOData()
         {
             PendingIO = 0;
@@ -155,10 +165,9 @@ namespace NET {
             }
             Thread = std::thread([&] {
                 while (true) {
-                    std::vector<epoll_event> epollevents;
-                    epollevents.resize(MAXEVENTS);
+                    epoll_event epollevents[10] ; 
                     while (true) {
-                        auto count = epoll_wait(IOCPHandle, epollevents.data(), MAXEVENTS, -1);
+                        auto count = epoll_wait(IOCPHandle, epollevents, 10, -1);
 
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd != EventWakeFd) {
@@ -221,7 +230,7 @@ namespace NET {
         }
         ~ContextImpl()
         {
-            for (auto i = 0; i < ThreadCount_.value; i++) {
+            for (decltype(ThreadCount_.value) i = 0; i < ThreadCount_.value; i++) {
                 ThreadData[i].stop();
             }
         }

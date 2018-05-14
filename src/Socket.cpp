@@ -63,10 +63,10 @@ namespace NET {
         epoll_event ev = {0};
         ev.data.ptr = ReadContext_;
         ev.events = EPOLLIN | EPOLLONESHOT;
-        Context_.IncrementPendingIO();
-        if (epoll_ctl(Context_.IOCPHandle, EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
+        IOData_.IncrementPendingIO();
+        if (epoll_ctl(IOData_.getIOHandle() , EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
             if (auto h(ReadContext_->getCompletionHandler()); h) {
-                Context_.DecrementPendingIO();
+                IOData_.DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }
@@ -87,10 +87,10 @@ namespace NET {
         epoll_event ev = {0};
         ev.data.ptr = WriteContext;
         ev.events = EPOLLOUT | EPOLLONESHOT;
-        Context_.IncrementPendingIO();
-        if (epoll_ctl(Context_.IOCPHandle, EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
+        IOData_.IncrementPendingIO();
+        if (epoll_ctl(IOData_.getIOHandle() , EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
             if (auto h(WriteContext->getCompletionHandler()); h) {
-                Context_.DecrementPendingIO();
+                IOData_.DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }
@@ -221,14 +221,14 @@ namespace NET {
                 auto context = c.ReadContext_;
                 context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
                 context->IOOperation = IO_OPERATION::IoConnect;
-                c.Context_.IncrementPendingIO();
+                c.IOData_.IncrementPendingIO();
 
                 epoll_event ev = {0};
                 ev.data.ptr = context;
                 ev.events = EPOLLOUT | EPOLLONESHOT;
-                if (epoll_ctl(c.Context_.IOCPHandle, EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
+                if (epoll_ctl(c.IOData_.getIOHandle() , EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
                     if (auto h = context->getCompletionHandler(); h) {
-                        c.Context_.DecrementPendingIO();
+                        c.IOData_.DecrementPendingIO();
                         h(TranslateError(), 0);
                     }
                 }
@@ -290,7 +290,7 @@ namespace NET {
         ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
         ev.events |= EPOLLONESHOT;
         context->Context_.IncrementPendingIO();
-        if (epoll_ctl(context->Context_.IOCPHandle, EPOLL_CTL_MOD, context->Socket_.Handle().value, &ev) == -1) {
+        if (epoll_ctl(context->Context_.getIOHandle(), EPOLL_CTL_MOD, context->Socket_.Handle().value, &ev) == -1) {
             if (auto h(context->getCompletionHandler()); h) {
                 context->Context_.DecrementPendingIO();
                 h(TranslateError(), 0);

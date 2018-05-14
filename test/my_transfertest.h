@@ -60,8 +60,8 @@ class asioclient {
             }
         });
     }
-    SL::NET::Context &Context_;
     std::vector<SL::NET::sockaddr> Addresses;
+    SL::NET::Context &Context_;
     std::shared_ptr<session> socket_;
 };
 
@@ -78,9 +78,8 @@ void mytransfertest()
     a.AcceptHandler = [](SL::NET::Socket socket) { std::make_shared<session>(std::move(socket))->do_read(); };
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
-    Listener.start();
     std::vector<SL::NET::sockaddr> addresses;
-    SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
+    [[maybe_unused]] auto retg =  SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
         addresses.push_back(s);
         return SL::NET::GetAddrInfoCBStatus::CONTINUE;
     });

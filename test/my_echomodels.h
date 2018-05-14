@@ -67,7 +67,7 @@ class asioclient {
     asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family)
     {
         socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
-      auto getaddret=  SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr &s) {
+        [[maybe_unused]] auto getaddret=  SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr &s) {
             addrs.push_back(s);
             return SL::NET::GetAddrInfoCBStatus::CONTINUE;
         });

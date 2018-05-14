@@ -29,7 +29,7 @@ void myechotest()
     };
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
-    Listener.start();
+  
     myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     myechomodels::asioclient c2(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);

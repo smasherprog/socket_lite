@@ -223,10 +223,7 @@ namespace NET {
         Listener(const Listener &) = delete;
         Listener(Listener &&) = delete;
         Listener &operator=(Listener &) = delete;
-        void start();
-        // this will block
-        void stop();
-        [[nodiscard]] bool isStopped() const;
+
     };
     enum GetAddrInfoCBStatus { CONTINUE, FINISHED };
     // this is a sync call and will call the callback for each address found
