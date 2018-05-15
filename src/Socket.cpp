@@ -38,6 +38,7 @@ namespace NET {
     void Socket::close()
     {
         PlatformSocket_.close();
+#ifndef _WIN32
         if (ReadContext_) {
             if (auto handler(ReadContext_->getCompletionHandler()); handler) {
                 IOData_.DecrementPendingIO();
@@ -50,6 +51,7 @@ namespace NET {
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
+#endif
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {

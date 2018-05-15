@@ -1,17 +1,18 @@
 #pragma once
 
 #include "Socket_Lite.h"
-#include <atomic>
-#include <functional>
-#include <mutex>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <functional>
+#include <iostream>
 
+#include <mutex>
 #if defined(WINDOWS) || defined(_WIN32)
 #include <WinSock2.h>
 #include <Windows.h>
-#include <mswsock.h>
 #include <Ws2tcpip.h>
+#include <mswsock.h>
 #endif
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
@@ -20,7 +21,7 @@
 #define SOCKET_ERROR -1
 #endif
 
-#ifndef _WIN32 
+#ifndef _WIN32
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -71,12 +72,11 @@ namespace NET {
     void continue_connect(bool success, Win_IO_Context *context);
     class IOData {
 
-        std::atomic<int> PendingIO;
+        std::atomic<int>& PendingIO;
         bool KeepGoing_;
         std::thread Thread;
 #if WIN32
         HANDLE IOCPHandle;
-        WSADATA wsaData;
 #else
         int EventWakeFd;
         int IOCPHandle;
@@ -84,23 +84,9 @@ namespace NET {
       public:
 #if WIN32
         LPFN_CONNECTEX ConnectEx_;
-        IOData()
-        {
-            PendingIO = 0;
-            KeepGoing_ = true;
-            if (WSAStartup(0x202, &wsaData) != 0) {
-                abort();
-            }
-            IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
-
-            auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-            GUID guid = WSAID_CONNECTEX;
-            DWORD bytes = 0;
-            WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
-            closesocket(handle);
-            if (IOCPHandle == NULL || ConnectEx_ == nullptr) {
-                abort();
-            }
+        IOData(HANDLE h, LPFN_CONNECTEX c, std::atomic<int> &iocount) : PendingIO(iocount), IOCPHandle(h), ConnectEx_(c)
+        { 
+            KeepGoing_ = true; 
             Thread = std::thread([&] {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -110,6 +96,7 @@ namespace NET {
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
                     if (overlapped == NULL && !KeepGoing_ && getPendingIO() <= 0) {
+                        wakeup();
                         return;
                     }
                     switch (overlapped->IOOperation) {
@@ -127,9 +114,10 @@ namespace NET {
                         break;
                     default:
                         break;
-                    }
+                    } 
                     if (DecrementPendingIO() <= 0 && !KeepGoing_) {
-                        return;
+                        wakeup();
+                        return; 
                     }
                 }
             });
@@ -140,17 +128,14 @@ namespace NET {
                 std::this_thread::sleep_for(10ms);
             }
             wakeup();
-            CloseHandle(IOCPHandle);
-            WSACleanup();
             Thread.join();
         }
         HANDLE getIOHandle() const { return IOCPHandle; }
         void wakeup() { PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL); }
 #else
- 
-        IOData()
-        {
-            PendingIO = 0;
+
+        IOData(std::atomic<int> &iocount) : PendingIO(iocount)
+        { 
             KeepGoing_ = true;
             IOCPHandle = epoll_create1(0);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
@@ -165,7 +150,7 @@ namespace NET {
             }
             Thread = std::thread([&] {
                 while (true) {
-                    epoll_event epollevents[10] ; 
+                    epoll_event epollevents[10];
                     while (true) {
                         auto count = epoll_wait(IOCPHandle, epollevents, 10, -1);
 
@@ -203,7 +188,7 @@ namespace NET {
                 wakeup();
             }
             wakeup();
-            Thread.join(); 
+            Thread.join();
             if (EventWakeFd != -1) {
                 ::close(EventWakeFd);
             }
@@ -220,22 +205,56 @@ namespace NET {
     };
     class ContextImpl {
         const ThreadCount ThreadCount_;
-        std::unique_ptr<IOData[]> ThreadData;
+        std::vector<std::unique_ptr<IOData>> ThreadData;
         int LastThreadIndex;
+        std::atomic<int> PendingIO;
+#if WIN32
+        HANDLE IOCPHandle;
+        WSADATA wsaData;
+#endif
 
       public:
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
-            ThreadData = std::make_unique<IOData[]>(ThreadCount_.value);
+            PendingIO = 0;
+#if WIN32
+            ThreadData.resize(ThreadCount_.value);
+            IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);
+            if (WSAStartup(0x202, &wsaData) != 0) {
+                abort();
+            }
+            LPFN_CONNECTEX connectex;
+            auto handle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+            GUID guid = WSAID_CONNECTEX;
+            DWORD bytes = 0;
+            WSAIoctl(handle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &connectex, sizeof(connectex), &bytes, NULL, NULL);
+            closesocket(handle);
+            if (connectex == nullptr) {
+                abort();
+            }
+            for (auto &th : ThreadData) {
+                th = std::make_unique<IOData>(IOCPHandle, connectex, PendingIO);
+            }
+#else
+            for (auto &th : ThreadData) {
+                th = std::make_unique<IOData>(PendingIO);
+            }
+#endif
+
             LastThreadIndex = 0;
         }
         ~ContextImpl()
         {
-            for (decltype(ThreadCount_.value) i = 0; i < ThreadCount_.value; i++) {
-                ThreadData[i].stop();
-            } 
+            for (auto &t : ThreadData) {
+                t->stop();
+            }
+            ThreadData.clear(); // force release here
+#if WIN32
+            CloseHandle(IOCPHandle);
+            WSACleanup();
+#endif
         }
-        IOData &getIOData() { return ThreadData[LastThreadIndex++ % ThreadCount_.value]; }
+        IOData &getIOData() { return *ThreadData[LastThreadIndex++ % ThreadCount_.value]; }
     };
 } // namespace NET
 } // namespace SL
