@@ -170,11 +170,13 @@ namespace NET {
                                     break;
                                 }
                                 if (DecrementPendingIO() <= 0 && !KeepGoing_) {
+                                    wakeup();
                                     return;
                                 }
                             }
                         }
                         if (getPendingIO() <= 0 && !KeepGoing_) {
+                            wakeup();
                             return;
                         }
                     }
