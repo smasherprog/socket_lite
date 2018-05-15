@@ -219,8 +219,9 @@ namespace NET {
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
             PendingIO = 0;
+             ThreadData.resize(ThreadCount_.value);
 #if WIN32
-            ThreadData.resize(ThreadCount_.value);
+           
             IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);
             if (WSAStartup(0x202, &wsaData) != 0) {
                 abort();

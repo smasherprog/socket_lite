@@ -53,8 +53,5 @@ namespace NET {
         Acceptor_.AcceptSocket.close();
         Runner.join(); 
     }
-
- 
- 
 } // namespace NET
 } // namespace SL
