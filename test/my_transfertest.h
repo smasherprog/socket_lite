@@ -43,7 +43,7 @@ class session : public std::enable_shared_from_this<session> {
 
 class asioclient {
   public:
-    asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints), Context_(io_context)
+    asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
     {
         socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
     }
@@ -60,8 +60,7 @@ class asioclient {
             }
         });
     }
-    std::vector<SL::NET::sockaddr> Addresses;
-    SL::NET::Context &Context_;
+    std::vector<SL::NET::sockaddr> Addresses; 
     std::shared_ptr<session> socket_;
 };
 
