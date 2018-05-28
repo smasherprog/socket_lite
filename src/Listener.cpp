@@ -32,13 +32,13 @@ namespace NET {
 
                 auto handle = ::accept4(Acceptor_.AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
                 if (handle != INVALID_SOCKET) {
-
+                    PlatformSocket s(handle);
                     auto &iodata = ContextImpl_.getIOData();
                     epoll_event ev = {0};
                     if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
-                    Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(iodata, PlatformSocket(handle))));
+                    Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(iodata, std::move(s))));
                 }
 #endif
             }
