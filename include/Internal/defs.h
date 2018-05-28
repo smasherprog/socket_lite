@@ -160,7 +160,7 @@ namespace NET {
         IOData(std::atomic<int> &iocount) : PendingIO(iocount)
         {
             KeepGoing_ = true;
-            IOCPHandle = epoll_create1(0);
+            IOCPHandle = epoll_create(10);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
             if (IOCPHandle == -1 || EventWakeFd == -1) {
                 abort();
@@ -214,9 +214,7 @@ namespace NET {
             }
             wakeup();
             Thread.join();
-            if (EventWakeFd != -1) {
-                ::close(EventWakeFd);
-            }
+            ::close(EventWakeFd); 
             ::close(IOCPHandle);
         }
         int getIOHandle() const { return IOCPHandle; }
