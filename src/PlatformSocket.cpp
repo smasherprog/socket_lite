@@ -76,7 +76,26 @@ namespace NET {
 #endif
         }
     }
-
+   void PlatformSocket::shutdown(ShutDownOptions o){
+         auto t = Handle_.value;
+        if (t != INVALID_SOCKET) {
+            switch(o){
+            case ShutDownOptions::SHUTDOWN_READ:
+                ::shutdown(t, SHUT_RD);
+                return;
+                
+           case  ShutDownOptions::SHUTDOWN_WRITE:
+                ::shutdown(t, SHUT_WR);
+                return;
+                
+           case  ShutDownOptions::SHUTDOWN_BOTH:
+                ::shutdown(t, SHUT_RDWR);
+                return;
+                default:
+                return;
+            }
+        }
+   }
     StatusCode PlatformSocket::bind(const sockaddr &addr)
     {
         if (::bind(Handle_.value, (::sockaddr *)SocketAddr(addr), SocketAddrLen(addr)) == SOCKET_ERROR) {

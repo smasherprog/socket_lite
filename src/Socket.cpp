@@ -28,18 +28,15 @@ namespace NET {
     {
         PlatformSocket_.close();
 #ifndef _WIN32
-        if (ReadContext_) {
             if (auto handler(ReadContext_.getCompletionHandler()); handler) {
                 IOData_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
-        }
-        if (WriteContext) {
+        
             if (auto handler(WriteContext_.getCompletionHandler()); handler) {
                 IOData_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
-        }
 #endif
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -52,7 +49,7 @@ namespace NET {
 
 #ifndef _WIN32
         epoll_event ev = {0};
-        ev.data.ptr = ReadContext_;
+        ev.data.ptr = &ReadContext_;
         ev.events = EPOLLIN | EPOLLONESHOT;
         IOData_.IncrementPendingIO();
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
@@ -76,7 +73,7 @@ namespace NET {
 
 #ifndef _WIN32
         epoll_event ev = {0};
-        ev.data.ptr = WriteContext;
+        ev.data.ptr = &WriteContext_;
         ev.events = EPOLLOUT | EPOLLONESHOT;
         IOData_.IncrementPendingIO();
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
@@ -163,7 +160,7 @@ namespace NET {
     }
     void connect_async(std::shared_ptr<ISocket> &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
-        auto &c = *std::static_pointer_cast<Socket>(socket);
+        auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto bindret = BindSocket(c.Handle().Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
@@ -199,8 +196,9 @@ namespace NET {
     }
 #else
 
-    void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
+    void connect_async(std::shared_ptr<ISocket> &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
+        auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
@@ -210,16 +208,16 @@ namespace NET {
             }
             else {
 
-                auto context = c.ReadContext_;
-                context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
-                context->IOOperation = IO_OPERATION::IoConnect;
+                auto& context = c.ReadContext_;
+                context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
+                context.IOOperation = IO_OPERATION::IoConnect;
                 c.IOData_.IncrementPendingIO();
 
                 epoll_event ev = {0};
-                ev.data.ptr = context;
-                ev.events = EPOLLOUT | EPOLLONESHOT;
+                ev.data.ptr = &c.ReadContext_;
+                ev.events = EPOLLOUT;
                 if (epoll_ctl(c.IOData_.getIOHandle(), EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
-                    if (auto h = context->getCompletionHandler(); h) {
+                    if (auto h = context.getCompletionHandler(); h) {
                         c.IOData_.DecrementPendingIO();
                         h(TranslateError(), 0);
                     }
@@ -280,7 +278,6 @@ namespace NET {
         epoll_event ev = {0};
         ev.data.ptr = context;
         ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
-        ev.events |= EPOLLONESHOT;
         context->Context_.IncrementPendingIO();
         if (epoll_ctl(context->Context_.getIOHandle(), EPOLL_CTL_MOD, context->Socket_.Handle().value, &ev) == -1) {
             if (auto h(context->getCompletionHandler()); h) {

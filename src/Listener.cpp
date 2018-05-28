@@ -35,12 +35,10 @@ namespace NET {
 
                     auto &iodata = ContextImpl_.getIOData();
                     epoll_event ev = {0};
-                    ev.events = EPOLLONESHOT;
                     if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
-
-                    Acceptor_.AcceptHandler(Socket(iodata, PlatformSocket(handle)));
+                    Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(iodata, PlatformSocket(handle))));
                 }
 #endif
             }
@@ -50,8 +48,9 @@ namespace NET {
     Listener::~Listener()
     {
         Keepgoing = false;
-        Acceptor_.AcceptSocket.close();
+        Acceptor_.AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
         Runner.join();
+        Acceptor_.AcceptSocket.close();
     }
 } // namespace NET
 } // namespace SL

@@ -69,7 +69,7 @@ namespace NET {
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
     enum class AddressFamily { IPV4, IPV6 };
-
+    enum class ShutDownOptions {SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH};
     struct LingerOption {
         LingerOptions l_onoff;         /* option on/off */
         std::chrono::seconds l_linger; /* linger time */
@@ -122,6 +122,7 @@ namespace NET {
         PlatformSocket &operator=(PlatformSocket &&);
         operator bool() const;
         void close();
+        void shutdown(ShutDownOptions o);
         [[nodiscard]] SocketHandle Handle() const { return Handle_; };
 
         StatusCode getsockopt(DEBUGTag, const std::function<void(const SockOptStatus &)> &callback) const;
