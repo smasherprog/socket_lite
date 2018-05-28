@@ -105,7 +105,7 @@ namespace NET {
 #endif
       public:
         //  moodycamel::ConcurrentQueue<Win_IO_Context> WorkQueue;
-#if WIN32
+#if _WIN32
         LPFN_CONNECTEX ConnectEx_;
         IOData(HANDLE h, LPFN_CONNECTEX c, std::atomic<int> &iocount) : PendingIO(iocount), IOCPHandle(h), ConnectEx_(c)
         {
@@ -179,15 +179,18 @@ namespace NET {
 
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd != EventWakeFd) {
+                                auto socketclosed = epollevents[i].events & EPOLLERR || 
+                                    epollevents[i].events & EPOLLHUP;
+                           
                                 auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
-
+                               if(ctx == nullptr) continue;
                                 switch (ctx->IOOperation) {
                                 case IO_OPERATION::IoConnect:
-                                    continue_connect(true, ctx);
+                                    continue_connect(!socketclosed, ctx);
                                     break;
                                 case IO_OPERATION::IoRead:
                                 case IO_OPERATION::IoWrite:
-                                    continue_io(true, ctx);
+                                    continue_io(!socketclosed, ctx);
                                     break;
                                 default:
                                     break;
