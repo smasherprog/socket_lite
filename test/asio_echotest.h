@@ -27,8 +27,9 @@ void asioechotest()
     tcp::resolver resolver(iocontext);
     auto endpoints = resolver.resolve("127.0.0.1", std::to_string(porttouse));
     asiomodels::asioclient c(iocontext);
-    c.do_connect(endpoints);
+
     std::thread t([&iocontext]() { iocontext.run(); });
+    c.do_connect(endpoints);
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     asiomodels::keepgoing = false;

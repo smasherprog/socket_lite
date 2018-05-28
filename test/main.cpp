@@ -29,7 +29,7 @@ int main()
     std::thread t([&] {
         while (startwatching) {
             auto temp = cpumemmom.getCPUUsage();
-            totalusage += temp.ProcessUse;
+            totalusage += static_cast<float>(temp.ProcessUse);
             counts += 1.0f;
             std::this_thread::sleep_for(200ms);
         }
