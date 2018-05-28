@@ -15,44 +15,35 @@ std::vector<char> writebuffer;
 std::vector<char> readbuffer;
 double writeechos = 0.0;
 bool keepgoing = true;
-class session : public std::enable_shared_from_this<session> {
-  public:
-    session(SL::NET::Socket &&socket) : socket_(std::move(socket)) {}
-
-    void do_read()
-    {
-        auto self(shared_from_this());
-        socket_.recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                writeechos += 1.0;
-                self->do_read();
-            }
-        });
-    }
-    void do_write()
-    {
-        auto self(shared_from_this());
-        socket_.send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code, size_t bytesread) {
-            if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_write();
-            }
-        });
-    }
-    SL::NET::Socket socket_;
-};
-
+void do_read(std::shared_ptr<SL::NET::ISocket> socket)
+{
+    socket->recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [socket](SL::NET::StatusCode code, size_t) {
+        if (code == SL::NET::StatusCode::SC_SUCCESS) {
+            writeechos += 1.0;
+            do_read(socket);
+        }
+    });
+}
+void do_write(std::shared_ptr<SL::NET::ISocket> socket)
+{
+    socket->send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [socket](SL::NET::StatusCode code, size_t) {
+        if (code == SL::NET::StatusCode::SC_SUCCESS) {
+            do_write(socket);
+        }
+    });
+}
 class asioclient {
   public:
     asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
     {
-        socket_ = std::make_shared<session>(SL::NET::Socket(io_context));
+        socket_ = SL::NET::ISocket::CreateSocket(io_context);
     }
-    void close() { socket_->socket_.close(); }
+    void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::connect_async(socket_->socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                socket_->do_write();
+                do_write(socket_);
             }
             else {
                 Addresses.pop_back();
@@ -60,8 +51,8 @@ class asioclient {
             }
         });
     }
-    std::vector<SL::NET::sockaddr> Addresses; 
-    std::shared_ptr<session> socket_;
+    std::vector<SL::NET::sockaddr> Addresses;
+    std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
 void mytransfertest()
@@ -74,17 +65,18 @@ void mytransfertest()
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = [](SL::NET::Socket socket) { std::make_shared<session>(std::move(socket))->do_read(); };
+    a.AcceptHandler = [](const std::shared_ptr<SL::NET::ISocket> &socket) { do_read(socket); };
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
     std::vector<SL::NET::sockaddr> addresses;
-    [[maybe_unused]] auto retg =  SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
-        addresses.push_back(s);
-        return SL::NET::GetAddrInfoCBStatus::CONTINUE;
-    });
+    [[maybe_unused]] auto retg =
+        SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
+            addresses.push_back(s);
+            return SL::NET::GetAddrInfoCBStatus::CONTINUE;
+        });
 
     auto c = std::make_shared<asioclient>(iocontext, addresses);
-    c->do_connect(); 
+    c->do_connect();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
     c->close();

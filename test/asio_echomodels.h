@@ -48,13 +48,13 @@ class session : public std::enable_shared_from_this<session> {
     tcp::socket socket_;
 };
 
-class asioserver  {
+class asioserver {
   public:
     asioserver(asio::io_context &io_context, short port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {}
 
     void do_accept()
     {
-        acceptor_.async_accept([&](std::error_code ec, tcp::socket socket) {
+        acceptor_.async_accept([&](std::error_code, tcp::socket socket) {
             if (keepgoing) {
                 auto s = std::make_shared<session>(std::move(socket));
                 s->do_read();

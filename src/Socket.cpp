@@ -16,37 +16,26 @@
 
 namespace SL {
 namespace NET {
+    std::shared_ptr<ISocket> ISocket::CreateSocket(Context &c) { return std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(c)); }
 
-    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(new Win_IO_Context(PlatformSocket_, c)), WriteContext(new Win_IO_Context(PlatformSocket_, c))
-    {
-    }
+    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {}
     Socket::Socket(IOData &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c.getIOData(), std::move(p)) {}
     Socket::Socket(Context &c) : Socket(c.getIOData()) {}
     Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
-    Socket::~Socket()
-    {
-
-        close();
-        if (ReadContext_) {
-            delete ReadContext_;
-        }
-        if (WriteContext) {
-            delete WriteContext;
-        }
-    }
+    Socket::~Socket() { close(); }
     void Socket::close()
     {
         PlatformSocket_.close();
 #ifndef _WIN32
         if (ReadContext_) {
-            if (auto handler(ReadContext_->getCompletionHandler()); handler) {
+            if (auto handler(ReadContext_.getCompletionHandler()); handler) {
                 IOData_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
         }
         if (WriteContext) {
-            if (auto handler(WriteContext->getCompletionHandler()); handler) {
+            if (auto handler(WriteContext_.getCompletionHandler()); handler) {
                 IOData_.DecrementPendingIO();
                 handler(StatusCode::SC_CLOSED, 0);
             }
@@ -55,50 +44,50 @@ namespace NET {
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        ReadContext_->buffer = buffer;
-        ReadContext_->transfered_bytes = 0;
-        ReadContext_->bufferlen = buffer_size;
-        ReadContext_->setCompletionHandler(std::move(handler));
-        ReadContext_->IOOperation = IO_OPERATION::IoRead;
+        ReadContext_.buffer = buffer;
+        ReadContext_.transfered_bytes = 0;
+        ReadContext_.bufferlen = buffer_size;
+        ReadContext_.setCompletionHandler(std::move(handler));
+        ReadContext_.IOOperation = IO_OPERATION::IoRead;
 
 #ifndef _WIN32
         epoll_event ev = {0};
         ev.data.ptr = ReadContext_;
         ev.events = EPOLLIN | EPOLLONESHOT;
         IOData_.IncrementPendingIO();
-        if (epoll_ctl(IOData_.getIOHandle() , EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
-            if (auto h(ReadContext_->getCompletionHandler()); h) {
+        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
+            if (auto h(ReadContext_.getCompletionHandler()); h) {
                 IOData_.DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }
 #else
-        ReadContext_->Overlapped = {0};
-        continue_io(true, ReadContext_);
+        ReadContext_.Overlapped = {0};
+        continue_io(true, &ReadContext_);
 #endif
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        WriteContext->buffer = buffer;
-        WriteContext->transfered_bytes = 0;
-        WriteContext->bufferlen = buffer_size;
-        WriteContext->setCompletionHandler(std::move(handler));
-        WriteContext->IOOperation = IO_OPERATION::IoWrite;
+        WriteContext_.buffer = buffer;
+        WriteContext_.transfered_bytes = 0;
+        WriteContext_.bufferlen = buffer_size;
+        WriteContext_.setCompletionHandler(std::move(handler));
+        WriteContext_.IOOperation = IO_OPERATION::IoWrite;
 
 #ifndef _WIN32
         epoll_event ev = {0};
         ev.data.ptr = WriteContext;
         ev.events = EPOLLOUT | EPOLLONESHOT;
         IOData_.IncrementPendingIO();
-        if (epoll_ctl(IOData_.getIOHandle() , EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
-            if (auto h(WriteContext->getCompletionHandler()); h) {
+        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
+            if (auto h(WriteContext_.getCompletionHandler()); h) {
                 IOData_.DecrementPendingIO();
                 h(TranslateError(), 0);
             }
         }
 #else
-        WriteContext->Overlapped = {0};
-        continue_io(true, WriteContext);
+        WriteContext_.Overlapped = {0};
+        continue_io(true, &WriteContext_);
 #endif
     }
 #if _WIN32
@@ -172,8 +161,9 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    void connect_async(Socket &c, sockaddr &address, std::function<void(StatusCode)> &&handler)
+    void connect_async(std::shared_ptr<ISocket> &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
     {
+        auto &c = *std::static_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto bindret = BindSocket(c.Handle().Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
@@ -182,16 +172,16 @@ namespace NET {
         if (CreateIoCompletionPort((HANDLE)c.Handle().Handle().value, c.IOData_.getIOHandle(), NULL, NULL) == NULL) {
             return handler(TranslateError());
         }
-        auto context = c.ReadContext_;
-        context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
-        context->IOOperation = IO_OPERATION::IoConnect;
+        auto &context = c.ReadContext_;
+        context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
+        context.IOOperation = IO_OPERATION::IoConnect;
         c.IOData_.IncrementPendingIO();
 
         auto connectres = c.IOData_.ConnectEx_(c.Handle().Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
-                                                (LPOVERLAPPED)&context->Overlapped);
+                                               (LPOVERLAPPED)&context.Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
-            if (auto h = context->getCompletionHandler(); h) {
+            if (auto h = context.getCompletionHandler(); h) {
                 if (::setsockopt(c.Handle().Handle().value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
                     h(StatusCode::SC_SUCCESS, 0);
                 }
@@ -202,7 +192,7 @@ namespace NET {
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             c.IOData_.DecrementPendingIO();
-            if (auto h = context->getCompletionHandler(); h) {
+            if (auto h = context.getCompletionHandler(); h) {
                 h(TranslateError(), 0);
             }
         }
@@ -228,7 +218,7 @@ namespace NET {
                 epoll_event ev = {0};
                 ev.data.ptr = context;
                 ev.events = EPOLLOUT | EPOLLONESHOT;
-                if (epoll_ctl(c.IOData_.getIOHandle() , EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
+                if (epoll_ctl(c.IOData_.getIOHandle(), EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
                     if (auto h = context->getCompletionHandler(); h) {
                         c.IOData_.DecrementPendingIO();
                         h(TranslateError(), 0);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Socket_Lite.h"
+#include "concurrentqueue.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -68,13 +69,34 @@ namespace NET {
         }
     };
 
+    class Socket final : ISocket {
+      public:
+        PlatformSocket PlatformSocket_;
+        IOData &IOData_;
+        Win_IO_Context ReadContext_, WriteContext_;
+
+        Socket(IOData &, PlatformSocket &&);
+        Socket(Context &, PlatformSocket &&);
+        Socket(Socket &&);
+        Socket(Context &);
+        Socket(IOData &);
+        virtual ~Socket();
+        virtual PlatformSocket &Handle() override { return PlatformSocket_; }
+        virtual void close() override;
+
+        // guarantees async behavior and will not complete immediatly, but some time later
+        virtual void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) override;
+        virtual void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) override;
+    };
+
     void continue_io(bool success, Win_IO_Context *context);
     void continue_connect(bool success, Win_IO_Context *context);
     class IOData {
 
-        std::atomic<int>& PendingIO;
+        std::atomic<int> &PendingIO;
         bool KeepGoing_;
         std::thread Thread;
+
 #if WIN32
         HANDLE IOCPHandle;
 #else
@@ -82,11 +104,12 @@ namespace NET {
         int IOCPHandle;
 #endif
       public:
+        //  moodycamel::ConcurrentQueue<Win_IO_Context> WorkQueue;
 #if WIN32
         LPFN_CONNECTEX ConnectEx_;
         IOData(HANDLE h, LPFN_CONNECTEX c, std::atomic<int> &iocount) : PendingIO(iocount), IOCPHandle(h), ConnectEx_(c)
-        { 
-            KeepGoing_ = true; 
+        {
+            KeepGoing_ = true;
             Thread = std::thread([&] {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -114,10 +137,10 @@ namespace NET {
                         break;
                     default:
                         break;
-                    } 
+                    }
                     if (DecrementPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
-                        return; 
+                        return;
                     }
                 }
             });
@@ -135,7 +158,7 @@ namespace NET {
 #else
 
         IOData(std::atomic<int> &iocount) : PendingIO(iocount)
-        { 
+        {
             KeepGoing_ = true;
             IOCPHandle = epoll_create1(0);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
@@ -219,9 +242,9 @@ namespace NET {
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
             PendingIO = 0;
-             ThreadData.resize(ThreadCount_.value);
+            ThreadData.resize(ThreadCount_.value);
 #if WIN32
-           
+
             IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);
             if (WSAStartup(0x202, &wsaData) != 0) {
                 abort();

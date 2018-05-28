@@ -22,27 +22,26 @@ void myechotest()
 
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = [](SL::NET::Socket socket) {
-        auto s = std::make_shared<myechomodels::session>(std::move(socket));
-        s->do_read();
-        s->do_write();
+    a.AcceptHandler = [](const std::shared_ptr<SL::NET::ISocket> &socket) {
+        myechomodels::do_read(socket);
+        myechomodels::do_write(socket);
     };
     a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
-  
+
     myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     myechomodels::asioclient c2(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     c.do_connect();
     c1.do_connect();
-    c2.do_connect(); 
+    c2.do_connect();
 
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     myechomodels::keepgoing = false;
     std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
     c.close();
     c1.close();
-    c2.close();  
+    c2.close();
 }
 
 } // namespace mymultithreadedechotest

@@ -31,11 +31,11 @@ namespace NET {
     PlatformSocket::PlatformSocket(const AddressFamily &family, Blocking_Options opts) : Handle_(INVALID_SOCKET)
     {
         int typ = SOCK_STREAM;
-        
+
 #if !_WIN32
-        if(opts == Blocking_Options::NON_BLOCKING){
-            
-        typ |= SOCK_NONBLOCK;
+        if (opts == Blocking_Options::NON_BLOCKING) {
+
+            typ |= SOCK_NONBLOCK;
         }
 #endif
         if (family == AddressFamily::IPV4) {
@@ -44,12 +44,12 @@ namespace NET {
         else {
             Handle_.value = socket(AF_INET6, typ, 0);
         }
-        #if _WIN32
-        
-        if(opts == Blocking_Options::NON_BLOCKING){
-            setsockopt(BLOCKINGTag{}, opts);
+#if _WIN32
+
+        if (opts == Blocking_Options::NON_BLOCKING) {
+            [[maybe_unused]] auto e = setsockopt(BLOCKINGTag{}, opts);
         }
-        #endif
+#endif
     }
     PlatformSocket::~PlatformSocket() { close(); }
     PlatformSocket::PlatformSocket(PlatformSocket &&p) : Handle_(p.Handle_) { p.Handle_.value = INVALID_SOCKET; }
@@ -65,7 +65,7 @@ namespace NET {
     PlatformSocket::operator bool() const { return Handle_.value != INVALID_SOCKET; }
     void PlatformSocket::close()
     {
-      
+
         auto t = Handle_.value;
         Handle_.value = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
@@ -247,8 +247,8 @@ namespace NET {
         timeval value = {0};
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-                callback(std::chrono::seconds(value.tv_sec));// convert from ms to seconds
-                return StatusCode::SC_SUCCESS;
+            callback(std::chrono::seconds(value.tv_sec)); // convert from ms to seconds
+            return StatusCode::SC_SUCCESS;
         }
 #endif
         return TranslateError();
@@ -267,8 +267,8 @@ namespace NET {
         timeval value = {0};
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_SNDTIMEO, (char *)&value, &valuelen) == 0) {
-                callback(std::chrono::seconds(value.tv_sec));// convert from ms to seconds
-                return StatusCode::SC_SUCCESS;
+            callback(std::chrono::seconds(value.tv_sec)); // convert from ms to seconds
+            return StatusCode::SC_SUCCESS;
         }
 #endif
         return TranslateError();

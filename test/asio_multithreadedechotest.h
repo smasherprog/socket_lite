@@ -58,7 +58,7 @@ class asioserver : public std::enable_shared_from_this<asioserver> {
     void do_accept()
     {
         auto self(shared_from_this());
-        acceptor_.async_accept([self](std::error_code ec, tcp::socket socket) {
+        acceptor_.async_accept([self](std::error_code, tcp::socket socket) {
             if (keepgoing) {
                 auto s = std::make_shared<session>(std::move(socket), self->io_context_);
                 s->do_read();

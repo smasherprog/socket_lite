@@ -43,7 +43,7 @@ include_directories(
 add_library(${PROJECT_NAME}  
 	include/Socket_Lite.h   
 	include/Internal/defs.h 
-	include/Internal/ThreadPool.h 
+	include/Internal/concurrentqueue.h 
 	src/Socket_Lite.cpp
 	src/Context.cpp
 	src/Socket.cpp

@@ -161,52 +161,37 @@ namespace NET {
     // forward declares
     class ContextImpl;
     class Context;
-    class Win_IO_Context;
     class IOData;
-
-    class SOCKET_LITE_EXTERN Socket {
-      protected:
-        PlatformSocket PlatformSocket_;
-        IOData &IOData_;
-        Win_IO_Context *ReadContext_, *WriteContext;
-
+    class Socket;
+    class SOCKET_LITE_EXTERN ISocket : public std::enable_shared_from_this<ISocket> {
       public:
-        Socket(IOData &, PlatformSocket &&);
-        Socket(Context &, PlatformSocket &&);
-        Socket(Socket &&);
-        Socket(Context &);
-        Socket(IOData &);
-        ~Socket();
-        Socket(const Socket &) = delete;
-        Socket &operator=(const Socket &) = delete;
-        [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
-        const PlatformSocket &Handle() const { return PlatformSocket_; }
-        void close();
-
-        // guarantees async behavior and will not complete immediatly, but some time later
-        void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        friend void connect_async(Socket &context, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
+        static std::shared_ptr<ISocket> CreateSocket(Context &);
+        virtual ~ISocket(){};
+        [[nodiscard]] virtual PlatformSocket &Handle() = 0;
+        virtual void close() = 0;
+        virtual void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
+        virtual void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
     };
 
     class SOCKET_LITE_EXTERN Context {
       protected:
         ContextImpl *ContextImpl_;
         IOData &getIOData();
+
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();
         Context(const Context &) = delete;
         Context(Context &&) = delete;
         Context &operator=(Context &) = delete;
-    
+
         friend class Listener;
         friend class Socket;
     };
     struct Acceptor {
         PlatformSocket AcceptSocket;
         AddressFamily Family;
-        std::function<void(Socket)> AcceptHandler;
+        std::function<void(const std::shared_ptr<ISocket> &)> AcceptHandler;
     };
 
     class SOCKET_LITE_EXTERN Listener {
@@ -223,14 +208,13 @@ namespace NET {
         Listener(const Listener &) = delete;
         Listener(Listener &&) = delete;
         Listener &operator=(Listener &) = delete;
-
     };
     enum GetAddrInfoCBStatus { CONTINUE, FINISHED };
     // this is a sync call and will call the callback for each address found
     [[nodiscard]] StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
                                                             const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
 
-    void SOCKET_LITE_EXTERN connect_async(Socket &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
+    void SOCKET_LITE_EXTERN connect_async(std::shared_ptr<ISocket> &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
 
 } // namespace NET
 } // namespace SL
