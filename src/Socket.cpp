@@ -22,21 +22,22 @@ namespace NET {
     Socket::Socket(IOData &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c.getIOData(), std::move(p)) {}
     Socket::Socket(Context &c) : Socket(c.getIOData()) {}
+
     Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
     Socket::~Socket() { close(); }
     void Socket::close()
     {
         PlatformSocket_.close();
 #ifndef _WIN32
-            if (auto handler(ReadContext_.getCompletionHandler()); handler) {
-                IOData_.DecrementPendingIO();
-                handler(StatusCode::SC_CLOSED, 0);
-            }
-        
-            if (auto handler(WriteContext_.getCompletionHandler()); handler) {
-                IOData_.DecrementPendingIO();
-                handler(StatusCode::SC_CLOSED, 0);
-            }
+        if (auto handler(ReadContext_.getCompletionHandler()); handler) {
+            IOData_.DecrementPendingIO();
+            handler(StatusCode::SC_CLOSED, 0);
+        }
+
+        if (auto handler(WriteContext_.getCompletionHandler()); handler) {
+            IOData_.DecrementPendingIO();
+            handler(StatusCode::SC_CLOSED, 0);
+        }
 #endif
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -208,7 +209,7 @@ namespace NET {
             }
             else {
 
-                auto& context = c.ReadContext_;
+                auto &context = c.ReadContext_;
                 context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
                 context.IOOperation = IO_OPERATION::IoConnect;
                 c.IOData_.IncrementPendingIO();

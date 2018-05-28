@@ -49,6 +49,7 @@ namespace NET {
         if (opts == Blocking_Options::NON_BLOCKING) {
             [[maybe_unused]] auto e = setsockopt(BLOCKINGTag{}, opts);
         }
+
 #endif
     }
     PlatformSocket::~PlatformSocket() { close(); }
@@ -76,26 +77,43 @@ namespace NET {
 #endif
         }
     }
-   void PlatformSocket::shutdown(ShutDownOptions o){
-         auto t = Handle_.value;
+    void PlatformSocket::shutdown(ShutDownOptions o)
+    {
+        auto t = Handle_.value;
         if (t != INVALID_SOCKET) {
-            switch(o){
+            switch (o) {
+#if _WIN32
+
+            case ShutDownOptions::SHUTDOWN_READ:
+                ::shutdown(t, SD_RECEIVE);
+                return;
+
+            case ShutDownOptions::SHUTDOWN_WRITE:
+                ::shutdown(t, SD_SEND);
+                return;
+
+            case ShutDownOptions::SHUTDOWN_BOTH:
+                ::shutdown(t, SD_BOTH);
+                return;
+#else
+
             case ShutDownOptions::SHUTDOWN_READ:
                 ::shutdown(t, SHUT_RD);
                 return;
-                
-           case  ShutDownOptions::SHUTDOWN_WRITE:
+
+            case ShutDownOptions::SHUTDOWN_WRITE:
                 ::shutdown(t, SHUT_WR);
                 return;
-                
-           case  ShutDownOptions::SHUTDOWN_BOTH:
+
+            case ShutDownOptions::SHUTDOWN_BOTH:
                 ::shutdown(t, SHUT_RDWR);
                 return;
-                default:
+#endif
+            default:
                 return;
             }
         }
-   }
+    }
     StatusCode PlatformSocket::bind(const sockaddr &addr)
     {
         if (::bind(Handle_.value, (::sockaddr *)SocketAddr(addr), SocketAddrLen(addr)) == SOCKET_ERROR) {
