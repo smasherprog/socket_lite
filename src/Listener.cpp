@@ -48,9 +48,12 @@ namespace NET {
     Listener::~Listener()
     {
         Keepgoing = false;
-        Acceptor_.AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
-        Runner.join();
+#if _WIN32
         Acceptor_.AcceptSocket.close();
+#else
+        Acceptor_.AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
+#endif 
+        Runner.join(); 
     }
 } // namespace NET
 } // namespace SL
