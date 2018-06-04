@@ -16,29 +16,24 @@
 
 namespace SL {
 namespace NET {
-    std::shared_ptr<ISocket> ISocket::CreateSocket(Context &c) { return std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(c)); }
+    std::shared_ptr<ISocket> ISocket::CreateSocket(Context &c) { 
+        return std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(c)); 
+    }
 
-    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {}
+    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {
+        IOData_.RegisterSocket(this);
+    }
     Socket::Socket(IOData &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c.getIOData(), std::move(p)) {}
-    Socket::Socket(Context &c) : Socket(c.getIOData()) {}
-
+    Socket::Socket(Context &c) : Socket(c.getIOData()) {} 
     Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
-    Socket::~Socket() { close(); }
+    Socket::~Socket() { 
+        close();
+        IOData_.DeregisterSocket(this);
+    }
     void Socket::close()
     {
         PlatformSocket_.close();
-#ifndef _WIN32
-        if (auto handler(ReadContext_.getCompletionHandler()); handler) {
-            IOData_.DecrementPendingIO();
-            handler(StatusCode::SC_CLOSED, 0);
-        }
-
-        if (auto handler(WriteContext_.getCompletionHandler()); handler) {
-            IOData_.DecrementPendingIO();
-            handler(StatusCode::SC_CLOSED, 0);
-        }
-#endif
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
