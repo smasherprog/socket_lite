@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Socket_Lite.h" 
-#include "Internal/spinlock.h" 
+#include "Internal/spinlock.h"
+#include "Socket_Lite.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <iostream>
 
-#include <set>
 #include <mutex>
+#include <vector>
 #if defined(WINDOWS) || defined(_WIN32)
 #include <WinSock2.h>
 #include <Windows.h>
@@ -92,12 +92,13 @@ namespace NET {
 
     void continue_io(bool success, Win_IO_Context *context);
     void continue_connect(bool success, Win_IO_Context *context);
-    class IOData { 
-        std::set<Socket*> Sockets;
+    class IOData {
+        std::vector<std::shared_ptr<Socket>> Sockets;
+
         std::atomic<int> &PendingIO;
         bool KeepGoing_;
         std::thread Thread;
-        spinlock spinlock_;
+
 #if WIN32
         HANDLE IOCPHandle;
 #else
@@ -105,12 +106,14 @@ namespace NET {
         int IOCPHandle;
 #endif
       public:
-        //  moodycamel::ConcurrentQueue<Win_IO_Context> WorkQueue;
 #if _WIN32
         LPFN_CONNECTEX ConnectEx_;
         IOData(HANDLE h, LPFN_CONNECTEX c, std::atomic<int> &iocount) : PendingIO(iocount), IOCPHandle(h), ConnectEx_(c)
         {
-            KeepGoing_ = true; 
+
+            KeepGoing_ = true;
+            Sockets.resize(std::numeric_limits<unsigned short>::max());
+
             Thread = std::thread([&] {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -119,10 +122,11 @@ namespace NET {
 
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE;
-                    if (overlapped == NULL && !KeepGoing_ && getPendingIO() <= 0) {
+                    if (overlapped == NULL) {
                         wakeup();
                         return;
                     }
+
                     switch (overlapped->IOOperation) {
 
                     case IO_OPERATION::IoConnect:
@@ -159,7 +163,8 @@ namespace NET {
 #else
 
         IOData(std::atomic<int> &iocount) : PendingIO(iocount)
-        { 
+        {
+            Sockets.resize(std::numeric_limits<unsigned short>::max());
             KeepGoing_ = true;
             IOCPHandle = epoll_create(10);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
@@ -180,11 +185,15 @@ namespace NET {
 
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd != EventWakeFd) {
-                                auto socketclosed = epollevents[i].events & EPOLLERR || 
-                                    epollevents[i].events & EPOLLHUP;
-                           
-                                auto ctx = static_cast<Win_IO_Context *>(epollevents[i].data.ptr);
-                               if(ctx == nullptr) continue;
+                                auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
+
+                                if (epollevents[i].data.ptr == nullptr) {
+                                    continue;
+                                } 
+                                auto s = getSocket(reinterpret_cast<Socket *>(epollevents[i].data.ptr));
+                                if (!s) {
+                                    continue;
+                                }
                                 switch (ctx->IOOperation) {
                                 case IO_OPERATION::IoConnect:
                                     continue_connect(!socketclosed, ctx);
@@ -218,7 +227,7 @@ namespace NET {
             }
             wakeup();
             Thread.join();
-            ::close(EventWakeFd); 
+            ::close(EventWakeFd);
             ::close(IOCPHandle);
         }
         int getIOHandle() const { return IOCPHandle; }
@@ -228,14 +237,16 @@ namespace NET {
         int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
         int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
         void stop() { KeepGoing_ = false; }
-        void RegisterSocket(Socket* s) {  
-            std::lock_guard<spinlock> lock(spinlock_);
-            Sockets.insert(s); 
-        }   
-        void DeregisterSocket(Socket* s) {  
-            std::lock_guard<spinlock> lock(spinlock_);
-            Sockets.erase(s);
-        }
+
+#if _WIN32
+        void RegisterSocket(const std::shared_ptr<Socket> &s) {}
+        std::shared_ptr<Socket> getSocket(Socket *socket) { return std::shared_ptr<Socket>(); }
+        void DeregisterSocket(const Socket *socket) {}
+#else
+        void RegisterSocket(const std::shared_ptr<Socket> &socket) { Sockets[socket->PlatformSocket_.Handle().value] = s; }
+        std::shared_ptr<Socket> getSocket(Socket *socket) { return Sockets[socket->PlatformSocket_.Handle().value]; }
+        void DeregisterSocket(const Socket *socket) { Sockets[socket->PlatformSocket_.Handle().value].reset(); }
+#endif
     };
     class ContextImpl {
         const ThreadCount ThreadCount_;

@@ -16,23 +16,22 @@
 
 namespace SL {
 namespace NET {
-    std::shared_ptr<ISocket> ISocket::CreateSocket(Context &c) { 
-        return std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(c)); 
+    std::shared_ptr<ISocket> ISocket::CreateSocket(Context &c)
+    {
+        auto sw = std::make_shared<Socket>(c);
+        sw->IOData_.RegisterSocket(sw);
+        return std::reinterpret_pointer_cast<ISocket>(sw);
     }
 
-    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {
-        IOData_.RegisterSocket(this);
-    }
+    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {}
     Socket::Socket(IOData &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c.getIOData(), std::move(p)) {}
-    Socket::Socket(Context &c) : Socket(c.getIOData()) {} 
+    Socket::Socket(Context &c) : Socket(c.getIOData()) {}
     Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
-    Socket::~Socket() { 
-        close();
-        IOData_.DeregisterSocket(this);
-    }
+    Socket::~Socket() { close(); }
     void Socket::close()
     {
+        IOData_.DeregisterSocket(this);
         PlatformSocket_.close();
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -46,7 +45,7 @@ namespace NET {
 #ifndef _WIN32
         epoll_event ev = {0};
         ev.data.ptr = &ReadContext_;
-        ev.events = EPOLLIN | EPOLLONESHOT| EPOLLRDHUP | EPOLLHUP;
+        ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         IOData_.IncrementPendingIO();
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
             if (auto h(ReadContext_.getCompletionHandler()); h) {
@@ -69,7 +68,7 @@ namespace NET {
 
 #ifndef _WIN32
         epoll_event ev = {0};
-        ev.data.ptr = &WriteContext_; 
+        ev.data.ptr = &WriteContext_;
         ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         IOData_.IncrementPendingIO();
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
@@ -227,19 +226,19 @@ namespace NET {
 
     void continue_connect(bool success, Win_IO_Context *context)
     {
-      
+
         if (auto h = context->getCompletionHandler(); h) {
-              if(success){
-                 h(StatusCode::SC_SUCCESS, 0);
-              }else {
+            if (success) {
+                h(StatusCode::SC_SUCCESS, 0);
+            }
+            else {
                 h(StatusCode::SC_CLOSED, 0);
-              
-              }
-        } 
+            }
+        }
     }
     void continue_io(bool success, Win_IO_Context *context)
     {
-        if(!success){
+        if (!success) {
             if (auto h(context->getCompletionHandler()); h) {
                 h(StatusCode::SC_CLOSED, 0);
             }

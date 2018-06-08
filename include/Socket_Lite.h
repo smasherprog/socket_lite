@@ -187,7 +187,7 @@ namespace NET {
         Context &operator=(Context &) = delete;
 
         friend class Listener;
-        friend class Socket;
+        friend class Socket; 
     };
     struct Acceptor {
         PlatformSocket AcceptSocket;
