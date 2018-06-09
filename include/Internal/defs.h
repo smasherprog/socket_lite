@@ -93,7 +93,7 @@ namespace NET {
     void continue_io(bool success, Win_IO_Context *context);
     void continue_connect(bool success, Win_IO_Context *context);
     class IOData {
-        std::vector<std::shared_ptr<Socket>> Sockets;
+      
 
         std::atomic<int> &PendingIO;
         bool KeepGoing_;
@@ -102,6 +102,7 @@ namespace NET {
 #if WIN32
         HANDLE IOCPHandle;
 #else
+        std::vector<std::shared_ptr<Socket>>& Sockets;
         int EventWakeFd;
         int IOCPHandle;
 #endif
@@ -111,9 +112,7 @@ namespace NET {
         IOData(HANDLE h, LPFN_CONNECTEX c, std::atomic<int> &iocount) : PendingIO(iocount), IOCPHandle(h), ConnectEx_(c)
         {
 
-            KeepGoing_ = true;
-            Sockets.resize(std::numeric_limits<unsigned short>::max());
-
+            KeepGoing_ = true; 
             Thread = std::thread([&] {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -162,9 +161,9 @@ namespace NET {
         void wakeup() { PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL); }
 #else
 
-        IOData(std::atomic<int> &iocount) : PendingIO(iocount)
+        IOData(std::atomic<int> &iocount, std::vector<std::shared_ptr<Socket>> &socks) : PendingIO(iocount), Sockets(socks)
         {
-            Sockets.resize(std::numeric_limits<unsigned short>::max());
+         
             KeepGoing_ = true;
             IOCPHandle = epoll_create(10);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
@@ -251,6 +250,7 @@ namespace NET {
     class ContextImpl {
         const ThreadCount ThreadCount_;
         std::vector<std::unique_ptr<IOData>> ThreadData;
+        std::vector<std::shared_ptr<Socket>> Sockets;
         int LastThreadIndex;
         std::atomic<int> PendingIO;
 #if WIN32
@@ -263,6 +263,7 @@ namespace NET {
         {
             PendingIO = 0;
             ThreadData.resize(ThreadCount_.value);
+
 #if WIN32
 
             IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);
@@ -282,8 +283,9 @@ namespace NET {
                 th = std::make_unique<IOData>(IOCPHandle, connectex, PendingIO);
             }
 #else
+            Sockets.resize(std::numeric_limits<unsigned short>::max());
             for (auto &th : ThreadData) {
-                th = std::make_unique<IOData>(PendingIO);
+                th = std::make_unique<IOData>(PendingIO, Sockets);
             }
 #endif
 
@@ -294,7 +296,9 @@ namespace NET {
             for (auto &t : ThreadData) {
                 t->stop();
             }
+
             ThreadData.clear(); // force release here
+            Sockets.clear();
 #if WIN32
             CloseHandle(IOCPHandle);
             WSACleanup();
