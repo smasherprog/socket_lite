@@ -236,9 +236,9 @@ namespace NET {
         void stop() { KeepGoing_ = false; }
 
 #if _WIN32
-        void RegisterSocket(const std::shared_ptr<Socket> &s) {}
-        std::shared_ptr<Socket> getSocket(Socket *socket) { return std::shared_ptr<Socket>(); }
-        void DeregisterSocket(const Socket *socket) {}
+        void RegisterSocket(const std::shared_ptr<Socket> &) {}
+        std::shared_ptr<Socket> getSocket(Socket *) { return std::shared_ptr<Socket>(); }
+        void DeregisterSocket(const Socket *) {}
 #else
         void RegisterSocket(const std::shared_ptr<Socket> &socket) { Sockets[socket->PlatformSocket_.Handle().value] = socket; }
         std::shared_ptr<Socket> getSocket(Socket *socket) { return Sockets[socket->PlatformSocket_.Handle().value]; }
