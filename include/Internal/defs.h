@@ -243,7 +243,7 @@ namespace NET {
         std::shared_ptr<Socket> getSocket(Socket *socket) { return std::shared_ptr<Socket>(); }
         void DeregisterSocket(const Socket *socket) {}
 #else
-        void RegisterSocket(const std::shared_ptr<Socket> &socket) { Sockets[socket->PlatformSocket_.Handle().value] = s; }
+        void RegisterSocket(const std::shared_ptr<Socket> &socket) { Sockets[socket->PlatformSocket_.Handle().value] = socket; }
         std::shared_ptr<Socket> getSocket(Socket *socket) { return Sockets[socket->PlatformSocket_.Handle().value]; }
         void DeregisterSocket(const Socket *socket) { Sockets[socket->PlatformSocket_.Handle().value].reset(); }
 #endif
