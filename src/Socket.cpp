@@ -23,7 +23,13 @@ namespace NET {
         return std::reinterpret_pointer_cast<ISocket>(sw);
     }
 
-    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {}
+    Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c) {
+        if(PlatformSocket_.Handle().value!= INVALID_SOCKET){
+            Status_ = SocketStatus::OPEN; 
+        } else {
+              Status_ = SocketStatus::CLOSED; 
+        }
+    }
     Socket::Socket(IOData &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c.getIOData(), std::move(p)) {}
     Socket::Socket(Context &c) : Socket(c.getIOData()) {}
@@ -31,6 +37,7 @@ namespace NET {
     Socket::~Socket() { close(); }
     void Socket::close()
     {
+        Status_ = SocketStatus::CLOSED; 
         IOData_.DeregisterSocket(this);
         PlatformSocket_.close();
     }
@@ -157,6 +164,7 @@ namespace NET {
     {
         auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
+        c.Status_ = SocketStatus::CONNECTING; 
         auto bindret = BindSocket(c.Handle().Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);

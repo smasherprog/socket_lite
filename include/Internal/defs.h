@@ -75,7 +75,8 @@ namespace NET {
         PlatformSocket PlatformSocket_;
         IOData &IOData_;
         Win_IO_Context ReadContext_, WriteContext_;
-
+        SocketStatus Status_;
+        
         Socket(IOData &, PlatformSocket &&);
         Socket(Context &, PlatformSocket &&);
         Socket(Socket &&);
@@ -83,6 +84,7 @@ namespace NET {
         Socket(IOData &);
         virtual ~Socket();
         virtual PlatformSocket &Handle() override { return PlatformSocket_; }
+        virtual SocketStatus Status()  const override{ return Status_;}
         virtual void close() override;
 
         // guarantees async behavior and will not complete immediatly, but some time later
@@ -193,17 +195,13 @@ namespace NET {
                                 if (!s) {
                                     continue;
                                 }
-                                switch (ctx->IOOperation) {
-                                case IO_OPERATION::IoConnect:
-                                    continue_connect(!socketclosed, ctx);
-                                    break;
-                                case IO_OPERATION::IoRead:
-                                case IO_OPERATION::IoWrite:
-                                    continue_io(!socketclosed, ctx);
-                                    break;
-                                default:
-                                    break;
-                                }
+                                if(s->Status() == SocketStatus::CONNECTING){
+                                    continue_connect(!socketclosed, &s->ReadContext_);
+                                } else if(epollevents[i].events & EPOLLIN){
+                                    continue_io(!socketclosed, &s->ReadContext_);
+                                } {
+                                    continue_io(!socketclosed, &s->WriteContext_);
+                                } 
                                 if (DecrementPendingIO() <= 0 && !KeepGoing_) {
                                     wakeup();
                                     return;

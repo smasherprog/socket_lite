@@ -69,6 +69,7 @@ namespace NET {
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
     enum class AddressFamily { IPV4, IPV6 };
+    enum class SocketStatus { CLOSED, CONNECTING, OPEN};
     enum class ShutDownOptions {SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH};
     struct LingerOption {
         LingerOptions l_onoff;         /* option on/off */
@@ -169,6 +170,7 @@ namespace NET {
         static std::shared_ptr<ISocket> CreateSocket(Context &);
         virtual ~ISocket(){};
         [[nodiscard]] virtual PlatformSocket &Handle() = 0;
+        [[nodiscard]] virtual SocketStatus Status()const =0; 
         virtual void close() = 0;
         virtual void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
         virtual void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
