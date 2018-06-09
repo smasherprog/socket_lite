@@ -199,6 +199,8 @@ namespace NET {
                                 }
                                 else if (epollevents[i].events & EPOLLIN) {
                                     continue_io(!socketclosed, &s->ReadContext_);
+                                } else {
+                                    continue_io(!socketclosed, &s->WriteContext_);
                                 }
                             }
                         }
