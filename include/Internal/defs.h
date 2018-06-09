@@ -76,7 +76,7 @@ namespace NET {
         IOData &IOData_;
         Win_IO_Context ReadContext_, WriteContext_;
         SocketStatus Status_;
-        
+
         Socket(IOData &, PlatformSocket &&);
         Socket(Context &, PlatformSocket &&);
         Socket(Socket &&);
@@ -84,7 +84,7 @@ namespace NET {
         Socket(IOData &);
         virtual ~Socket();
         virtual PlatformSocket &Handle() override { return PlatformSocket_; }
-        virtual SocketStatus Status()  const override{ return Status_;}
+        virtual SocketStatus Status() const override { return Status_; }
         virtual void close() override;
 
         // guarantees async behavior and will not complete immediatly, but some time later
@@ -95,7 +95,6 @@ namespace NET {
     void continue_io(bool success, Win_IO_Context *context);
     void continue_connect(bool success, Win_IO_Context *context);
     class IOData {
-      
 
         std::atomic<int> &PendingIO;
         bool KeepGoing_;
@@ -104,7 +103,7 @@ namespace NET {
 #if WIN32
         HANDLE IOCPHandle;
 #else
-        std::vector<std::shared_ptr<Socket>>& Sockets;
+        std::vector<std::shared_ptr<Socket>> &Sockets;
         int EventWakeFd;
         int IOCPHandle;
 #endif
@@ -114,7 +113,7 @@ namespace NET {
         IOData(HANDLE h, LPFN_CONNECTEX c, std::atomic<int> &iocount) : PendingIO(iocount), IOCPHandle(h), ConnectEx_(c)
         {
 
-            KeepGoing_ = true; 
+            KeepGoing_ = true;
             Thread = std::thread([&] {
                 while (true) {
                     DWORD numberofbytestransfered = 0;
@@ -144,7 +143,7 @@ namespace NET {
                     default:
                         break;
                     }
-                    if (DecrementPendingIO() <= 0 && !KeepGoing_) {
+                    if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
                     }
@@ -165,7 +164,7 @@ namespace NET {
 
         IOData(std::atomic<int> &iocount, std::vector<std::shared_ptr<Socket>> &socks) : PendingIO(iocount), Sockets(socks)
         {
-         
+
             KeepGoing_ = true;
             IOCPHandle = epoll_create(10);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
@@ -190,21 +189,16 @@ namespace NET {
 
                                 if (epollevents[i].data.ptr == nullptr) {
                                     continue;
-                                } 
+                                }
                                 auto s = getSocket(reinterpret_cast<Socket *>(epollevents[i].data.ptr));
                                 if (!s) {
                                     continue;
                                 }
-                                if(s->Status() == SocketStatus::CONNECTING){
+                                if (s->Status() == SocketStatus::CONNECTING) {
                                     continue_connect(!socketclosed, &s->ReadContext_);
-                                } else if(epollevents[i].events & EPOLLIN){
+                                }
+                                else if (epollevents[i].events & EPOLLIN) {
                                     continue_io(!socketclosed, &s->ReadContext_);
-                                } {
-                                    continue_io(!socketclosed, &s->WriteContext_);
-                                } 
-                                if (DecrementPendingIO() <= 0 && !KeepGoing_) {
-                                    wakeup();
-                                    return;
                                 }
                             }
                         }

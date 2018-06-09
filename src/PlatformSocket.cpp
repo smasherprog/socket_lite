@@ -113,7 +113,7 @@ namespace NET {
                 return;
             }
         }
-    }
+    } 
     StatusCode PlatformSocket::bind(const sockaddr &addr)
     {
         if (::bind(Handle_.value, (::sockaddr *)SocketAddr(addr), SocketAddrLen(addr)) == SOCKET_ERROR) {
