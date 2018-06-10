@@ -7,8 +7,7 @@
 #include <chrono>
 #include <functional>
 #include <iostream>
-
-#include <mutex>
+#include <memory> 
 #include <vector>
 #if defined(WINDOWS) || defined(_WIN32)
 #include <WinSock2.h>
@@ -100,7 +99,7 @@ namespace NET {
         bool KeepGoing_;
         std::thread Thread;
 
-#if WIN32
+#if _WIN32
         HANDLE IOCPHandle;
 #else
         std::vector<std::shared_ptr<Socket>> &Sockets;
@@ -232,13 +231,29 @@ namespace NET {
         void stop() { KeepGoing_ = false; }
 
 #if _WIN32
-        void RegisterSocket(const std::shared_ptr<Socket> &) {}
+        void RegisterSocket(std::shared_ptr<Socket> &) {}
         std::shared_ptr<Socket> getSocket(Socket *) { return std::shared_ptr<Socket>(); }
         void DeregisterSocket(const Socket *) {}
 #else
-        void RegisterSocket(const std::shared_ptr<Socket> &socket) { Sockets[socket->PlatformSocket_.Handle().value] = socket; }
-        std::shared_ptr<Socket> getSocket(Socket *socket) { return Sockets[socket->PlatformSocket_.Handle().value]; }
-        void DeregisterSocket(const Socket *socket) { Sockets[socket->PlatformSocket_.Handle().value].reset(); }
+        void RegisterSocket(const std::shared_ptr<Socket> &socket) {  
+            auto index = socket->PlatformSocket_.Handle().value;
+            if(index >=0 && index< static_cast<decltype(index)>(Sockets.size())) {
+                Sockets[index] = socket; 
+            } 
+        }
+        std::shared_ptr<Socket> getSocket(Socket *socket) {    
+            auto index = socket->PlatformSocket_.Handle().value;
+            if(index >=0 && index<static_cast<decltype(index)>(Sockets.size())) {
+                return Sockets[index];    
+            }
+            return std::shared_ptr<Socket>();
+        }
+        void DeregisterSocket(const Socket *socket) {    
+            auto index = socket->PlatformSocket_.Handle().value;
+            if(index >=0 && index<static_cast<decltype(index)>(Sockets.size())) {
+                Sockets[index].reset();  
+            } 
+        }
 #endif
     };
     class ContextImpl {
@@ -247,7 +262,7 @@ namespace NET {
         std::vector<std::shared_ptr<Socket>> Sockets;
         int LastThreadIndex;
         std::atomic<int> PendingIO;
-#if WIN32
+#if _WIN32
         HANDLE IOCPHandle;
         WSADATA wsaData;
 #endif
@@ -258,7 +273,7 @@ namespace NET {
             PendingIO = 0;
             ThreadData.resize(ThreadCount_.value);
 
-#if WIN32
+#if _WIN32
 
             IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);
             if (WSAStartup(0x202, &wsaData) != 0) {
@@ -293,12 +308,12 @@ namespace NET {
 
             ThreadData.clear(); // force release here
             Sockets.clear();
-#if WIN32
+#if _WIN32
             CloseHandle(IOCPHandle);
             WSACleanup();
 #endif
         }
         IOData &getIOData() { return *ThreadData[LastThreadIndex++ % ThreadCount_.value]; }
     };
-} // namespace NET
-} // namespace SL
+} // namespace NET 
+}

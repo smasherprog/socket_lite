@@ -18,8 +18,7 @@ namespace SL {
 namespace NET {
     std::shared_ptr<ISocket> ISocket::CreateSocket(Context &c)
     {
-        auto sw = std::make_shared<Socket>(c);
-        sw->IOData_.RegisterSocket(sw);
+        auto sw = std::make_shared<Socket>(c); 
         return std::reinterpret_pointer_cast<ISocket>(sw);
     }
     void completeio(Win_IO_Context &context, StatusCode code, size_t bytes)
@@ -159,6 +158,7 @@ namespace NET {
         auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         c.Status_ = SocketStatus::CONNECTING;
+       
         auto bindret = BindSocket(c.Handle().Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);
@@ -193,6 +193,7 @@ namespace NET {
         auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         c.Status_ = SocketStatus::CONNECTING;
+        c.IOData_.RegisterSocket(std::reinterpret_pointer_cast<Socket>(socket));
         auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;

@@ -40,6 +40,7 @@ namespace NET {
                     if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
+                    iodata.RegisterSocket(sock);
                     Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(sock));
                 }
 #endif
