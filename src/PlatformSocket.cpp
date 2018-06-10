@@ -43,7 +43,7 @@ namespace NET {
         }
         else {
             Handle_.value = socket(AF_INET6, typ, 0);
-        }
+        } 
 #if _WIN32
 
         if (opts == Blocking_Options::NON_BLOCKING) {

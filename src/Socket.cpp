@@ -25,7 +25,7 @@ namespace NET {
     {
         if (auto h(context.getCompletionHandler()); h) {
             context.Context_.DecrementPendingIO();
-            h(code, bytes);
+            h(code, bytes); 
         }
     }
     Socket::Socket(IOData &c) : IOData_(c), ReadContext_(PlatformSocket_, c), WriteContext_(PlatformSocket_, c)

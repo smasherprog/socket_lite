@@ -105,7 +105,7 @@ namespace NET {
 #if _WIN32
         HANDLE IOCPHandle;
 #else
-        std::vector<std::shared_ptr<Socket>> &Sockets;
+        std::vector<std::weak_ptr<Socket>> &Sockets;
         int EventWakeFd;
         int IOCPHandle;
 #endif
@@ -164,7 +164,7 @@ namespace NET {
         void wakeup() { PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL); }
 #else
 
-        IOData(std::atomic<int> &iocount, std::vector<std::shared_ptr<Socket>> &socks) : PendingIO(iocount), Sockets(socks)
+        IOData(std::atomic<int> &iocount, std::vector<std::weak_ptr<Socket>> &socks) : PendingIO(iocount), Sockets(socks)
         {
 
             KeepGoing_ = true;
@@ -244,7 +244,7 @@ namespace NET {
             if(!socket) return std::shared_ptr<Socket>(); 
             auto index = socket->PlatformSocket_.Handle().value;
             if(index >=0 && index<static_cast<decltype(index)>(Sockets.size())) {
-                return Sockets[index];    
+                return Sockets[index].lock();    
             }
             return std::shared_ptr<Socket>();
         }
@@ -252,14 +252,14 @@ namespace NET {
             auto index = socket->PlatformSocket_.Handle().value;
             if(index >=0 && index<static_cast<decltype(index)>(Sockets.size())) {
                 Sockets[index].reset();  
-            } 
+            }  
         }
 #endif
     };
     class ContextImpl {
         const ThreadCount ThreadCount_;
         std::vector<std::unique_ptr<IOData>> ThreadData;
-        std::vector<std::shared_ptr<Socket>> Sockets;
+        std::vector<std::weak_ptr<Socket>> Sockets;
         int LastThreadIndex;
         std::atomic<int> PendingIO;
 #if _WIN32
