@@ -68,7 +68,7 @@ namespace NET {
                                        SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
-    enum class AddressFamily { IPV4, IPV6 };
+    enum class AddressFamily { IPV4, IPV6, IPANY };
     enum class SocketStatus { CLOSED, CONNECTING, OPEN};
     enum class ShutDownOptions {SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH};
     struct LingerOption {
@@ -76,7 +76,7 @@ namespace NET {
         std::chrono::seconds l_linger; /* linger time */
     };
 
-    class SOCKET_LITE_EXTERN sockaddr {
+    class SOCKET_LITE_EXTERN SocketAddress {
         unsigned char SocketImpl[65] = {0};
         int SocketImplLen = 0;
         std::string Host;
@@ -84,9 +84,9 @@ namespace NET {
         AddressFamily Family = AddressFamily::IPV4;
 
       public:
-        sockaddr() {}
-        sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
-        sockaddr(const sockaddr &addr);
+        SocketAddress() {}
+        SocketAddress(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family);
+        SocketAddress(const SocketAddress &addr);
 
         const unsigned char *getSocketAddr() const;
         int getSocketAddrLen() const;
@@ -94,11 +94,11 @@ namespace NET {
         unsigned short getPort() const;
         AddressFamily getFamily() const;
     };
-    const unsigned char *SOCKET_LITE_EXTERN SocketAddr(const sockaddr &);
-    int SOCKET_LITE_EXTERN SocketAddrLen(const sockaddr &);
-    const std::string &SOCKET_LITE_EXTERN Host(const sockaddr &);
-    unsigned short SOCKET_LITE_EXTERN Port(const sockaddr &);
-    AddressFamily SOCKET_LITE_EXTERN Family(const sockaddr &);
+    const unsigned char *SOCKET_LITE_EXTERN SocketAddr(const SocketAddress &);
+    int SOCKET_LITE_EXTERN SocketAddrLen(const SocketAddress &);
+    const std::string &SOCKET_LITE_EXTERN Host(const SocketAddress &);
+    unsigned short SOCKET_LITE_EXTERN Port(const SocketAddress &);
+    AddressFamily SOCKET_LITE_EXTERN Family(const SocketAddress &);
 #ifdef _WIN32
 #if ((UINTPTR_MAX) == (UINT_MAX))
     typedef Explicit<unsigned short, SocketHandleTag> SocketHandle;
@@ -141,8 +141,8 @@ namespace NET {
         StatusCode getsockopt(NODELAYTag, const std::function<void(const SockOptStatus &)> &callback) const;
         StatusCode getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &callback) const;
 
-        StatusCode getpeername(const std::function<void(const sockaddr &)> &callback) const;
-        StatusCode getsockname(const std::function<void(const sockaddr &)> &callback) const;
+        StatusCode getpeername(const std::function<void(const SocketAddress &)> &callback) const;
+        StatusCode getsockname(const std::function<void(const SocketAddress &)> &callback) const;
 
         StatusCode setsockopt(DEBUGTag, SockOptStatus b);
         StatusCode setsockopt(BROADCASTTag, SockOptStatus b);
@@ -158,7 +158,7 @@ namespace NET {
         StatusCode setsockopt(BLOCKINGTag, Blocking_Options b);
 
         StatusCode listen(int backlog);
-        StatusCode bind(const sockaddr &addr);
+        StatusCode bind(const SocketAddress &addr);
 
 
     };
@@ -194,8 +194,7 @@ namespace NET {
         friend class Socket; 
     };
     struct Acceptor {
-        PlatformSocket AcceptSocket;
-        AddressFamily Family;
+        PlatformSocket AcceptSocket; 
         std::function<void(const std::shared_ptr<ISocket> &)> AcceptHandler;
     };
 
@@ -213,13 +212,11 @@ namespace NET {
         Listener(const Listener &) = delete;
         Listener(Listener &&) = delete;
         Listener &operator=(Listener &) = delete;
-    };
-    enum GetAddrInfoCBStatus { CONTINUE, FINISHED };
-    // this is a sync call and will call the callback for each address found
-    [[nodiscard]] StatusCode SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port, AddressFamily family,
-                                                            const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback);
+    }; 
+    [[nodiscard]] std::vector<SL::NET::SocketAddress> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port,
+                                                                                AddressFamily family = AddressFamily::IPANY);
 
-    void SOCKET_LITE_EXTERN connect_async(std::shared_ptr<ISocket> &socket, SL::NET::sockaddr &address, std::function<void(StatusCode)> &&);
+    void SOCKET_LITE_EXTERN connect_async(std::shared_ptr<ISocket> &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode)> &&);
 
 } // namespace NET
 } // namespace SL

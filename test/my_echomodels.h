@@ -10,24 +10,20 @@
 using namespace std::chrono_literals;
 
 namespace myechomodels {
+
 SL::NET::PlatformSocket listengetaddrinfo(const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family)
 {
-    SL::NET::PlatformSocket handle;
-    auto getaddret = SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr &s) {
-        SL::NET::PlatformSocket h(SL::NET::AddressFamily::IPV4, SL::NET::Blocking_Options::BLOCKING);
-        if (h.bind(s) == SL::NET::StatusCode::SC_SUCCESS) {
+    auto addrs = SL::NET::getaddrinfo(nodename, port, family);
+    for (auto &a : addrs) {
+        SL::NET::PlatformSocket h(a.getFamily(), SL::NET::Blocking_Options::BLOCKING);
+        if (h.bind(a) == SL::NET::StatusCode::SC_SUCCESS) {
             if (h.listen(INT_MAX) == SL::NET::StatusCode::SC_SUCCESS) {
                 [[maybe_unused]] auto reter = h.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
-                handle = std::move(h);
-                return SL::NET::GetAddrInfoCBStatus::FINISHED;
+                return h;
             }
         }
-        return SL::NET::GetAddrInfoCBStatus::CONTINUE;
-    });
-    if (getaddret != SL::NET::StatusCode::SC_SUCCESS) {
-        std::cout << "getaddrError" << std::endl;
     }
-    return handle;
+    return SL::NET::PlatformSocket(); // empty socket
 }
 
 char writeecho[] = "echo test";
@@ -58,14 +54,11 @@ inline void do_write(std::shared_ptr<SL::NET::ISocket> socket)
 class asioclient {
   public:
     std::shared_ptr<SL::NET::ISocket> socket_;
-    std::vector<SL::NET::sockaddr> addrs;
-    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family)
+    std::vector<SL::NET::SocketAddress> addrs;
+    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port)
     {
         socket_ = SL::NET::ISocket::CreateSocket(io_context);
-        [[maybe_unused]] auto getaddret = SL::NET::getaddrinfo(nodename, port, family, [&](const SL::NET::sockaddr &s) {
-            addrs.push_back(s);
-            return SL::NET::GetAddrInfoCBStatus::CONTINUE;
-        });
+        addrs = SL::NET::getaddrinfo(nodename, port, SL::NET::AddressFamily::IPV6);
     }
     void close() { socket_->close(); }
     void do_connect()

@@ -34,7 +34,7 @@ void do_write(std::shared_ptr<SL::NET::ISocket> socket)
 }
 class asioclient {
   public:
-    asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::sockaddr> &endpoints) : Addresses(endpoints)
+    asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::SocketAddress> &endpoints) : Addresses(endpoints)
     {
         socket_ = SL::NET::ISocket::CreateSocket(io_context);
     }
@@ -51,7 +51,7 @@ class asioclient {
             }
         });
     }
-    std::vector<SL::NET::sockaddr> Addresses;
+    std::vector<SL::NET::SocketAddress> Addresses;
     std::shared_ptr<SL::NET::ISocket> socket_;
 };
 
@@ -66,14 +66,9 @@ void mytransfertest()
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     a.AcceptHandler = [](const std::shared_ptr<SL::NET::ISocket> &socket) { do_read(socket); };
-    a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
-    std::vector<SL::NET::sockaddr> addresses;
-    [[maybe_unused]] auto retg =
-        SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
-            addresses.push_back(s);
-            return SL::NET::GetAddrInfoCBStatus::CONTINUE;
-        });
+    std::vector<SL::NET::SocketAddress> addresses;
+    addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
 
     auto c = std::make_shared<asioclient>(iocontext, addresses);
     c->do_connect();

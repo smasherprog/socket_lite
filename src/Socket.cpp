@@ -153,7 +153,7 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    void connect_async(std::shared_ptr<ISocket> &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
+    void connect_async(std::shared_ptr<ISocket> &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
     {
         auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);

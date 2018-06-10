@@ -26,23 +26,23 @@ typedef socklen_t SOCKLEN_T;
 namespace SL {
 namespace NET {
 
-    const unsigned char *sockaddr::getSocketAddr() const { return SocketImpl; }
-    int sockaddr::getSocketAddrLen() const { return SocketImplLen; }
-    const std::string &sockaddr::getHost() const { return Host; }
-    unsigned short sockaddr::getPort() const { return Port; }
-    AddressFamily sockaddr::getFamily() const { return Family; }
+    const unsigned char *SocketAddress::getSocketAddr() const { return SocketImpl; }
+    int SocketAddress::getSocketAddrLen() const { return SocketImplLen; }
+    const std::string &SocketAddress::getHost() const { return Host; }
+    unsigned short SocketAddress::getPort() const { return Port; }
+    AddressFamily SocketAddress::getFamily() const { return Family; }
 
-    const unsigned char *SocketAddr(const sockaddr &s) { return s.getSocketAddr(); }
-    int SocketAddrLen(const sockaddr &s) { return s.getSocketAddrLen(); }
-    const std::string &Host(const sockaddr &s) { return s.getHost(); }
-    unsigned short Port(const sockaddr &s) { return s.getPort(); }
-    AddressFamily Family(const sockaddr &s) { return s.getFamily(); }
+    const unsigned char *SocketAddr(const SocketAddress &s) { return s.getSocketAddr(); }
+    int SocketAddrLen(const SocketAddress &s) { return s.getSocketAddrLen(); }
+    const std::string &Host(const SocketAddress &s) { return s.getHost(); }
+    unsigned short Port(const SocketAddress &s) { return s.getPort(); }
+    AddressFamily Family(const SocketAddress &s) { return s.getFamily(); }
 
-    sockaddr::sockaddr(const sockaddr &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
+    SocketAddress::SocketAddress(const SocketAddress &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
     {
         memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
     }
-    sockaddr::sockaddr(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family)
+    SocketAddress::SocketAddress(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family)
     {
         assert(static_cast<size_t>(len) < sizeof(SocketImpl));
         memcpy(SocketImpl, buffer, len);
@@ -52,8 +52,7 @@ namespace NET {
         Family = family;
     }
 
-    StatusCode getaddrinfo(const char *nodename, PortNumber pServiceName, AddressFamily family,
-                           const std::function<GetAddrInfoCBStatus(const sockaddr &)> &callback)
+    std::vector<SocketAddress> getaddrinfo(const char *nodename, PortNumber pServiceName, AddressFamily family)
     {
         ::addrinfo hints = {0};
         ::addrinfo *result(nullptr);
@@ -62,30 +61,28 @@ namespace NET {
         hints.ai_socktype = SOCK_STREAM; /* We want a TCP socket */
         hints.ai_protocol = IPPROTO_TCP;
         hints.ai_flags = AI_PASSIVE; /* All interfaces */
+        std::vector<SocketAddress> addrs;
         auto portstr = std::to_string(pServiceName.value);
         auto s = ::getaddrinfo(nodename, portstr.c_str(), &hints, &result);
         if (s != 0) {
-            return TranslateError();
-        }
-        auto con = GetAddrInfoCBStatus::CONTINUE;
-        for (auto ptr = result; ptr != NULL && con == GetAddrInfoCBStatus::CONTINUE; ptr = ptr->ai_next) {
+            return addrs;
+        } 
+        for (auto ptr = result; ptr != NULL; ptr = ptr->ai_next) {
 
             char str[INET_ADDRSTRLEN];
-            if (ptr->ai_family == AF_INET6 && family == AddressFamily::IPV6) {
+            if (ptr->ai_family == AF_INET6 && (family == AddressFamily::IPV6 || family == AddressFamily::IPANY)) {
                 auto so = (::sockaddr_in6 *)ptr->ai_addr;
-                inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
-                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6);
-                con = callback(tmp);
+                inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN); 
+                addrs.emplace_back(SocketAddress{(unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6});
             }
-            else if (ptr->ai_family == AF_INET && family == AddressFamily::IPV4) {
+            else if (ptr->ai_family == AF_INET && (family == AddressFamily::IPV4 || family == AddressFamily::IPANY)) {
                 auto so = (::sockaddr_in *)ptr->ai_addr;
                 inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
-                SL::NET::sockaddr tmp((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4);
-                con = callback(tmp);
+                addrs.emplace_back(SocketAddress{(unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4});
             }
         }
         freeaddrinfo(result);
-        return StatusCode::SC_SUCCESS;
+        return addrs;
     }
     StatusCode TranslateError(int *errcode)
     {

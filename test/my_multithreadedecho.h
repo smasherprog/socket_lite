@@ -25,13 +25,12 @@ void myechotest()
     a.AcceptHandler = [](const std::shared_ptr<SL::NET::ISocket> &socket) {
         myechomodels::do_read(socket);
         myechomodels::do_write(socket);
-    };
-    a.Family = SL::NET::AddressFamily::IPV4;
+    }; 
     SL::NET::Listener Listener(iocontext, std::move(a));
 
-    myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    myechomodels::asioclient c2(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
+    myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
+    myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
+    myechomodels::asioclient c2(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
     c.do_connect();
     c1.do_connect();
     c2.do_connect();

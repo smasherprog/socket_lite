@@ -19,7 +19,7 @@ auto connections = 0.0;
 bool keepgoing = true;
 int connectnumber = 0;
 int acceptnumber = 0;
-std::vector<SL::NET::sockaddr> addresses;
+std::vector<SL::NET::SocketAddress> addresses;
 
 void connect(SL::NET::Context &iocontext)
 {
@@ -41,13 +41,8 @@ void myconnectiontest()
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     a.AcceptHandler = ([](const std::shared_ptr<SL::NET::ISocket> &) {});
-    a.Family = SL::NET::AddressFamily::IPV4;
     SL::NET::Listener Listener(iocontext, std::move(a));
-    [[maybe_unused]] auto gerro =
-        SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, [&](const SL::NET::sockaddr &s) {
-            addresses.push_back(s);
-            return SL::NET::GetAddrInfoCBStatus::CONTINUE;
-        });
+    addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
 
     connect(iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds

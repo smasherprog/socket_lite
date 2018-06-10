@@ -114,7 +114,7 @@ namespace NET {
             }
         }
     } 
-    StatusCode PlatformSocket::bind(const sockaddr &addr)
+    StatusCode PlatformSocket::bind(const SocketAddress &addr)
     {
         if (::bind(Handle_.value, (::sockaddr *)SocketAddr(addr), SocketAddrLen(addr)) == SOCKET_ERROR) {
             return TranslateError();
@@ -128,7 +128,7 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    StatusCode PlatformSocket::getpeername(const std::function<void(const sockaddr &)> &callback) const
+    StatusCode PlatformSocket::getpeername(const std::function<void(const SocketAddress &)> &callback) const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -139,18 +139,18 @@ namespace NET {
             if (addr.ss_family == AF_INET) {
                 auto so = (::sockaddr_in *)&addr;
                 inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
-                callback(SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4));
+                callback(SL::NET::SocketAddress((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4));
             }
             else { // AF_INET6
                 auto so = (sockaddr_in6 *)&addr;
                 inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
-                callback(SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6));
+                callback(SL::NET::SocketAddress((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6));
                 return StatusCode::SC_SUCCESS;
             }
         }
         return TranslateError();
     }
-    StatusCode PlatformSocket::getsockname(const std::function<void(const sockaddr &)> &callback) const
+    StatusCode PlatformSocket::getsockname(const std::function<void(const SocketAddress &)> &callback) const
     {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
@@ -160,12 +160,12 @@ namespace NET {
             if (addr.ss_family == AF_INET) {
                 auto so = (::sockaddr_in *)&addr;
                 inet_ntop(AF_INET, &so->sin_addr, str, INET_ADDRSTRLEN);
-                callback(SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4));
+                callback(SL::NET::SocketAddress((unsigned char *)so, sizeof(sockaddr_in), str, so->sin_port, AddressFamily::IPV4));
             }
             else { // AF_INET6
                 auto so = (::sockaddr_in6 *)&addr;
                 inet_ntop(AF_INET6, &so->sin6_addr, str, INET_ADDRSTRLEN);
-                callback(SL::NET::sockaddr((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6));
+                callback(SL::NET::SocketAddress((unsigned char *)so, sizeof(sockaddr_in6), str, so->sin6_port, AddressFamily::IPV6));
             }
             return StatusCode::SC_SUCCESS;
         }
