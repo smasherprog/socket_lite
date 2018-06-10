@@ -208,13 +208,10 @@ namespace NET {
                 c.IOData_.IncrementPendingIO();
 
                 epoll_event ev = {0};
-                ev.data.ptr = &c.ReadContext_;
+                ev.data.ptr = socket.get();
                 ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
                 if (epoll_ctl(c.IOData_.getIOHandle(), EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
-                    if (auto h = context.getCompletionHandler(); h) {
-                        c.IOData_.DecrementPendingIO();
-                        h(TranslateError(), 0);
-                    }
+                    completeio(context, TranslateError(), 0);
                 }
             }
         }
@@ -225,22 +222,17 @@ namespace NET {
 
     void continue_connect(bool success, Win_IO_Context *context)
     {
-
-        if (auto h = context->getCompletionHandler(); h) {
-            if (success) {
-                h(StatusCode::SC_SUCCESS, 0);
-            }
-            else {
-                h(StatusCode::SC_CLOSED, 0);
-            }
+        if (success) {
+            completeio(*context, StatusCode::SC_SUCCESS, 0); 
+        }
+        else {
+            completeio(*context, StatusCode::SC_CLOSED, 0); 
         }
     }
-    void continue_io(bool success, Win_IO_Context *context)
+    void continue_io(bool success, Win_IO_Context *context, const std::shared_ptr<Socket>& socket)
     {
-        if (!success) {
-            if (auto h(context->getCompletionHandler()); h) {
-                h(StatusCode::SC_CLOSED, 0);
-            }
+        if (!success) {  
+            completeio(*context, StatusCode::SC_CLOSED, 0); 
         }
         auto bytestowrite = context->bufferlen - context->transfered_bytes;
         auto count = 0;
@@ -248,10 +240,7 @@ namespace NET {
             count = ::read(context->Socket_.Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                    if (auto h(context->getCompletionHandler()); h) {
-                        h(TranslateError(), 0);
-                    }
-                    return; // done get out
+                    return completeio(*context,TranslateError(), 0); 
                 }
                 else {
                     count = 0;
@@ -262,10 +251,7 @@ namespace NET {
             count = ::write(context->Socket_.Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
             if (count < 0) { // possible error or continue
                 if (errno != EAGAIN && errno != EINTR) {
-                    if (auto h(context->getCompletionHandler()); h) {
-                        h(TranslateError(), 0);
-                    }
-                    return; // done get out
+                    return completeio(*context,TranslateError(), 0); 
                 }
                 else {
                     count = 0;
@@ -274,22 +260,16 @@ namespace NET {
         }
         context->transfered_bytes += count;
         if (context->transfered_bytes == context->bufferlen) {
-            if (auto h(context->getCompletionHandler()); h) {
-                h(StatusCode::SC_SUCCESS, context->bufferlen);
-            }
-            return; // done with this get out!!
+            return completeio(*context, StatusCode::SC_SUCCESS, context->bufferlen);  
         }
 
         epoll_event ev = {0};
-        ev.data.ptr = context;
+        ev.data.ptr = socket.get();
         ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
         ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         context->Context_.IncrementPendingIO();
         if (epoll_ctl(context->Context_.getIOHandle(), EPOLL_CTL_MOD, context->Socket_.Handle().value, &ev) == -1) {
-            if (auto h(context->getCompletionHandler()); h) {
-                context->Context_.DecrementPendingIO();
-                h(TranslateError(), 0);
-            }
+            return completeio(*context,TranslateError(), 0); 
         }
     }
 

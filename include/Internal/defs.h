@@ -90,8 +90,11 @@ namespace NET {
         virtual void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) override;
         virtual void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) override;
     };
-
+#if _WIN32
     void continue_io(bool success, Win_IO_Context *context);
+#else 
+    void continue_io(bool success, Win_IO_Context *context, const std::shared_ptr<Socket> &socket);
+#endif
     void continue_connect(bool success, Win_IO_Context *context);
     class IOData {
 
@@ -193,9 +196,9 @@ namespace NET {
                                     continue_connect(!socketclosed, &s->ReadContext_);
                                 }
                                 else if (epollevents[i].events & EPOLLIN) {
-                                    continue_io(!socketclosed, &s->ReadContext_);
+                                    continue_io(!socketclosed, &s->ReadContext_, s);
                                 } else {
-                                    continue_io(!socketclosed, &s->WriteContext_);
+                                    continue_io(!socketclosed, &s->WriteContext_, s);
                                 }
                             }
                         }
@@ -238,7 +241,7 @@ namespace NET {
             } 
         }
         std::shared_ptr<Socket> getSocket(Socket *socket) {    
-            if(!socket) return std::shared_ptr<Socket>();
+            if(!socket) return std::shared_ptr<Socket>(); 
             auto index = socket->PlatformSocket_.Handle().value;
             if(index >=0 && index<static_cast<decltype(index)>(Sockets.size())) {
                 return Sockets[index];    
