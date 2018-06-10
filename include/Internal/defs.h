@@ -185,10 +185,6 @@ namespace NET {
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd != EventWakeFd) {
                                 auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
-
-                                if (epollevents[i].data.ptr == nullptr) {
-                                    continue;
-                                }
                                 auto s = getSocket(reinterpret_cast<Socket *>(epollevents[i].data.ptr));
                                 if (!s) {
                                     continue;
@@ -242,6 +238,7 @@ namespace NET {
             } 
         }
         std::shared_ptr<Socket> getSocket(Socket *socket) {    
+            if(!socket) return std::shared_ptr<Socket>();
             auto index = socket->PlatformSocket_.Handle().value;
             if(index >=0 && index<static_cast<decltype(index)>(Sockets.size())) {
                 return Sockets[index];    
