@@ -33,16 +33,18 @@ namespace NET {
                 auto handle = ::accept4(Acceptor_.AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
-                    auto &iodata = ContextImpl_.getIOData();
-                    epoll_event ev = {0};
-                    ev.events= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-                    auto sock = std::make_shared<Socket>(iodata, std::move(s));
-                    if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
-                        continue; // this shouldnt happen but what ever
+                    if(Acceptor_.AcceptHandler){
+                        auto &iodata = ContextImpl_.getIOData();
+                        epoll_event ev = {0};
+                        ev.events= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+                        auto sock = std::make_shared<Socket>(iodata, std::move(s));
+                        if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
+                            continue; // this shouldnt happen but what ever
+                        }
+                        iodata.RegisterSocket(sock);
+                        Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(sock));
                     }
-                    iodata.RegisterSocket(sock);
-                    Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(sock));
-                }
+                } 
 #endif
             }
             Acceptor_.AcceptHandler = nullptr;

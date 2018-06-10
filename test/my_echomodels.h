@@ -17,7 +17,7 @@ SL::NET::PlatformSocket listengetaddrinfo(const char *nodename, SL::NET::PortNum
     for (auto &a : addrs) {
         SL::NET::PlatformSocket h(a.getFamily(), SL::NET::Blocking_Options::BLOCKING);
         if (h.bind(a) == SL::NET::StatusCode::SC_SUCCESS) {
-            if (h.listen(INT_MAX) == SL::NET::StatusCode::SC_SUCCESS) {
+            if (h.listen(256) == SL::NET::StatusCode::SC_SUCCESS) {
                 [[maybe_unused]] auto reter = h.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
                 return h;
             }
@@ -63,7 +63,7 @@ class asioclient {
     void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::connect_async(socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus , size_t) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
 
                 do_write(socket_);

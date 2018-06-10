@@ -27,7 +27,7 @@ class asioserver {
 
     void do_accept()
     {
-        acceptor_.async_accept([&](std::error_code, tcp::socket) {
+        acceptor_.async_accept([&](std::error_code, tcp::socket ) {
             if (keepgoing) {
                 do_accept();
             }
@@ -40,10 +40,7 @@ tcp::resolver::results_type endpoints;
 void connect(asio::io_context &io_context)
 {
     auto socket = std::make_shared<tcp::socket>(io_context);
-    asio::async_connect(*socket, endpoints, [socket, &io_context](std::error_code ec, tcp::endpoint) {
-        if (ec) {
-        
-        }
+    asio::async_connect(*socket, endpoints, [socket, &io_context](std::error_code, tcp::endpoint) {
         connections += 1.0;
         if (keepgoing) {
             connect(io_context);

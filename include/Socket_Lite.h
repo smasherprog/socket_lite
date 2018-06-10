@@ -216,7 +216,7 @@ namespace NET {
     [[nodiscard]] std::vector<SL::NET::SocketAddress> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port,
                                                                                 AddressFamily family = AddressFamily::IPANY);
 
-    void SOCKET_LITE_EXTERN connect_async(std::shared_ptr<ISocket> &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode)> &&);
+    void SOCKET_LITE_EXTERN connect_async(std::shared_ptr<ISocket> &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode, size_t)> &&);
 
 } // namespace NET
 } // namespace SL

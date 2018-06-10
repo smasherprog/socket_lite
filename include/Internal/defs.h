@@ -168,7 +168,7 @@ namespace NET {
         {
 
             KeepGoing_ = true;
-            IOCPHandle = epoll_create(10);
+            IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
             if (IOCPHandle == -1 || EventWakeFd == -1) {
                 abort();
@@ -180,10 +180,10 @@ namespace NET {
                 abort();
             }
             Thread = std::thread([&] {
-                while (true) {
-                    epoll_event epollevents[10];
+                  epoll_event epollevents[128];
+             
                     while (true) {
-                        auto count = epoll_wait(IOCPHandle, epollevents, 10, -1);
+                        auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd != EventWakeFd) {
@@ -207,7 +207,7 @@ namespace NET {
                             return;
                         }
                     }
-                }
+                
             });
         }
         ~IOData()

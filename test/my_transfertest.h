@@ -41,7 +41,7 @@ class asioclient {
     void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::connect_async(socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus, size_t) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 do_write(socket_);
             }

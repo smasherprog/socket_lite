@@ -188,7 +188,7 @@ namespace NET {
     }
 #else
 
-    void connect_async(std::shared_ptr<ISocket> &socket, sockaddr &address, std::function<void(StatusCode)> &&handler)
+    void connect_async(std::shared_ptr<ISocket> &socket, SocketAddress &address, std::function<void(StatusCode, size_t)> &&handler)
     {
         auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
         c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
@@ -198,12 +198,12 @@ namespace NET {
         if (ret == -1) { // will complete some time later
             auto err = errno;
             if (err != EINPROGRESS) { // error with the socket
-                return handler(TranslateError(&err));
+                return handler(TranslateError(&err),0);
             }
             else {
 
                 auto &context = c.ReadContext_;
-                context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t sz) { ihandler(s); });
+                context.setCompletionHandler(std::move(handler));
                 context.IOOperation = IO_OPERATION::IoConnect;
                 c.IOData_.IncrementPendingIO();
 
@@ -216,7 +216,7 @@ namespace NET {
             }
         }
         else { // connection completed
-            handler(StatusCode::SC_SUCCESS);
+            handler(StatusCode::SC_SUCCESS,0);
         }
     }
 
