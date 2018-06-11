@@ -77,8 +77,8 @@ namespace NET {
     };
 
     void completeio(Win_IO_Context &context, ContextImpl &iodata, StatusCode code, size_t bytes);
-    void continue_io(bool success, Win_IO_Context *context, ContextImpl &iodata, const SocketHandle &handle);
-    void continue_connect(bool success, Win_IO_Context *context, ContextImpl &iodata, const SocketHandle &handle);
+    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle);
+    void continue_connect(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle);
 
     class ContextImpl {
         const ThreadCount ThreadCount_;
@@ -89,13 +89,15 @@ namespace NET {
 #if _WIN32
         HANDLE IOCPHandle;
         WSADATA wsaData;
-
+        public:
+        LPFN_CONNECTEX ConnectEx_;
 #else
         int EventWakeFd;
         int IOCPHandle;
-#endif
         public:
-        LPFN_CONNECTEX ConnectEx_;
+#endif
+      
+        
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
             PendingIO = 0;
@@ -156,7 +158,7 @@ namespace NET {
                 }));
             }
 #else
-            IOCPHandle = epoll_create(10);
+            IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
             if (IOCPHandle == -1 || EventWakeFd == -1) {
                 abort();
@@ -170,26 +172,28 @@ namespace NET {
 
             for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
                 Threads.emplace_back(std::thread([&] {
+                    epoll_event epollevents[128];
                     while (true) {
-                        epoll_event epollevents[10];
                         while (true) {
-                            auto count = epoll_wait(IOCPHandle, epollevents, 10, -1);
+                            auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
                             for (auto i = 0; i < count; i++) {
                                 if (epollevents[i].data.fd != EventWakeFd) {
                                     auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
-                                    auto s = getSocket(reinterpret_cast<Socket *>(epollevents[i].data.ptr));
-                                    if (!s) {
-                                        continue;
-                                    }
-                                    if (s->Status() == SocketStatus::CONNECTING) {
-                                        continue_connect(!socketclosed, &s->ReadContext_);
-                                    }
-                                    else if (epollevents[i].events & EPOLLIN) {
-                                        continue_io(!socketclosed, &s->ReadContext_, s);
+                                    
+                                    SocketHandle handle(epollevents[i].data.fd);
+                                    
+                                    if (epollevents[i].events & EPOLLIN) {
+                                        auto& rctx = getReadContext(handle); 
+                                        continue_io(!socketclosed, rctx, *this, handle);
                                     }
                                     else {
-                                        continue_io(!socketclosed, &s->WriteContext_, s);
+                                        auto& wctx = getWriteContext(handle); 
+                                        if (wctx.IOOperation == IO_OPERATION::IoConnect) {
+                                            continue_connect(!socketclosed, wctx, *this, handle);
+                                        } else if (wctx.IOOperation == IO_OPERATION::IoWrite) { 
+                                            continue_io(!socketclosed, wctx, *this, handle);
+                                        }
                                     }
                                 }
                             }

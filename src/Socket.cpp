@@ -53,10 +53,10 @@ namespace NET {
 
 #ifndef _WIN32
         epoll_event ev = {0};
-        ev.data.ptr = &ReadContext_;
+        ev.data.fd =handle.value;
         ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
-            completeio(ReadContext_, TranslateError(), 0);
+            completeio(ReadContext_,IOData_, TranslateError(), 0);
         }
 #else
         IOData_.IncrementPendingIO();
@@ -79,10 +79,10 @@ namespace NET {
 
 #ifndef _WIN32
         epoll_event ev = {0};
-        ev.data.ptr = &WriteContext_;
+        ev.data.fd =handle.value;
         ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
-            completeio(WriteContext_,  TranslateError(), 0);
+            completeio(WriteContext_,IOData_,  TranslateError(), 0);
         }
 #else
         IOData_.IncrementPendingIO();
@@ -161,7 +161,8 @@ namespace NET {
         if (CreateIoCompletionPort((HANDLE)handle.value, socket.IOData_.getIOHandle(), handle.value, NULL) == NULL) {
             return handler(TranslateError());
         }
-
+        
+        socket.IOData_.RegisterSocket(handle);
         auto &context = socket.IOData_.getWriteContext(handle);
         context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
         context.IOOperation = IO_OPERATION::IoConnect;
@@ -184,59 +185,59 @@ namespace NET {
     }
 #else
 
-    void connect_async(std::shared_ptr<ISocket> &socket, SocketAddress &address, std::function<void(StatusCode, size_t)> &&handler)
-    {
-        auto &c = *std::reinterpret_pointer_cast<Socket>(socket);
-        c.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
-        c.Status_ = SocketStatus::CONNECTING;
-        c.IOData_.RegisterSocket(std::reinterpret_pointer_cast<Socket>(socket));
-        auto ret = ::connect(c.PlatformSocket_.Handle().value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
+    void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
+    {  
+        socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
+        auto handle = socket.PlatformSocket_.Handle();
+        socket.IOData_.RegisterSocket(handle);
+        auto ret = ::connect(handle.value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;
             if (err != EINPROGRESS) { // error with the socket
-                return handler(TranslateError(&err),0);
+                return handler(TranslateError(&err));
             }
             else {
 
-                auto &context = c.ReadContext_;
-                context.setCompletionHandler(std::move(handler));
+                socket.IOData_.RegisterSocket(handle);
+                auto &context = socket.IOData_.getWriteContext(handle);
+                context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
                 context.IOOperation = IO_OPERATION::IoConnect;
-                c.IOData_.IncrementPendingIO();
-
+                socket.IOData_.IncrementPendingIO(); 
+                
                 epoll_event ev = {0};
-                ev.data.ptr = socket.get();
+                ev.data.fd = handle.value;
                 ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-                if (epoll_ctl(c.IOData_.getIOHandle(), EPOLL_CTL_ADD, c.PlatformSocket_.Handle().value, &ev) == -1) {
-                    completeio(context, TranslateError(), 0);
+                if (epoll_ctl(socket.IOData_.getIOHandle(), EPOLL_CTL_ADD, handle.value, &ev) == -1) {
+                    completeio(context,socket.IOData_, TranslateError(), 0);
                 }
             }
         }
         else { // connection completed
-            handler(StatusCode::SC_SUCCESS,0);
+            handler(StatusCode::SC_SUCCESS);
         }
     }
 
-    void continue_connect(bool success, Win_IO_Context *context)
+    void continue_connect(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &)
     {
         if (success) {
-            completeio(*context, StatusCode::SC_SUCCESS, 0); 
+            completeio(context, iodata, StatusCode::SC_SUCCESS, 0); 
         }
         else {
-            completeio(*context, StatusCode::SC_CLOSED, 0); 
+            completeio(context, iodata , StatusCode::SC_CLOSED, 0); 
         }
     }
-    void continue_io(bool success, Win_IO_Context *context, const std::shared_ptr<Socket>& socket)
+    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle& handle)
     {
         if (!success) {  
-            completeio(*context, StatusCode::SC_CLOSED, 0); 
+            completeio(context, iodata, StatusCode::SC_CLOSED, 0); 
         }
-        auto bytestowrite = context->bufferlen - context->transfered_bytes;
+        auto bytestowrite = context.bufferlen - context.transfered_bytes;
         auto count = 0;
-        if (context->IOOperation == IO_OPERATION::IoRead) {
-            count = ::read(context->Socket_.Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
+        if (context.IOOperation == IO_OPERATION::IoRead) {
+            count = ::read(handle.value, context.buffer + context.transfered_bytes, bytestowrite);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                    return completeio(*context,TranslateError(), 0); 
+                    return completeio(context,iodata, TranslateError(), 0); 
                 }
                 else {
                     count = 0;
@@ -244,28 +245,27 @@ namespace NET {
             }
         }
         else {
-            count = ::write(context->Socket_.Handle().value, context->buffer + context->transfered_bytes, bytestowrite);
+            count = ::write(handle.value, context.buffer + context.transfered_bytes, bytestowrite);
             if (count < 0) { // possible error or continue
                 if (errno != EAGAIN && errno != EINTR) {
-                    return completeio(*context,TranslateError(), 0); 
+                    return completeio(context,iodata, TranslateError(), 0); 
                 }
                 else {
                     count = 0;
                 }
             }
         }
-        context->transfered_bytes += count;
-        if (context->transfered_bytes == context->bufferlen) {
-            return completeio(*context, StatusCode::SC_SUCCESS, context->bufferlen);  
+        context.transfered_bytes += count;
+        if (context.transfered_bytes == context.bufferlen) {
+            return completeio(context, iodata, StatusCode::SC_SUCCESS, context.bufferlen);  
         }
 
         epoll_event ev = {0};
-        ev.data.ptr = socket.get();
-        ev.events = context->IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
-        ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-        context->Context_.IncrementPendingIO();
-        if (epoll_ctl(context->Context_.getIOHandle(), EPOLL_CTL_MOD, context->Socket_.Handle().value, &ev) == -1) {
-            return completeio(*context,TranslateError(), 0); 
+        ev.data.fd = handle.value;
+        ev.events = context.IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
+        ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP; 
+        if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
+            return completeio(context,iodata, TranslateError(), 0); 
         }
     }
 

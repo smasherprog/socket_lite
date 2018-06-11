@@ -33,8 +33,7 @@ namespace NET {
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle); 
                     epoll_event ev = {0};
-                    ev.events= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-                    auto sock = std::make_shared<Socket>(iodata, std::move(s));
+                    ev.events= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;  
                     if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
