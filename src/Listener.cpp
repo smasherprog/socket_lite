@@ -20,28 +20,26 @@ namespace NET {
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
 
-                    auto &iodata = ContextImpl_.getIOData();
-                    if (CreateIoCompletionPort((HANDLE)handle, iodata.getIOHandle(), NULL, NULL) == NULL) {
+                    if (CreateIoCompletionPort((HANDLE)handle, ContextImpl_.getIOHandle(), handle, NULL) == NULL) {
                         continue; // this shouldnt happen but what ever
                     }
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
-
-                    Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(std::make_shared<Socket>(iodata, std::move(s))));
+                    ContextImpl_.RegisterSocket(s);
+                    Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #else
 
                 auto handle = ::accept4(Acceptor_.AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
                 if (handle != INVALID_SOCKET) {
-                    PlatformSocket s(handle);
-                    auto &iodata = ContextImpl_.getIOData();
+                    PlatformSocket s(handle); 
                     epoll_event ev = {0};
                     ev.events= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
                     auto sock = std::make_shared<Socket>(iodata, std::move(s));
-                    if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
+                    if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
                     iodata.RegisterSocket(sock);
-                    Acceptor_.AcceptHandler(std::reinterpret_pointer_cast<ISocket>(sock));
+                    Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #endif
             }

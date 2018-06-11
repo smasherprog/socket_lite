@@ -22,9 +22,9 @@ void myechotest()
 
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = [](const std::shared_ptr<SL::NET::ISocket> &socket) {
-        myechomodels::do_read(socket);
-        myechomodels::do_write(socket);
+    a.AcceptHandler = [](SL::NET::Socket socket) {
+     //   myechomodels::do_read(socket);
+      //  myechomodels::do_write(socket);
     }; 
     SL::NET::Listener Listener(iocontext, std::move(a));
 

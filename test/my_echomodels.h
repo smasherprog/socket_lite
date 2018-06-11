@@ -32,42 +32,54 @@ auto readechos = 0.0;
 auto writeechos = 0.0;
 bool keepgoing = true;
 
-inline void do_read(std::shared_ptr<SL::NET::ISocket> socket)
-{
-    socket->recv_async(sizeof(readecho), (unsigned char *)readecho, [socket](SL::NET::StatusCode code, size_t) {
-        if (code == SL::NET::StatusCode::SC_SUCCESS) {
-            do_read(socket);
-        }
-    });
-}
+class session : public std::enable_shared_from_this<session> {
 
-inline void do_write(std::shared_ptr<SL::NET::ISocket> socket)
-{
-    socket->send_async(sizeof(writeecho), (unsigned char *)writeecho, [socket](SL::NET::StatusCode code, size_t) {
-        if (code == SL::NET::StatusCode::SC_SUCCESS) {
-            writeechos += 1.0;
-            do_write(socket);
-        }
-    });
-}
 
+  public:
+    session(SL::NET::Socket socket) : socket_(std::move(socket)) {  }
+    ~session() { close(); }
+    void do_read()
+    {
+        auto self(shared_from_this());
+        socket_.recv_async(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                self->do_read();
+            } 
+        });
+    }
+
+    void do_write()
+    {
+        auto self(shared_from_this());
+        socket_.send_async(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                writeechos += 1.0;
+                self->do_write();
+            } 
+        });
+    }
+    SL::NET::Socket socket_;
+    void close()
+    {
+        socket_.close();
+       
+    }
+};
 class asioclient {
   public:
-    std::shared_ptr<SL::NET::ISocket> socket_;
+    std::shared_ptr<session> socket_;
     std::vector<SL::NET::SocketAddress> addrs;
-    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port)
+    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port) : socket_(std::make_shared<session>(io_context))
     {
-        socket_ = SL::NET::ISocket::CreateSocket(io_context);
-        addrs = SL::NET::getaddrinfo(nodename, port, SL::NET::AddressFamily::IPV6);
+        addrs = SL::NET::getaddrinfo(nodename, port);
     }
     void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::connect_async(socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-
-                do_write(socket_);
-                do_read(socket_);
+                socket_->do_write();
+                socket_->do_read();
             }
         });
     }

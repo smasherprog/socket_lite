@@ -15,7 +15,7 @@ std::vector<char> writebuffer;
 std::vector<char> readbuffer;
 double writeechos = 0.0;
 bool keepgoing = true;
-void do_read(std::shared_ptr<SL::NET::ISocket> socket)
+void do_read(std::shared_ptr<SL::NET::Socket> socket)
 {
     socket->recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [socket](SL::NET::StatusCode code, size_t) {
         if (code == SL::NET::StatusCode::SC_SUCCESS) {
@@ -24,7 +24,7 @@ void do_read(std::shared_ptr<SL::NET::ISocket> socket)
         }
     });
 }
-void do_write(std::shared_ptr<SL::NET::ISocket> socket)
+void do_write(std::shared_ptr<SL::NET::Socket> socket)
 {
     socket->send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [socket](SL::NET::StatusCode code, size_t) {
         if (code == SL::NET::StatusCode::SC_SUCCESS) {
@@ -36,12 +36,12 @@ class asioclient {
   public:
     asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::SocketAddress> &endpoints) : Addresses(endpoints)
     {
-        socket_ = SL::NET::ISocket::CreateSocket(io_context);
+        socket_ = std::make_shared<SL::NET::Socket>(io_context);
     }
     void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::connect_async(socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(*socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 do_write(socket_);
             }
@@ -52,7 +52,7 @@ class asioclient {
         });
     }
     std::vector<SL::NET::SocketAddress> Addresses;
-    std::shared_ptr<SL::NET::ISocket> socket_;
+    std::shared_ptr<SL::NET::Socket> socket_;
 };
 
 void mytransfertest()
@@ -65,7 +65,9 @@ void mytransfertest()
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = [](const std::shared_ptr<SL::NET::ISocket> &socket) { do_read(socket); };
+    a.AcceptHandler = [](SL::NET::Socket socket) { 
+        //do_read(socket); 
+    };
     SL::NET::Listener Listener(iocontext, std::move(a));
     std::vector<SL::NET::SocketAddress> addresses;
     addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));

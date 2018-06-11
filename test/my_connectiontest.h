@@ -22,9 +22,9 @@ int acceptnumber = 0;
 std::vector<SL::NET::SocketAddress> addresses;
 
 void connect(SL::NET::Context &iocontext)
-{
-    auto s = SL::NET::ISocket::CreateSocket(iocontext);
-    SL::NET::connect_async(s, addresses.back(), [&iocontext, s](SL::NET::StatusCode) {
+{ 
+    auto socket = std::make_shared<SL::NET::Socket>(iocontext);
+    SL::NET::connect_async(*socket, addresses.back(), [&iocontext, socket](SL::NET::StatusCode) {
         connections += 1.0;
         if (keepgoing) {
             connect(iocontext);
@@ -40,7 +40,7 @@ void myconnectiontest()
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = ([](const std::shared_ptr<SL::NET::ISocket> &) {});
+    a.AcceptHandler = ([](SL::NET::Socket) {});
     SL::NET::Listener Listener(iocontext, std::move(a));
     addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
 

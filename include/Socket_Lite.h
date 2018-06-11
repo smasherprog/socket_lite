@@ -69,8 +69,8 @@ namespace NET {
     enum class LingerOptions { LINGER_OFF, LINGER_ON };
     enum class SockOptStatus { ENABLED, DISABLED };
     enum class AddressFamily { IPV4, IPV6, IPANY };
-    enum class SocketStatus { CLOSED, CONNECTING, OPEN};
-    enum class ShutDownOptions {SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH};
+    enum class SocketStatus { CLOSED, CONNECTING, OPEN };
+    enum class ShutDownOptions { SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH };
     struct LingerOption {
         LingerOptions l_onoff;         /* option on/off */
         std::chrono::seconds l_linger; /* linger time */
@@ -159,30 +159,32 @@ namespace NET {
 
         StatusCode listen(int backlog);
         StatusCode bind(const SocketAddress &addr);
-
-
     };
     // forward declares
     class ContextImpl;
-    class Context;
-    class IOData;
-    class Socket;
-    class SOCKET_LITE_EXTERN ISocket : public std::enable_shared_from_this<ISocket> {
-      public:
-        static std::shared_ptr<ISocket> CreateSocket(Context &);
-        virtual ~ISocket(){};
-        [[nodiscard]] virtual PlatformSocket &Handle() = 0;
-        [[nodiscard]] virtual SocketStatus Status()const =0; 
-        virtual void close() = 0;
-        virtual void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
-        virtual void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) = 0;
-    };
+    class Context; 
+    class SOCKET_LITE_EXTERN Socket {
+      protected:
+        PlatformSocket PlatformSocket_;
+        ContextImpl &IOData_;
 
+      public:
+        Socket(ContextImpl &, PlatformSocket &&);
+        Socket(Context &, PlatformSocket &&);
+        Socket(Socket &&);
+        Socket(Context &);
+        Socket(ContextImpl &);
+        ~Socket();
+        [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
+        void close();
+        void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+        void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+        friend class ContextImpl;
+        friend void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler);
+    };
     class SOCKET_LITE_EXTERN Context {
       protected:
-        ContextImpl *ContextImpl_;
-        IOData &getIOData();
-
+        ContextImpl *ContextImpl_; 
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();
@@ -191,11 +193,11 @@ namespace NET {
         Context &operator=(Context &) = delete;
 
         friend class Listener;
-        friend class Socket; 
+        friend class Socket;
     };
     struct Acceptor {
-        PlatformSocket AcceptSocket; 
-        std::function<void(const std::shared_ptr<ISocket> &)> AcceptHandler;
+        PlatformSocket AcceptSocket;
+        std::function<void(Socket )> AcceptHandler;
     };
 
     class SOCKET_LITE_EXTERN Listener {
@@ -212,11 +214,11 @@ namespace NET {
         Listener(const Listener &) = delete;
         Listener(Listener &&) = delete;
         Listener &operator=(Listener &) = delete;
-    }; 
+    };
     [[nodiscard]] std::vector<SL::NET::SocketAddress> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port,
-                                                                                AddressFamily family = AddressFamily::IPANY);
+                                                                                     AddressFamily family = AddressFamily::IPANY);
 
-    void SOCKET_LITE_EXTERN connect_async(std::shared_ptr<ISocket> &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode)> &&);
+    void SOCKET_LITE_EXTERN connect_async(Socket &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode)> &&);
 
 } // namespace NET
 } // namespace SL
