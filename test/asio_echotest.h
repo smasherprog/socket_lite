@@ -16,7 +16,7 @@ using asio::ip::tcp;
 void asioechotest()
 {
     std::cout << "Starting ASIO Echo Test" << std::endl;
-    asiomodels::writeechos = 0;
+    asiomodels::writeechos = 0.0;
     asiomodels::keepgoing = true;
 
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
