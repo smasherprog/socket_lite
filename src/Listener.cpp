@@ -24,7 +24,7 @@ namespace NET {
                         continue; // this shouldnt happen but what ever
                     }
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
-                    ContextImpl_.RegisterSocket(s);
+                    ContextImpl_.RegisterSocket(s.Handle());
                     Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #else
@@ -38,7 +38,7 @@ namespace NET {
                     if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
-                    iodata.RegisterSocket(sock);
+                    ContextImpl_.RegisterSocket(s.Handle());
                     Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #endif

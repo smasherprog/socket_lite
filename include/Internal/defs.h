@@ -244,22 +244,22 @@ namespace NET {
         int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
         int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
         void stop() { KeepGoing_ = false; }
-        void RegisterSocket(const PlatformSocket &) {}
-        Win_IO_Context &getWriteContext(const PlatformSocket &socket)
+        void RegisterSocket(const SocketHandle &) {}
+        Win_IO_Context &getWriteContext(const SocketHandle &socket)
         {
-            auto index = socket.Handle().value;
+            auto index = socket.value;
             assert(index >= 0 && index < static_cast<decltype(index)>(WriteContexts.size()));
             return WriteContexts[index];
         }
-        Win_IO_Context &getReadContext(const PlatformSocket &socket)
+        Win_IO_Context &getReadContext(const SocketHandle &socket)
         {
-            auto index = socket.Handle().value;
+            auto index = socket.value;
             assert(index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size()));
             return ReadContexts[index];
         }
-        void DeregisterSocket(const PlatformSocket &socket)
+        void DeregisterSocket(const SocketHandle &socket)
         {
-            auto index = socket.Handle().value;
+            auto index = socket.value;
             if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
                 completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED, 0);
                 completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED, 0); 

@@ -27,7 +27,7 @@ namespace NET {
     Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c)
     {
         PlatformSocket_ = std::move(p);
-        IOData_.RegisterSocket(PlatformSocket_);
+        IOData_.RegisterSocket(PlatformSocket_.Handle());
     }
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
     Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
@@ -35,12 +35,16 @@ namespace NET {
     Socket::~Socket() { close(); }
     void Socket::close()
     { 
-        IOData_.DeregisterSocket(PlatformSocket_);
+        IOData_.DeregisterSocket(PlatformSocket_.Handle());
         PlatformSocket_.close();
     }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_);
+        auto handle = PlatformSocket_.Handle();
+        if (handle.value == INVALID_SOCKET) {
+            return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
+        }
+        auto &ReadContext_ = IOData_.getReadContext(handle);
         ReadContext_.buffer = buffer;
         ReadContext_.transfered_bytes = 0;
         ReadContext_.bufferlen = buffer_size;
@@ -62,7 +66,11 @@ namespace NET {
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
-        auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_);
+        auto handle = PlatformSocket_.Handle();
+        if (handle.value == INVALID_SOCKET) {
+            return handler(StatusCode::SC_CLOSED, 0);//socket is closed..
+        }
+        auto &WriteContext_ = IOData_.getWriteContext(handle);
         WriteContext_.buffer = buffer;
         WriteContext_.transfered_bytes = 0;
         WriteContext_.bufferlen = buffer_size;
@@ -145,25 +153,25 @@ namespace NET {
     void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
     { 
         socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
-        auto handle = socket.PlatformSocket_.Handle().value;
-        auto bindret = BindSocket(handle, Family(address));
+        auto handle = socket.PlatformSocket_.Handle();
+        auto bindret = BindSocket(handle.value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);
         }
-        if (CreateIoCompletionPort((HANDLE)handle, socket.IOData_.getIOHandle(), handle, NULL) == NULL) {
+        if (CreateIoCompletionPort((HANDLE)handle.value, socket.IOData_.getIOHandle(), handle.value, NULL) == NULL) {
             return handler(TranslateError());
         }
-        auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_);
+
+        auto &context = socket.IOData_.getWriteContext(handle);
         context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
         context.IOOperation = IO_OPERATION::IoConnect;
         socket.IOData_.IncrementPendingIO();
 
-        auto connectres =
-            socket.IOData_.ConnectEx_(handle, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
+        auto connectres = socket.IOData_.ConnectEx_(handle.value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
                                                (LPOVERLAPPED)&context.Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
-            if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+            if (::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
                 completeio(context, socket.IOData_, StatusCode::SC_SUCCESS, 0);
             }
             else {

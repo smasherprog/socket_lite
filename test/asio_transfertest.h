@@ -64,7 +64,7 @@ class asioclient {
     asioclient(asio::io_context &io_context) { socket_ = std::make_shared<session>(tcp::socket(io_context)); }
     void do_connect(const tcp::resolver::results_type &endpoints)
     {
-        asio::async_connect(socket_->socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
+        asio::async_connect(socket_->socket_, endpoints, [&](std::error_code ec, tcp::endpoint) {
             if (!ec) {
                 socket_->do_write();
             }

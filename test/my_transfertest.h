@@ -15,35 +15,44 @@ std::vector<char> writebuffer;
 std::vector<char> readbuffer;
 double writeechos = 0.0;
 bool keepgoing = true;
-void do_read(std::shared_ptr<SL::NET::Socket> socket)
-{
-    socket->recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [socket](SL::NET::StatusCode code, size_t) {
-        if (code == SL::NET::StatusCode::SC_SUCCESS) {
-            writeechos += 1.0;
-            do_read(socket);
-        }
-    });
-}
-void do_write(std::shared_ptr<SL::NET::Socket> socket)
-{
-    socket->send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [socket](SL::NET::StatusCode code, size_t) {
-        if (code == SL::NET::StatusCode::SC_SUCCESS) {
-            do_write(socket);
-        }
-    });
-}
+
+class session : public std::enable_shared_from_this<session> {
+  public:
+    session(SL::NET::Socket socket) : socket_(std::move(socket)) {}
+
+    void do_read()
+    {
+        auto self(shared_from_this());
+        socket_.recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code, size_t) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                self->do_read();
+            }
+        }); 
+    }
+    void do_write()
+    {
+        auto self(shared_from_this());
+        socket_.send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code, size_t) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                writeechos += 1.0;
+                self->do_write();
+            }
+        }); 
+    }
+    SL::NET::Socket socket_;
+};
+  
 class asioclient {
   public:
     asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::SocketAddress> &endpoints) : Addresses(endpoints)
     {
-        socket_ = std::make_shared<SL::NET::Socket>(io_context);
+        socket_ = std::make_shared<session>(io_context);
     }
-    void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::connect_async(*socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(socket_->socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                do_write(socket_);
+                socket_->do_write();
             }
             else {
                 Addresses.pop_back();
@@ -52,7 +61,8 @@ class asioclient {
         });
     }
     std::vector<SL::NET::SocketAddress> Addresses;
-    std::shared_ptr<SL::NET::Socket> socket_;
+    void close() { socket_->socket_.close(); }
+    std::shared_ptr<session> socket_;
 };
 
 void mytransfertest()
@@ -66,7 +76,7 @@ void mytransfertest()
     SL::NET::Acceptor a;
     a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
     a.AcceptHandler = [](SL::NET::Socket socket) { 
-        //do_read(socket); 
+        std::make_shared<session>(std::move(socket))->do_read();
     };
     SL::NET::Listener Listener(iocontext, std::move(a));
     std::vector<SL::NET::SocketAddress> addresses;

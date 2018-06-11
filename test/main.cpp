@@ -47,11 +47,10 @@ int main()
     asiotest::asioechotest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
-    
     myechotest::myechotest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
- /*
+
     asiotransfertest::asiotransfertest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
@@ -64,7 +63,7 @@ int main()
     mymultithreadedechotest::myechotest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
-*/
+
     startwatching = false;
     t.join();
     return 0;
