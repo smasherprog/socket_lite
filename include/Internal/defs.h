@@ -137,7 +137,7 @@ namespace NET {
                         switch (overlapped->IOOperation) {
 
                         case IO_OPERATION::IoConnect:
-                            continue_connect(bSuccess, overlapped, *this, handle);
+                            continue_connect(bSuccess, *overlapped, *this, handle);
                             break;
                         case IO_OPERATION::IoRead:
                         case IO_OPERATION::IoWrite:
@@ -145,7 +145,7 @@ namespace NET {
                             if (numberofbytestransfered == 0 && overlapped->bufferlen != 0 && bSuccess) {
                                 bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                             }
-                            continue_io(bSuccess, overlapped, *this, handle);
+                            continue_io(bSuccess, *overlapped, *this, handle);
                             break;
                         default:
                             break;

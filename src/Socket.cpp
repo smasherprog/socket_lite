@@ -61,7 +61,7 @@ namespace NET {
 #else
         IOData_.IncrementPendingIO();
         ReadContext_.Overlapped = {0};
-        continue_io(true, &ReadContext_, IOData_, PlatformSocket_.Handle());
+        continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
 #endif
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -87,45 +87,45 @@ namespace NET {
 #else
         IOData_.IncrementPendingIO();
         WriteContext_.Overlapped = {0};
-        continue_io(true, &WriteContext_, IOData_, PlatformSocket_.Handle());
+        continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
 #endif
     }
 #if _WIN32
-    void continue_io(bool success, Win_IO_Context *context, ContextImpl &iodata, const SocketHandle& handle)
+    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle& handle)
     {
         if (!success) {
-            completeio(*context, iodata, TranslateError(), 0);
+            completeio(context, iodata, TranslateError(), 0);
         }
-        else if (context->bufferlen == context->transfered_bytes) {
-            completeio(*context, iodata, StatusCode::SC_SUCCESS, context->transfered_bytes);
+        else if (context.bufferlen == context.transfered_bytes) {
+            completeio(context, iodata, StatusCode::SC_SUCCESS, context.transfered_bytes);
         }
         else {
             WSABUF wsabuf = {0};
-            auto bytesleft = static_cast<decltype(wsabuf.len)>(context->bufferlen - context->transfered_bytes);
-            wsabuf.buf = (char *)context->buffer + context->transfered_bytes;
+            auto bytesleft = static_cast<decltype(wsabuf.len)>(context.bufferlen - context.transfered_bytes);
+            wsabuf.buf = (char *)context.buffer + context.transfered_bytes;
             wsabuf.len = bytesleft;
             DWORD dwSendNumBytes(0), dwFlags(0);
             DWORD nRet = 0;
 
-            if (context->IOOperation == IO_OPERATION::IoRead) {
-                nRet = WSARecv(handle.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context->Overlapped), NULL);
+            if (context.IOOperation == IO_OPERATION::IoRead) {
+                nRet = WSARecv(handle.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
             }
             else {
-                nRet = WSASend(handle.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context->Overlapped), NULL);
+                nRet = WSASend(handle.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context.Overlapped), NULL);
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                completeio(*context, iodata, TranslateError(&lasterr), 0);
+                completeio(context, iodata, TranslateError(&lasterr), 0);
             }
         }
     }
-    void continue_connect(bool success, Win_IO_Context *context, ContextImpl &iodata, const SocketHandle &handle)
+    void continue_connect(bool success, Win_IO_Context& context, ContextImpl &iodata, const SocketHandle &handle)
     { 
         if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-            completeio(*context, iodata,  StatusCode::SC_SUCCESS, 0);
+            completeio(context, iodata,  StatusCode::SC_SUCCESS, 0);
         }
         else {
-            completeio(*context, iodata, TranslateError(), 0);
+            completeio(context, iodata, TranslateError(), 0);
         }
     }
     StatusCode BindSocket(SOCKET sock, AddressFamily family)
