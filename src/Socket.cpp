@@ -154,6 +154,9 @@ namespace NET {
     { 
         socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto handle = socket.PlatformSocket_.Handle();
+        if (handle.value == INVALID_SOCKET) {
+            return handler(StatusCode::SC_CLOSED); // socket is closed..
+        } 
         auto bindret = BindSocket(handle.value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);
