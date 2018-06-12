@@ -55,8 +55,8 @@ namespace NET {
         epoll_event ev = {0};
         ev.data.fd =handle.value;
         ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
-            completeio(ReadContext_,IOData_, TranslateError(), 0);
+        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value , &ev) == -1) {
+           return completeio(ReadContext_,IOData_, TranslateError(), 0);
         }
 #else
         IOData_.IncrementPendingIO();
@@ -81,8 +81,8 @@ namespace NET {
         epoll_event ev = {0};
         ev.data.fd =handle.value;
         ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, PlatformSocket_.Handle().value, &ev) == -1) {
-            completeio(WriteContext_,IOData_,  TranslateError(), 0);
+        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value , &ev) == -1) {
+           return completeio(WriteContext_,IOData_,  TranslateError(), 0);
         }
 #else
         IOData_.IncrementPendingIO();
@@ -203,8 +203,6 @@ namespace NET {
                 return handler(TranslateError(&err));
             }
             else {
-
-                socket.IOData_.RegisterSocket(handle); 
                 auto &context = socket.IOData_.getWriteContext(handle);
                 context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
                 context.IOOperation = IO_OPERATION::IoConnect;
@@ -212,9 +210,9 @@ namespace NET {
                 
                 epoll_event ev = {0};
                 ev.data.fd = handle.value;
-                ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+                ev.events = EPOLLOUT | EPOLLONESHOT;
                 if (epoll_ctl(socket.IOData_.getIOHandle(), EPOLL_CTL_ADD, handle.value, &ev) == -1) {
-                    completeio(context,socket.IOData_, TranslateError(), 0);
+                   return completeio(context,socket.IOData_, TranslateError(), 0);
                 }
             }
         }
@@ -235,7 +233,7 @@ namespace NET {
     void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle& handle)
     {
         if (!success) {  
-            completeio(context, iodata, StatusCode::SC_CLOSED, 0); 
+           return completeio(context, iodata, StatusCode::SC_CLOSED, 0); 
         }
         auto bytestowrite = context.bufferlen - context.transfered_bytes;
         auto count = 0;

@@ -39,7 +39,7 @@ class session : public std::enable_shared_from_this<session> {
     {
         auto self(shared_from_this());
         strand_.post([self]() {
-            asio::async_write(self->socket_, asio::buffer(readecho, sizeof(readecho)), [self](std::error_code ec, std::size_t ) {
+            asio::async_write(self->socket_, asio::buffer(writeecho, sizeof(writeecho)), [self](std::error_code ec, std::size_t ) {
                 writeechos += 1.0;
                 if (!ec) {
                     self->do_write();

@@ -173,7 +173,6 @@ namespace NET {
             for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
                 Threads.emplace_back(std::thread([&] {
                     epoll_event epollevents[128];
-                    while (true) {
                         while (true) {
                             auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
@@ -201,7 +200,7 @@ namespace NET {
                                 wakeup();
                                 return;
                             }
-                        }
+                 
                     }
                 }));
             }

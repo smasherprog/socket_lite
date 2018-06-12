@@ -13,12 +13,9 @@
 using namespace std::chrono_literals;
 
 namespace myconnectiontest {
-
-const int MAXRUNTIMES = 10000;
+ 
 auto connections = 0.0;
-bool keepgoing = true;
-int connectnumber = 0;
-int acceptnumber = 0;
+bool keepgoing = true; 
 std::vector<SL::NET::SocketAddress> addresses;
 
 void connect(SL::NET::Context &iocontext)
