@@ -192,6 +192,9 @@ namespace NET {
     {  
         socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto handle = socket.PlatformSocket_.Handle();
+         if (handle.value == INVALID_SOCKET) {
+            return handler(StatusCode::SC_CLOSED); // socket is closed..
+        } 
         socket.IOData_.RegisterSocket(handle);
         auto ret = ::connect(handle.value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
@@ -201,7 +204,7 @@ namespace NET {
             }
             else {
 
-                socket.IOData_.RegisterSocket(handle);
+                socket.IOData_.RegisterSocket(handle); 
                 auto &context = socket.IOData_.getWriteContext(handle);
                 context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
                 context.IOOperation = IO_OPERATION::IoConnect;
