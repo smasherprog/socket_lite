@@ -17,7 +17,7 @@ namespace NET {
             while (Keepgoing) {
 #if _WIN32
 
-                auto handle = ::accept(Acceptor_.AcceptSocket.Handle().value, NULL, NULL);
+                auto handle = ::accept(AcceptSocket.Handle().value, NULL, NULL);
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle);
 
