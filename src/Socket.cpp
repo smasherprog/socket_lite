@@ -54,7 +54,7 @@ namespace NET {
 #ifndef _WIN32
         epoll_event ev = {0};
         ev.data.fd =handle.value;
-        ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+        ev.events = EPOLLIN | EPOLLONESHOT| EPOLLRDHUP | EPOLLHUP;
         if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value , &ev) == -1) {
            return completeio(ReadContext_,IOData_, TranslateError(), 0);
         }

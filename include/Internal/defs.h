@@ -209,6 +209,12 @@ namespace NET {
         ~ContextImpl()
         {
             stop();
+            for(auto& rcts: ReadContexts){
+                completeio(rcts,*this,StatusCode::SC_CLOSED, 0);
+            }
+            for(auto& rcts: WriteContexts){
+                completeio(rcts,*this,StatusCode::SC_CLOSED, 0);
+            }
 #ifndef _WIN32
             while (getPendingIO() > 0) {
                 std::this_thread::sleep_for(10ms);
@@ -219,6 +225,7 @@ namespace NET {
                 std::this_thread::sleep_for(10ms);
             }
 #endif
+            
             wakeup();
             for (auto &t : Threads) {
                 if (t.joinable()) {
