@@ -73,12 +73,13 @@ void mytransfertest()
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    SL::NET::Acceptor a;
-    a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = [](SL::NET::Socket socket) { 
-        std::make_shared<session>(std::move(socket))->do_read();
-    };
-    SL::NET::Listener Listener(iocontext, std::move(a));
+    
+    SL::NET::Listener Listener(iocontext, 
+        myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
+        [](SL::NET::Socket socket) {
+         std::make_shared<session>(std::move(socket))->do_read();
+    });
+     
     std::vector<SL::NET::SocketAddress> addresses;
     addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
 

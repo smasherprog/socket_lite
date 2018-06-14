@@ -34,11 +34,12 @@ void myconnectiontest()
     std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    SL::NET::Acceptor a;
-    a.AcceptSocket = myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4);
-    a.AcceptHandler = ([](SL::NET::Socket) {});
-    SL::NET::Listener Listener(iocontext, std::move(a));
+    SL::NET::Context iocontext(SL::NET::ThreadCount(1)); 
+    
+    SL::NET::Listener Listener(iocontext, 
+        myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
+        ([](SL::NET::Socket) {}));
+        
     addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
 
     connect(iocontext);

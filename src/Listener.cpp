@@ -9,8 +9,9 @@
 namespace SL {
 namespace NET {
 
-    Listener::Listener(Context &context, Acceptor &&acceptor) : ContextImpl_(*context.ContextImpl_), Acceptor_(std::move(acceptor))
-    {
+    Listener::Listener(Context &context, PlatformSocket &&acceptsocket, std::function<void(Socket )> &&accepthandler) : 
+    ContextImpl_(*context.ContextImpl_), AcceptSocket(std::move(acceptsocket)), AcceptHandler(std::move(accepthandler))
+    { 
         Keepgoing = true;
         Runner = std::thread([&]() {
             while (Keepgoing) {
@@ -25,11 +26,11 @@ namespace NET {
                     }
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
                     ContextImpl_.RegisterSocket(s.Handle());
-                    Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
+                    AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #else
 
-                auto handle = ::accept4(Acceptor_.AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
+                auto handle = ::accept4(AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle); 
                     epoll_event ev = {0};
@@ -38,20 +39,20 @@ namespace NET {
                         continue; // this shouldnt happen but what ever
                     }
                     ContextImpl_.RegisterSocket(s.Handle());
-                    Acceptor_.AcceptHandler(Socket(ContextImpl_, std::move(s)));
+                    AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #endif
             }
-            Acceptor_.AcceptHandler = nullptr;
+            AcceptHandler = nullptr;
         });
     }
     Listener::~Listener()
     {
         Keepgoing = false;
 #if _WIN32
-        Acceptor_.AcceptSocket.close();
+        AcceptSocket.close();
 #else
-        Acceptor_.AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
+        AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
 #endif 
         Runner.join(); 
     }

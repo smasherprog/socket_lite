@@ -194,21 +194,17 @@ namespace NET {
 
         friend class Listener;
         friend class Socket;
-    };
-    struct Acceptor {
-        PlatformSocket AcceptSocket;
-        std::function<void(Socket )> AcceptHandler;
-    };
-
+    }; 
     class SOCKET_LITE_EXTERN Listener {
       protected:
         ContextImpl &ContextImpl_;
-        Acceptor Acceptor_;
+        PlatformSocket AcceptSocket;
+        std::function<void(Socket )> AcceptHandler;
         std::thread Runner;
         bool Keepgoing;
 
       public:
-        Listener(Context &c, Acceptor &&Acceptor);
+        Listener(Context &c, PlatformSocket &&acceptsocket, std::function<void(Socket )> &&accepthandler);
         ~Listener();
         Listener() = delete;
         Listener(const Listener &) = delete;
