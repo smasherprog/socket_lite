@@ -45,15 +45,15 @@ namespace NET {
             return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
         }
 
-        auto count = ::recv(handle.value, (char *)buffer, buffer_size, 0);
-        if (count <= 0) { // possible error or continue
-            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
-                return handler(TranslateError(&er), 0);
-            }
-            else {
-                count = 0;
-            }
-        }
+        // auto count = ::recv(handle.value, (char *)buffer, buffer_size, 0);
+        // if (count <= 0) { // possible error or continue
+        //    if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
+        //        return handler(TranslateError(&er), 0);
+        //    }
+        //    else {
+        //        count = 0;
+        //    }
+        //}
 
         auto &ReadContext_ = IOData_.getReadContext(handle);
         ReadContext_.buffer = buffer;
@@ -65,13 +65,13 @@ namespace NET {
 
 #if _WIN32
         ReadContext_.Overlapped = {0};
-        if (count == buffer_size) {
-            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
-            return;
-        }
-        else {
-            ReadContext_.transfered_bytes = count;
-        }
+        /*   if (count == buffer_size) {
+               PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
+               return;
+           }
+           else {
+               ReadContext_.transfered_bytes = count;
+           }*/
 #endif
         continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
     }
@@ -82,15 +82,15 @@ namespace NET {
             return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
         }
 
-        auto count = ::send(handle.value, (char *)buffer, buffer_size, 0);
-        if (count < 0) { // possible error or continue
-            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
-                return handler(TranslateError(&er), 0);
-            }
-            else {
-                count = 0;
-            }
-        }
+        // auto count = ::send(handle.value, (char *)buffer, buffer_size, 0);
+        // if (count < 0) { // possible error or continue
+        //    if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
+        //        return handler(TranslateError(&er), 0);
+        //    }
+        //    else {
+        //        count = 0;
+        //    }
+        //}
 
         auto &WriteContext_ = IOData_.getWriteContext(handle);
         WriteContext_.buffer = buffer;
@@ -102,13 +102,13 @@ namespace NET {
         IOData_.IncrementPendingIO();
 #if _WIN32
         WriteContext_.Overlapped = {0};
-        if (count == buffer_size) {
-            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
-            return;
-        }
-        else {
-            WriteContext_.transfered_bytes = count;
-        }
+        /*       if (count == buffer_size) {
+                   PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
+                   return;
+               }
+               else {
+                   WriteContext_.transfered_bytes = count;
+               }*/
 #endif
         continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
     }
