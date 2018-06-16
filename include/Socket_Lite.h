@@ -162,7 +162,7 @@ namespace NET {
     };
     // forward declares
     class ContextImpl;
-    class Context; 
+    class Context;
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
@@ -184,7 +184,8 @@ namespace NET {
     };
     class SOCKET_LITE_EXTERN Context {
       protected:
-        ContextImpl *ContextImpl_; 
+        ContextImpl *ContextImpl_;
+
       public:
         Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
         ~Context();
@@ -194,17 +195,17 @@ namespace NET {
 
         friend class Listener;
         friend class Socket;
-    }; 
+    };
     class SOCKET_LITE_EXTERN Listener {
       protected:
         ContextImpl &ContextImpl_;
         PlatformSocket AcceptSocket;
-        std::function<void(Socket )> AcceptHandler;
+        std::function<void(Socket)> AcceptHandler;
         std::thread Runner;
         bool Keepgoing;
 
       public:
-        Listener(Context &c, PlatformSocket &&acceptsocket, std::function<void(Socket )> &&accepthandler);
+        Listener(Context &c, PlatformSocket &&acceptsocket, std::function<void(Socket)> &&accepthandler);
         ~Listener();
         Listener() = delete;
         Listener(const Listener &) = delete;

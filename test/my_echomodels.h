@@ -34,9 +34,8 @@ bool keepgoing = true;
 
 class session : public std::enable_shared_from_this<session> {
 
-
   public:
-    session(SL::NET::Socket socket) : socket_(std::move(socket)) {  }
+    session(SL::NET::Socket socket) : socket_(std::move(socket)) {}
     ~session() { close(); }
     void do_read()
     {
@@ -44,7 +43,7 @@ class session : public std::enable_shared_from_this<session> {
         socket_.recv_async(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
-            } 
+            }
         });
     }
 
@@ -55,15 +54,11 @@ class session : public std::enable_shared_from_this<session> {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();
-            } 
+            }
         });
     }
     SL::NET::Socket socket_;
-    void close()
-    {
-        socket_.close();
-       
-    }
+    void close() { socket_.close(); }
 };
 class asioclient {
   public:

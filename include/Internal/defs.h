@@ -89,15 +89,16 @@ namespace NET {
 #if _WIN32
         HANDLE IOCPHandle;
         WSADATA wsaData;
-        public:
+
+      public:
         LPFN_CONNECTEX ConnectEx_;
 #else
         int EventWakeFd;
         int IOCPHandle;
-        public:
+
+      public:
 #endif
-      
-        
+
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
             PendingIO = 0;
@@ -173,34 +174,34 @@ namespace NET {
             for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
                 Threads.emplace_back(std::thread([&] {
                     epoll_event epollevents[128];
-                        while (true) {
-                            auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
+                    while (true) {
+                        auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
-                            for (auto i = 0; i < count; i++) {
-                                if (epollevents[i].data.fd != EventWakeFd) {
-                                    auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
-                                    
-                                    SocketHandle handle(epollevents[i].data.fd);
-                                    
-                                    if (epollevents[i].events & EPOLLIN) {
-                                        auto& rctx = getReadContext(handle); 
-                                        continue_io(!socketclosed, rctx, *this, handle);
+                        for (auto i = 0; i < count; i++) {
+                            if (epollevents[i].data.fd != EventWakeFd) {
+                                auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
+
+                                SocketHandle handle(epollevents[i].data.fd);
+
+                                if (epollevents[i].events & EPOLLIN) {
+                                    auto &rctx = getReadContext(handle);
+                                    continue_io(!socketclosed, rctx, *this, handle);
+                                }
+                                else {
+                                    auto &wctx = getWriteContext(handle);
+                                    if (wctx.IOOperation == IO_OPERATION::IoConnect) {
+                                        continue_connect(!socketclosed, wctx, *this, handle);
                                     }
-                                    else {
-                                        auto& wctx = getWriteContext(handle); 
-                                        if (wctx.IOOperation == IO_OPERATION::IoConnect) {
-                                            continue_connect(!socketclosed, wctx, *this, handle);
-                                        } else if (wctx.IOOperation == IO_OPERATION::IoWrite) { 
-                                            continue_io(!socketclosed, wctx, *this, handle);
-                                        }
+                                    else if (wctx.IOOperation == IO_OPERATION::IoWrite) {
+                                        continue_io(!socketclosed, wctx, *this, handle);
                                     }
                                 }
                             }
-                            if (getPendingIO() <= 0 && !KeepGoing_) {
-                                wakeup();
-                                return;
-                            }
-                 
+                        }
+                        if (getPendingIO() <= 0 && !KeepGoing_) {
+                            wakeup();
+                            return;
+                        }
                     }
                 }));
             }
@@ -209,11 +210,11 @@ namespace NET {
         ~ContextImpl()
         {
             stop();
-            for(auto& rcts: ReadContexts){
-                completeio(rcts,*this,StatusCode::SC_CLOSED, 0);
+            for (auto &rcts : ReadContexts) {
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
             }
-            for(auto& rcts: WriteContexts){
-                completeio(rcts,*this,StatusCode::SC_CLOSED, 0);
+            for (auto &rcts : WriteContexts) {
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
             }
 #ifndef _WIN32
             while (getPendingIO() > 0) {
@@ -225,7 +226,7 @@ namespace NET {
                 std::this_thread::sleep_for(10ms);
             }
 #endif
-            
+
             wakeup();
             for (auto &t : Threads) {
                 if (t.joinable()) {
@@ -272,7 +273,7 @@ namespace NET {
             auto index = socket.value;
             if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
                 completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED, 0);
-                completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED, 0); 
+                completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED, 0);
             }
         }
     };

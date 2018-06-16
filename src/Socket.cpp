@@ -34,7 +34,7 @@ namespace NET {
     Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
     Socket::~Socket() { close(); }
     void Socket::close()
-    { 
+    {
         IOData_.DeregisterSocket(PlatformSocket_.Handle());
         PlatformSocket_.close();
     }
@@ -44,32 +44,54 @@ namespace NET {
         if (handle.value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
         }
+
+        auto count = ::recv(handle.value, (char *)buffer, buffer_size, 0);
+        if (count <= 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
+                return handler(TranslateError(&er), 0);
+            }
+            else {
+                count = 0;
+            }
+        }
+
         auto &ReadContext_ = IOData_.getReadContext(handle);
         ReadContext_.buffer = buffer;
         ReadContext_.transfered_bytes = 0;
         ReadContext_.bufferlen = buffer_size;
         ReadContext_.setCompletionHandler(std::move(handler));
         ReadContext_.IOOperation = IO_OPERATION::IoRead;
-
-#ifndef _WIN32
-        epoll_event ev = {0};
-        ev.data.fd =handle.value;
-        ev.events = EPOLLIN | EPOLLONESHOT| EPOLLRDHUP | EPOLLHUP;
-        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value , &ev) == -1) {
-           return completeio(ReadContext_,IOData_, TranslateError(), 0);
-        }
-#else
         IOData_.IncrementPendingIO();
+
+#if _WIN32
         ReadContext_.Overlapped = {0};
-        continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
+        if (count == buffer_size) {
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
+            return;
+        }
+        else {
+            ReadContext_.transfered_bytes = count;
+        }
 #endif
+        continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         auto handle = PlatformSocket_.Handle();
         if (handle.value == INVALID_SOCKET) {
-            return handler(StatusCode::SC_CLOSED, 0);//socket is closed..
+            return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
         }
+
+        auto count = ::send(handle.value, (char *)buffer, buffer_size, 0);
+        if (count < 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
+                return handler(TranslateError(&er), 0);
+            }
+            else {
+                count = 0;
+            }
+        }
+
         auto &WriteContext_ = IOData_.getWriteContext(handle);
         WriteContext_.buffer = buffer;
         WriteContext_.transfered_bytes = 0;
@@ -77,21 +99,21 @@ namespace NET {
         WriteContext_.setCompletionHandler(std::move(handler));
         WriteContext_.IOOperation = IO_OPERATION::IoWrite;
 
-#ifndef _WIN32
-        epoll_event ev = {0};
-        ev.data.fd =handle.value;
-        ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value , &ev) == -1) {
-           return completeio(WriteContext_,IOData_,  TranslateError(), 0);
-        }
-#else
         IOData_.IncrementPendingIO();
+#if _WIN32
         WriteContext_.Overlapped = {0};
-        continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+        if (count == buffer_size) {
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
+            return;
+        }
+        else {
+            WriteContext_.transfered_bytes = count;
+        }
 #endif
+        continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
     }
 #if _WIN32
-    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle& handle)
+    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
     {
         if (!success) {
             completeio(context, iodata, TranslateError(), 0);
@@ -119,10 +141,10 @@ namespace NET {
             }
         }
     }
-    void continue_connect(bool success, Win_IO_Context& context, ContextImpl &iodata, const SocketHandle &handle)
-    { 
+    void continue_connect(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
+    {
         if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-            completeio(context, iodata,  StatusCode::SC_SUCCESS, 0);
+            completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
         }
         else {
             completeio(context, iodata, TranslateError(), 0);
@@ -151,12 +173,12 @@ namespace NET {
         return StatusCode::SC_SUCCESS;
     }
     void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
-    { 
+    {
         socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto handle = socket.PlatformSocket_.Handle();
         if (handle.value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED); // socket is closed..
-        } 
+        }
         auto bindret = BindSocket(handle.value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
             return handler(bindret);
@@ -164,7 +186,7 @@ namespace NET {
         if (CreateIoCompletionPort((HANDLE)handle.value, socket.IOData_.getIOHandle(), handle.value, NULL) == NULL) {
             return handler(TranslateError());
         }
-        
+
         socket.IOData_.RegisterSocket(handle);
         auto &context = socket.IOData_.getWriteContext(handle);
         context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
@@ -172,7 +194,7 @@ namespace NET {
         socket.IOData_.IncrementPendingIO();
 
         auto connectres = socket.IOData_.ConnectEx_(handle.value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address), 0, 0, 0,
-                                               (LPOVERLAPPED)&context.Overlapped);
+                                                    (LPOVERLAPPED)&context.Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
             if (::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
@@ -189,12 +211,12 @@ namespace NET {
 #else
 
     void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
-    {  
+    {
         socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         auto handle = socket.PlatformSocket_.Handle();
-         if (handle.value == INVALID_SOCKET) {
+        if (handle.value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED); // socket is closed..
-        } 
+        }
         socket.IOData_.RegisterSocket(handle);
         auto ret = ::connect(handle.value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
@@ -206,13 +228,13 @@ namespace NET {
                 auto &context = socket.IOData_.getWriteContext(handle);
                 context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
                 context.IOOperation = IO_OPERATION::IoConnect;
-                socket.IOData_.IncrementPendingIO(); 
-                
+                socket.IOData_.IncrementPendingIO();
+
                 epoll_event ev = {0};
                 ev.data.fd = handle.value;
                 ev.events = EPOLLOUT | EPOLLONESHOT;
                 if (epoll_ctl(socket.IOData_.getIOHandle(), EPOLL_CTL_ADD, handle.value, &ev) == -1) {
-                   return completeio(context,socket.IOData_, TranslateError(), 0);
+                    return completeio(context, socket.IOData_, TranslateError(), 0);
                 }
             }
         }
@@ -224,16 +246,16 @@ namespace NET {
     void continue_connect(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &)
     {
         if (success) {
-            completeio(context, iodata, StatusCode::SC_SUCCESS, 0); 
+            completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
         }
         else {
-            completeio(context, iodata , StatusCode::SC_CLOSED, 0); 
+            completeio(context, iodata, StatusCode::SC_CLOSED, 0);
         }
     }
-    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle& handle)
+    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
     {
-        if (!success) {  
-           return completeio(context, iodata, StatusCode::SC_CLOSED, 0); 
+        if (!success) {
+            return completeio(context, iodata, StatusCode::SC_CLOSED, 0);
         }
         auto bytestowrite = context.bufferlen - context.transfered_bytes;
         auto count = 0;
@@ -241,7 +263,7 @@ namespace NET {
             count = ::read(handle.value, context.buffer + context.transfered_bytes, bytestowrite);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                    return completeio(context,iodata, TranslateError(), 0); 
+                    return completeio(context, iodata, TranslateError(), 0);
                 }
                 else {
                     count = 0;
@@ -252,7 +274,7 @@ namespace NET {
             count = ::write(handle.value, context.buffer + context.transfered_bytes, bytestowrite);
             if (count < 0) { // possible error or continue
                 if (errno != EAGAIN && errno != EINTR) {
-                    return completeio(context,iodata, TranslateError(), 0); 
+                    return completeio(context, iodata, TranslateError(), 0);
                 }
                 else {
                     count = 0;
@@ -261,15 +283,15 @@ namespace NET {
         }
         context.transfered_bytes += count;
         if (context.transfered_bytes == context.bufferlen) {
-            return completeio(context, iodata, StatusCode::SC_SUCCESS, context.bufferlen);  
+            return completeio(context, iodata, StatusCode::SC_SUCCESS, context.bufferlen);
         }
 
         epoll_event ev = {0};
         ev.data.fd = handle.value;
         ev.events = context.IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
-        ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP; 
+        ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-            return completeio(context,iodata, TranslateError(), 0); 
+            return completeio(context, iodata, TranslateError(), 0);
         }
     }
 
