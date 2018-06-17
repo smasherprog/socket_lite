@@ -231,6 +231,7 @@ public:
                             auto &rctx = getReadContext(handle);
                             continue_io(true, rctx, *this, handle);
                         }
+                        socketbuffer.clear();
                     }
                     
                     if(!WriteSockets.empty()) {
@@ -246,6 +247,7 @@ public:
                             auto &rctx = getWriteContext(handle);
                             continue_io(true, rctx, *this, handle);
                         }
+                          socketbuffer.clear();
                     }
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
