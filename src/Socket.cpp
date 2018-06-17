@@ -52,7 +52,7 @@ namespace NET {
         ReadContext_.setCompletionHandler(std::move(handler));
         ReadContext_.IOOperation = IO_OPERATION::IoRead;
         IOData_.IncrementPendingIO();
-
+//std::cout<<"read"<<handle.value<<std::endl;
 #if _WIN32
         ReadContext_.Overlapped = {0};
          continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
@@ -63,6 +63,12 @@ namespace NET {
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                     return completeio(ReadContext_, IOData_, TranslateError(), 0);
                 }
+                     epoll_event ev = {0};
+        ev.data.fd = handle.value;
+        ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
+            return completeio(ReadContext_, IOData_, TranslateError(), 0);
+        }
             } else {
                 
                 ReadContext_.transfered_bytes = count;
@@ -86,7 +92,8 @@ namespace NET {
         WriteContext_.bufferlen = buffer_size;
         WriteContext_.setCompletionHandler(std::move(handler));
         WriteContext_.IOOperation = IO_OPERATION::IoWrite;
-
+        
+//std::cout<<"write"<<handle.value<<std::endl;
         IOData_.IncrementPendingIO();
 #if _WIN32
         WriteContext_.Overlapped = {0};
@@ -97,6 +104,13 @@ namespace NET {
                 if (errno != EAGAIN && errno != EINTR) {
                     return completeio(WriteContext_, IOData_, TranslateError(), 0);
                 }
+                
+                     epoll_event ev = {0};
+        ev.data.fd = handle.value;
+        ev.events = EPOLLOUT| EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+        if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
+            return completeio(WriteContext_, IOData_, TranslateError(), 0);
+        }
             } else {
             
      WriteContext_.transfered_bytes = count;
@@ -249,10 +263,13 @@ namespace NET {
     void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
     {
         
-        if (!success || (context.IOOperation != NET::IO_OPERATION::IoRead && context.IOOperation != NET::IO_OPERATION::IoWrite)) {
+        if (!success) {
+           
             return completeio(context, iodata, StatusCode::SC_CLOSED, 0);
         }
-        
+        else if(context.IOOperation != NET::IO_OPERATION::IoRead && context.IOOperation != NET::IO_OPERATION::IoWrite){
+            return;
+        }
         else if (context.bufferlen == context.transfered_bytes) {
             return completeio(context, iodata, StatusCode::SC_SUCCESS, context.transfered_bytes);
         }
