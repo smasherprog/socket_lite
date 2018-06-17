@@ -45,16 +45,6 @@ namespace NET {
             return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
         }
 
-        // auto count = ::recv(handle.value, (char *)buffer, buffer_size, 0);
-        // if (count <= 0) { // possible error or continue
-        //    if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
-        //        return handler(TranslateError(&er), 0);
-        //    }
-        //    else {
-        //        count = 0;
-        //    }
-        //}
-
         auto &ReadContext_ = IOData_.getReadContext(handle);
         ReadContext_.buffer = buffer;
         ReadContext_.transfered_bytes = 0;
@@ -65,15 +55,23 @@ namespace NET {
 
 #if _WIN32
         ReadContext_.Overlapped = {0};
-        /*   if (count == buffer_size) {
-               PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
-               return;
-           }
-           else {
-               ReadContext_.transfered_bytes = count;
-           }*/
+         continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
+#else
+
+     auto count = ::read(handle.value, buffer, buffer_size);
+            if (count <= 0) { // possible error or continue
+                if ((errno != EAGAIN && errno != EINTR) || count == 0) {
+                    return completeio(ReadContext_, IOData_, TranslateError(), 0);
+                }
+            } else {
+                
+                ReadContext_.transfered_bytes = count;
+                IOData_.wakeupReadfd(handle.value);
+            }
+            
+     
 #endif
-        continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
+       
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
@@ -81,16 +79,6 @@ namespace NET {
         if (handle.value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
         }
-
-        // auto count = ::send(handle.value, (char *)buffer, buffer_size, 0);
-        // if (count < 0) { // possible error or continue
-        //    if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK || count == 0) {
-        //        return handler(TranslateError(&er), 0);
-        //    }
-        //    else {
-        //        count = 0;
-        //    }
-        //}
 
         auto &WriteContext_ = IOData_.getWriteContext(handle);
         WriteContext_.buffer = buffer;
@@ -102,15 +90,21 @@ namespace NET {
         IOData_.IncrementPendingIO();
 #if _WIN32
         WriteContext_.Overlapped = {0};
-        /*       if (count == buffer_size) {
-                   PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
-                   return;
-               }
-               else {
-                   WriteContext_.transfered_bytes = count;
-               }*/
+             continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+ #else
+  auto count = ::write(handle.value,buffer, buffer_size);
+            if (count < 0) { // possible error or continue
+                if (errno != EAGAIN && errno != EINTR) {
+                    return completeio(WriteContext_, IOData_, TranslateError(), 0);
+                }
+            } else {
+            
+     WriteContext_.transfered_bytes = count;
+     IOData_.wakeupWritefd(handle.value);    
+            }
+            
 #endif
-        continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+   
     }
 #if _WIN32
     void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
@@ -254,9 +248,15 @@ namespace NET {
     }
     void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
     {
-        if (!success) {
+        
+        if (!success || (context.IOOperation != NET::IO_OPERATION::IoRead && context.IOOperation != NET::IO_OPERATION::IoWrite)) {
             return completeio(context, iodata, StatusCode::SC_CLOSED, 0);
         }
+        
+        else if (context.bufferlen == context.transfered_bytes) {
+            return completeio(context, iodata, StatusCode::SC_SUCCESS, context.transfered_bytes);
+        }
+        else {
         auto bytestowrite = context.bufferlen - context.transfered_bytes;
         auto count = 0;
         if (context.IOOperation == IO_OPERATION::IoRead) {
@@ -292,6 +292,7 @@ namespace NET {
         ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
             return completeio(context, iodata, TranslateError(), 0);
+        }
         }
     }
 

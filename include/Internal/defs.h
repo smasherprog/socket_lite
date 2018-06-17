@@ -94,6 +94,7 @@ namespace NET {
         LPFN_CONNECTEX ConnectEx_;
 #else
         int EventWakeFd;
+         int ReadEventFd, WriteEventFd;
         int IOCPHandle;
 
       public:
@@ -170,7 +171,30 @@ namespace NET {
             if (epoll_ctl(IOCPHandle, EPOLL_CTL_ADD, EventWakeFd, &ev) == 1) {
                 abort();
             }
-
+            
+             ReadEventFd = eventfd(0, EFD_NONBLOCK);
+            if (ReadEventFd == -1) {
+                abort();
+            }
+            ev = {0};
+            ev.events = EPOLLONESHOT;
+            ev.data.fd = ReadEventFd;
+            if (epoll_ctl(IOCPHandle, EPOLL_CTL_ADD, ReadEventFd, &ev) == 1) {
+                abort();
+            }
+            WriteEventFd = eventfd(0, EFD_NONBLOCK);
+            if (WriteEventFd == -1) {
+                abort();
+            }
+            ev = {0};
+            ev.events = EPOLLONESHOT;
+            ev.data.fd = WriteEventFd;
+            if (epoll_ctl(IOCPHandle, EPOLL_CTL_ADD, WriteEventFd, &ev) == 1) {
+                abort();
+            }
+            armFd(ReadEventFd, EPOLLIN);
+             armFd(WriteEventFd, EPOLLIN);
+                        
             for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
                 Threads.emplace_back(std::thread([&] {
                     epoll_event epollevents[128];
@@ -178,7 +202,24 @@ namespace NET {
                         auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
                         for (auto i = 0; i < count; i++) {
-                            if (epollevents[i].data.fd != EventWakeFd) {
+                            if(epollevents[i].data.fd == WriteEventFd){
+                                eventfd_t efd=0;
+                                eventfd_read(WriteEventFd,&efd);
+                                SocketHandle handle(efd);
+                                                    
+                                auto &wctx = getWriteContext(handle);
+                                 continue_io(true, wctx, *this, handle);
+                                armFd(WriteEventFd, EPOLLIN);
+                            } else if(epollevents[i].data.fd == ReadEventFd){
+                                eventfd_t efd=0;
+                                eventfd_read(ReadEventFd,&efd);
+                                SocketHandle handle(efd);
+                                                    
+                                auto &wctx = getReadContext(handle);
+                                 continue_io(true, wctx, *this, handle);
+                                armFd(ReadEventFd, EPOLLIN);
+                            }
+                            else if (epollevents[i].data.fd != EventWakeFd) {
                                 auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
 
                                 SocketHandle handle(epollevents[i].data.fd);
@@ -240,6 +281,8 @@ namespace NET {
             CloseHandle(IOCPHandle);
             WSACleanup();
 #else
+::close(ReadEventFd);
+::close(WriteEventFd);
             ::close(EventWakeFd);
             ::close(IOCPHandle);
 #endif
@@ -250,6 +293,16 @@ namespace NET {
 #else
         int getIOHandle() const { return IOCPHandle; }
         void wakeup() { eventfd_write(EventWakeFd, 1); }
+        void wakeupReadfd(int fd) {eventfd_write(ReadEventFd, fd);}
+          void wakeupWritefd(int fd) {eventfd_write(WriteEventFd, fd);}
+        void armFd(int fd, int polleventtype){
+               epoll_event ev = {0};
+                                ev.events = EPOLLONESHOT | polleventtype;
+                                ev.data.fd = fd;
+                                if (epoll_ctl(IOCPHandle, EPOLL_CTL_MOD, fd, &ev) == 1) {
+                                    abort();
+                                }
+        }
 #endif
         int IncrementPendingIO() { return PendingIO.fetch_add(1, std::memory_order_acquire) + 1; }
         int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
