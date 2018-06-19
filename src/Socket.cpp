@@ -61,7 +61,18 @@ void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function
 //std::cout<<"read"<<handle.value<<std::endl;
 #if _WIN32
     ReadContext_.Overlapped = {0};
-    continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
+
+    auto count = ::recv(handle.value, (char *)buffer, buffer_size, 0);
+    if (count <= 0) { // possible error or continue
+        if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+            completeio(ReadContext_, IOData_, TranslateError(), 0);
+        } else {
+            continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
+        }
+    }
+    else { 
+        PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
+    }
 #else
 
     auto count = ::read(handle.value, buffer, buffer_size);
@@ -103,7 +114,19 @@ void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function
     IOData_.IncrementPendingIO();
 #if _WIN32
     WriteContext_.Overlapped = {0};
-    continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+
+    auto count = ::send(handle.value, (char *)buffer, buffer_size, 0);
+    if (count < 0) { // possible error or continue
+        if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+            completeio(WriteContext_, IOData_, TranslateError(), 0);
+        }
+        else {
+            continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+        }
+    }
+    else {
+        PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
+    }
 #else
     auto count = ::write(handle.value,buffer, buffer_size);
     if (count < 0) { // possible error or continue
