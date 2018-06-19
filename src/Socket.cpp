@@ -52,8 +52,7 @@ namespace NET {
         ReadContext_.bufferlen = buffer_size;
         ReadContext_.setCompletionHandler(std::move(handler));
         ReadContext_.IOOperation = IO_OPERATION::IoRead;
-        IOData_.IncrementPendingIO();
-// std::cout<<"read"<<handle.value<<std::endl;
+        IOData_.IncrementPendingIO(); 
 #if _WIN32
         ReadContext_.Overlapped = {0};
         continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
@@ -86,13 +85,8 @@ namespace NET {
         }
         else {
             ReadContext_.transfered_bytes = count;
-            static int long long depth = 0;
-            if (depth++ % 5 == 0) { 
-                IOData_.wakeupReadfd(handle.value);
-            }
-            else { 
-                continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
-            }
+            IOData_.wakeupReadfd(handle.value);
+     
         }
 
 #endif
