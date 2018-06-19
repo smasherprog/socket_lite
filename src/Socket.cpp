@@ -71,7 +71,14 @@ void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function
         }
     }
     else { 
-        PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
+        static int long long depth = 0;
+        if (depth++%5==0){
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
+        }
+        else {
+            ReadContext_.transfered_bytes = count;
+            continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
+        }
     }
 #else
 
