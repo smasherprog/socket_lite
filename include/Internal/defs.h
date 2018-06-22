@@ -109,6 +109,8 @@ namespace NET {
             Threads.reserve(ThreadCount_.value);
             ReadContexts.resize(std::numeric_limits<unsigned short>::max());
             WriteContexts.resize(std::numeric_limits<unsigned short>::max());
+            ReadContexts.shrink_to_fit();
+            WriteContexts.shrink_to_fit();
 #if _WIN32
 
             IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);

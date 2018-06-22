@@ -89,7 +89,7 @@ namespace NET {
             }
         }
         else {
-            ReadContext_.transfered_bytes = count;
+            ReadContext_->transfered_bytes = count;
             IOData_.wakeupReadfd(handle.value);
         }
 
@@ -145,7 +145,7 @@ namespace NET {
         }
         else {
 
-            WriteContext_.transfered_bytes = count;
+            WriteContext_->transfered_bytes = count;
             IOData_.wakeupWritefd(handle.value);
         }
 
