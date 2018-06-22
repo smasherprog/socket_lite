@@ -27,7 +27,8 @@ namespace SL {
 namespace NET {
 
     PlatformSocket::PlatformSocket() : Handle_(INVALID_SOCKET) {}
-    PlatformSocket::PlatformSocket(SocketHandle h) : Handle_(h) {}
+    PlatformSocket::PlatformSocket(SocketHandle h) : Handle_(h) {
+    }
     PlatformSocket::PlatformSocket(const AddressFamily &family, Blocking_Options opts) : Handle_(INVALID_SOCKET)
     {
         int typ = SOCK_STREAM;
@@ -48,12 +49,14 @@ namespace NET {
 
         if (opts == Blocking_Options::NON_BLOCKING) {
             [[maybe_unused]] auto e = setsockopt(BLOCKINGTag{}, opts);
-        }
-
+        } 
 #endif
     }
-    PlatformSocket::~PlatformSocket() { close(); }
-    PlatformSocket::PlatformSocket(PlatformSocket &&p) : Handle_(p.Handle_) { p.Handle_.value = INVALID_SOCKET; }
+    PlatformSocket::~PlatformSocket()
+    { 
+        close();
+    }
+    PlatformSocket::PlatformSocket(PlatformSocket &&p) : Handle_(std::move(p.Handle_)) { p.Handle_.value = INVALID_SOCKET; }
 
     PlatformSocket &PlatformSocket::operator=(PlatformSocket &&p)
     {
@@ -66,10 +69,10 @@ namespace NET {
     PlatformSocket::operator bool() const { return Handle_.value != INVALID_SOCKET; }
     void PlatformSocket::close()
     {
-
         auto t = Handle_.value;
         Handle_.value = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
+            
 #ifdef _WIN32
             closesocket(t);
 #else

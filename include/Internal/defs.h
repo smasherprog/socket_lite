@@ -84,7 +84,7 @@ namespace NET {
     class ContextImpl {
         const ThreadCount ThreadCount_;
         std::vector<std::thread> Threads;
-        std::vector<Win_IO_Context> ReadContexts, WriteContexts;
+        std::vector<std::shared_ptr<Win_IO_Context>> ReadContexts, WriteContexts;
         bool KeepGoing_;
         std::atomic<int> PendingIO;
 #if _WIN32
@@ -109,8 +109,6 @@ namespace NET {
             Threads.reserve(ThreadCount_.value);
             ReadContexts.resize(std::numeric_limits<unsigned short>::max());
             WriteContexts.resize(std::numeric_limits<unsigned short>::max());
-            ReadContexts.shrink_to_fit();
-            WriteContexts.shrink_to_fit();
 #if _WIN32
 
             IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, t.value);
@@ -262,11 +260,15 @@ namespace NET {
         ~ContextImpl()
         {
             stop();
-            for (auto &rcts : ReadContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+            for (auto rcts : ReadContexts) {
+                if (rcts) {
+                    completeio(*rcts, *this, StatusCode::SC_CLOSED, 0);
+                }
             }
-            for (auto &rcts : WriteContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+            for (auto rcts : WriteContexts) {
+                if (rcts) {
+                    completeio(*rcts, *this, StatusCode::SC_CLOSED, 0);
+                }
             }
 #ifndef _WIN32
             while (getPendingIO() > 0) {
@@ -325,14 +327,25 @@ namespace NET {
         int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
         int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
         void stop() { KeepGoing_ = false; }
-        void RegisterSocket(const SocketHandle &) {}
-        Win_IO_Context &getWriteContext(const SocketHandle &socket)
+        void RegisterSocket(const SocketHandle &socket)
+        {
+            auto index = socket.value;
+            if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) { 
+                if (!ReadContexts[index]) {
+                    ReadContexts[index] = std::make_shared<Win_IO_Context>();
+                }
+                if (!WriteContexts[index]) {
+                    WriteContexts[index] = std::make_shared<Win_IO_Context>();
+                } 
+            }
+        }
+        std::shared_ptr<Win_IO_Context> getWriteContext(const SocketHandle &socket)
         {
             auto index = socket.value;
             assert(index >= 0 && index < static_cast<decltype(index)>(WriteContexts.size()));
             return WriteContexts[index];
         }
-        Win_IO_Context &getReadContext(const SocketHandle &socket)
+        std::shared_ptr<Win_IO_Context> getReadContext(const SocketHandle &socket)
         {
             auto index = socket.value;
             assert(index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size()));
@@ -340,10 +353,18 @@ namespace NET {
         }
         void DeregisterSocket(const SocketHandle &socket)
         {
-            auto index = socket.value;
+            auto index = socket.value; 
             if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
-                completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED, 0);
-                completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED, 0);
+                auto ctx = WriteContexts[index];
+                if (ctx) {
+                    completeio(*ctx, *this, StatusCode::SC_CLOSED, 0);
+                }
+                WriteContexts[index].reset();
+                ctx = ReadContexts[index];
+                if (ctx) {
+                    completeio(*ctx, *this, StatusCode::SC_CLOSED, 0);
+                }
+                ReadContexts[index].reset();
             }
         }
     };

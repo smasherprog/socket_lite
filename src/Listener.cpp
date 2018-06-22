@@ -6,6 +6,8 @@
 #include <netinet/ip.h>
 #include <sys/epoll.h>
 #endif
+#include <iostream>
+
 namespace SL {
 namespace NET {
 
@@ -25,7 +27,6 @@ namespace NET {
                         continue; // this shouldnt happen but what ever
                     }
                     [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
-                    ContextImpl_.RegisterSocket(s.Handle());
                     AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #else
@@ -38,7 +39,6 @@ namespace NET {
                     if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
-                    ContextImpl_.RegisterSocket(s.Handle());
                     AcceptHandler(Socket(ContextImpl_, std::move(s)));
                 }
 #endif
