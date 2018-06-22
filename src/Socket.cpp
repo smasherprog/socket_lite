@@ -37,10 +37,7 @@ namespace NET {
         IOData_.DeregisterSocket(PlatformSocket_.Handle());
         PlatformSocket_.close();
     }
-    void Socket::close() { 
-         IOData_.DeregisterSocket(PlatformSocket_.Handle());
-        PlatformSocket_.close();
-    }
+    void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         auto handle = PlatformSocket_.Handle();
