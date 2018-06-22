@@ -253,30 +253,31 @@ namespace NET {
 #else
 
     void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
-    {
-        socket.PlatformSocket_ = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
-        auto handle = socket.PlatformSocket_.Handle();
-        if (handle.value == INVALID_SOCKET) {
+    { 
+        auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
+        if (handle.Handle().value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED); // socket is closed..
         }
-        socket.IOData_.RegisterSocket(handle);
-        auto ret = ::connect(handle.value, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
+        socket.PlatformSocket_ = std::move(handle);
+        auto hhandle = socket.PlatformSocket_.Handle().value;
+        socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
+        auto ret = ::connect(hhandle, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
             auto err = errno;
             if (err != EINPROGRESS) { // error with the socket
                 return handler(TranslateError(&err));
             }
             else {
-                auto &context = socket.IOData_.getWriteContext(handle);
-                context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
-                context.IOOperation = IO_OPERATION::IoConnect;
+                auto context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
+                context->setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
+                context->IOOperation = IO_OPERATION::IoConnect;
                 socket.IOData_.IncrementPendingIO();
 
                 epoll_event ev = {0};
-                ev.data.fd = handle.value;
+                ev.data.fd = hhandle;
                 ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-                if (epoll_ctl(socket.IOData_.getIOHandle(), EPOLL_CTL_ADD, handle.value, &ev) == -1) {
-                    return completeio(context, socket.IOData_, TranslateError(), 0);
+                if (epoll_ctl(socket.IOData_.getIOHandle(), EPOLL_CTL_ADD, hhandle, &ev) == -1) {
+                    return completeio(*context, socket.IOData_, TranslateError(), 0);
                 }
             }
         }

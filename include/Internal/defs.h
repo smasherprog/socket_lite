@@ -202,17 +202,18 @@ namespace NET {
 
                                 SocketHandle handle(epollevents[i].data.fd);
 
-                                if (epollevents[i].events & EPOLLIN) {
-                                    auto &rctx = getReadContext(handle);
-                                    continue_io(!socketclosed, rctx, *this, handle);
+                                if (auto rctx = getReadContext(handle); rctx && (epollevents[i].events & EPOLLIN)) {
+                                    continue_io(!socketclosed, *rctx, *this, handle);
                                 }
                                 else {
-                                    auto &wctx = getWriteContext(handle);
-                                    if (wctx.IOOperation == IO_OPERATION::IoConnect) {
-                                        continue_connect(!socketclosed, wctx, *this, handle);
-                                    }
-                                    else if (wctx.IOOperation == IO_OPERATION::IoWrite) {
-                                        continue_io(!socketclosed, wctx, *this, handle);
+                                    auto wctx = getWriteContext(handle);
+                                    if (wctx) { 
+                                        if (wctx->IOOperation == IO_OPERATION::IoConnect) {
+                                            continue_connect(!socketclosed, *wctx, *this, handle);
+                                        }
+                                        else if (wctx->IOOperation == IO_OPERATION::IoWrite) {
+                                            continue_io(!socketclosed, *wctx, *this, handle);
+                                        }
                                     }
                                 }
                             }
@@ -227,8 +228,9 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                auto &rctx = getReadContext(handle);
-                                continue_io(true, rctx, *this, handle);
+                                if (auto rctx = getWriteContext(handle); rctx) {
+                                    continue_io(true, *rctx, *this, handle);
+                                }
                             }
                             socketbuffer.clear();
                         }
@@ -243,8 +245,9 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                auto &rctx = getWriteContext(handle);
-                                continue_io(true, rctx, *this, handle);
+                                if (auto rctx = getWriteContext(handle); rctx) { 
+                                    continue_io(true, *rctx, *this, handle);
+                                }
                             }
                             socketbuffer.clear();
                         }
@@ -330,13 +333,13 @@ namespace NET {
         void RegisterSocket(const SocketHandle &socket)
         {
             auto index = socket.value;
-            if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) { 
+            if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
                 if (!ReadContexts[index]) {
                     ReadContexts[index] = std::make_shared<Win_IO_Context>();
                 }
                 if (!WriteContexts[index]) {
                     WriteContexts[index] = std::make_shared<Win_IO_Context>();
-                } 
+                }
             }
         }
         std::shared_ptr<Win_IO_Context> getWriteContext(const SocketHandle &socket)
@@ -353,7 +356,7 @@ namespace NET {
         }
         void DeregisterSocket(const SocketHandle &socket)
         {
-            auto index = socket.value; 
+            auto index = socket.value;
             if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
                 auto ctx = WriteContexts[index];
                 if (ctx) {
