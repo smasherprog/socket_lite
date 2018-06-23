@@ -205,11 +205,11 @@ namespace NET {
                                 SocketHandle handle(epollevents[i].data.fd);
 
                                 if (epollevents[i].events & EPOLLIN) {
-                                    auto rctx = getReadContext(handle);
+                                    auto& rctx = getReadContext(handle);
                                     continue_io(!socketclosed, rctx, *this, handle);
                                 }
                                 else {
-                                    auto wctx = getWriteContext(handle);
+                                    auto& wctx = getWriteContext(handle);
                                     if (wctx.IOOperation == IO_OPERATION::IoConnect) {
                                         continue_connect(!socketclosed, wctx, *this, handle);
                                     }
@@ -229,7 +229,7 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                auto rctx = getWriteContext(handle);
+                                auto &rctx = getWriteContext(handle);
                                 continue_io(true, rctx, *this, handle);
                             }
                             socketbuffer.clear();
@@ -245,7 +245,7 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                auto rctx = getWriteContext(handle);
+                                auto& rctx = getWriteContext(handle);
                                 continue_io(true, rctx, *this, handle);
                             }
                             socketbuffer.clear();
@@ -262,10 +262,10 @@ namespace NET {
         ~ContextImpl()
         {
             stop();
-            for (auto rcts : ReadContexts) {
+            for (auto& rcts : ReadContexts) {
                 completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
             }
-            for (auto rcts : WriteContexts) {
+            for (auto &rcts : WriteContexts) {
 
                 completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
             }

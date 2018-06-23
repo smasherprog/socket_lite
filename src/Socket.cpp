@@ -249,8 +249,8 @@ namespace NET {
         if (handle.Handle().value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED); // socket is closed..
         }
+        auto hhandle = handle.Handle().value;
         socket.PlatformSocket_ = std::move(handle);
-        auto hhandle = socket.PlatformSocket_.Handle().value;
         socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
         auto ret = ::connect(hhandle, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
         if (ret == -1) { // will complete some time later
