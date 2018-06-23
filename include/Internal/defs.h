@@ -84,7 +84,7 @@ namespace NET {
     class ContextImpl {
         const ThreadCount ThreadCount_;
         std::vector<std::thread> Threads;
-        std::vector<std::shared_ptr<Win_IO_Context>> ReadContexts, WriteContexts;
+        std::vector<Win_IO_Context> ReadContexts, WriteContexts;
         bool KeepGoing_;
         std::atomic<int> PendingIO;
 #if _WIN32
@@ -209,7 +209,7 @@ namespace NET {
                                 }
                                 else {
                                     auto wctx = getWriteContext(handle);
-                                    if (wctx) { 
+                                    if (wctx) {
                                         if (wctx->IOOperation == IO_OPERATION::IoConnect) {
                                             continue_connect(!socketclosed, *wctx, *this, handle);
                                         }
@@ -247,7 +247,7 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                if (auto rctx = getWriteContext(handle); rctx) { 
+                                if (auto rctx = getWriteContext(handle); rctx) {
                                     continue_io(true, *rctx, *this, handle);
                                 }
                             }
@@ -266,14 +266,11 @@ namespace NET {
         {
             stop();
             for (auto rcts : ReadContexts) {
-                if (rcts) {
-                    completeio(*rcts, *this, StatusCode::SC_CLOSED, 0);
-                }
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
             }
             for (auto rcts : WriteContexts) {
-                if (rcts) {
-                    completeio(*rcts, *this, StatusCode::SC_CLOSED, 0);
-                }
+
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
             }
 #ifndef _WIN32
             while (getPendingIO() > 0) {
@@ -332,25 +329,14 @@ namespace NET {
         int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
         int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
         void stop() { KeepGoing_ = false; }
-        void RegisterSocket(const SocketHandle &socket)
-        {
-            auto index = socket.value;
-            if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
-                if (!ReadContexts[index]) {
-                    ReadContexts[index] = std::make_shared<Win_IO_Context>();
-                }
-                if (!WriteContexts[index]) {
-                    WriteContexts[index] = std::make_shared<Win_IO_Context>();
-                }
-            }
-        }
-        std::shared_ptr<Win_IO_Context> getWriteContext(const SocketHandle &socket)
+        void RegisterSocket(const SocketHandle &) {}
+        Win_IO_Context &getWriteContext(const SocketHandle &socket)
         {
             auto index = socket.value;
             assert(index >= 0 && index < static_cast<decltype(index)>(WriteContexts.size()));
             return WriteContexts[index];
         }
-        std::shared_ptr<Win_IO_Context> getReadContext(const SocketHandle &socket)
+        Win_IO_Context &getReadContext(const SocketHandle &socket)
         {
             auto index = socket.value;
             assert(index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size()));
@@ -360,16 +346,8 @@ namespace NET {
         {
             auto index = socket.value;
             if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
-                auto ctx = WriteContexts[index];
-                if (ctx) {
-                    completeio(*ctx, *this, StatusCode::SC_CLOSED, 0);
-                }
-                WriteContexts[index].reset();
-                ctx = ReadContexts[index];
-                if (ctx) {
-                    completeio(*ctx, *this, StatusCode::SC_CLOSED, 0);
-                }
-                ReadContexts[index].reset();
+                completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED, 0);
+                completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED, 0);
             }
         }
     };
