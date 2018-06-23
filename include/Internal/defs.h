@@ -204,18 +204,17 @@ namespace NET {
 
                                 SocketHandle handle(epollevents[i].data.fd);
 
-                                if (auto rctx = getReadContext(handle); rctx && (epollevents[i].events & EPOLLIN)) {
-                                    continue_io(!socketclosed, *rctx, *this, handle);
+                                if (epollevents[i].events & EPOLLIN) {
+                                    auto rctx = getReadContext(handle);
+                                    continue_io(!socketclosed, rctx, *this, handle);
                                 }
                                 else {
                                     auto wctx = getWriteContext(handle);
-                                    if (wctx) {
-                                        if (wctx->IOOperation == IO_OPERATION::IoConnect) {
-                                            continue_connect(!socketclosed, *wctx, *this, handle);
-                                        }
-                                        else if (wctx->IOOperation == IO_OPERATION::IoWrite) {
-                                            continue_io(!socketclosed, *wctx, *this, handle);
-                                        }
+                                    if (wctx.IOOperation == IO_OPERATION::IoConnect) {
+                                        continue_connect(!socketclosed, wctx, *this, handle);
+                                    }
+                                    else if (wctx.IOOperation == IO_OPERATION::IoWrite) {
+                                        continue_io(!socketclosed, wctx, *this, handle);
                                     }
                                 }
                             }
@@ -230,9 +229,8 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                if (auto rctx = getWriteContext(handle); rctx) {
-                                    continue_io(true, *rctx, *this, handle);
-                                }
+                                auto rctx = getWriteContext(handle);
+                                continue_io(true, rctx, *this, handle);
                             }
                             socketbuffer.clear();
                         }
@@ -247,9 +245,8 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                if (auto rctx = getWriteContext(handle); rctx) {
-                                    continue_io(true, *rctx, *this, handle);
-                                }
+                                auto rctx = getWriteContext(handle);
+                                continue_io(true, rctx, *this, handle);
                             }
                             socketbuffer.clear();
                         }
