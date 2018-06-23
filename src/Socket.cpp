@@ -74,13 +74,13 @@ namespace NET {
         auto count = ::read(handle.value, buffer, buffer_size);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                return completeio(*ReadContext_, IOData_, TranslateError(), 0);
+                return completeio(ReadContext_, IOData_, TranslateError(), 0);
             }
             epoll_event ev = {0};
             ev.data.fd = handle.value;
             ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
             if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-                return completeio(*ReadContext_, IOData_, TranslateError(), 0);
+                return completeio(ReadContext_, IOData_, TranslateError(), 0);
             }
         }
         else {
@@ -126,14 +126,14 @@ namespace NET {
         auto count = ::write(handle.value, buffer, buffer_size);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
-                return completeio(*WriteContext_, IOData_, TranslateError(), 0);
+                return completeio(WriteContext_, IOData_, TranslateError(), 0);
             }
 
             epoll_event ev = {0};
             ev.data.fd = handle.value;
             ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
             if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-                return completeio(*WriteContext_, IOData_, TranslateError(), 0);
+                return completeio(WriteContext_, IOData_, TranslateError(), 0);
             }
         }
         else {
