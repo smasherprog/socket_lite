@@ -14,26 +14,6 @@ if(MSVC)
 else()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic")
 endif()
-
-if(WIN32)
-    set(SOCKET_LITE_PLATFORM_SRC    
-    )
-    set(SOCKET_LITE_PLATFORM_INC  
-    )
-
-elseif(APPLE)
-	
-    set(SOCKET_LITE_PLATFORM_SRC 
-    )
-    set(SOCKET_LITE_PLATFORM_INC
-    )
-else()
-	set(SOCKET_LITE_PLATFORM_SRC    
-    )
-	set(SOCKET_LITE_PLATFORM_INC
-    )	
-endif()
-
 	
 include_directories(
 	include

@@ -197,7 +197,7 @@ namespace NET {
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd == EventFd) {
                                 eventfd_t efd = 0;
-                                eventfd_read(EventFd, &efd);
+                                eventfd_read(EventFd, &efd); 
                             }
                             else if (epollevents[i].data.fd != EventWakeFd) {
                                 auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
@@ -229,7 +229,7 @@ namespace NET {
                             }
                             for (auto a : socketbuffer) {
                                 SocketHandle handle(a);
-                                auto &rctx = getWriteContext(handle);
+                                auto &rctx = getReadContext(handle);
                                 continue_io(true, rctx, *this, handle);
                             }
                             socketbuffer.clear();
