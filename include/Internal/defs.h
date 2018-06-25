@@ -29,6 +29,7 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
+#include <signal.h>
 #endif
 
 using namespace std::chrono_literals;
@@ -105,6 +106,7 @@ namespace NET {
 
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
+            signal(SIGPIPE, SIG_IGN);
             PendingIO = 0;
             Threads.reserve(ThreadCount_.value);
             ReadContexts.resize(std::numeric_limits<unsigned short>::max());
