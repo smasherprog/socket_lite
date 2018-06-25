@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <csignal>
 
 #if defined(WINDOWS) || defined(_WIN32)
 #include <WinSock2.h>
@@ -105,7 +106,7 @@ namespace NET {
 
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
-      
+            std::signal(SIGPIPE, SIG_IGN);
             PendingIO = 0;
             Threads.reserve(ThreadCount_.value);
             ReadContexts.resize(std::numeric_limits<unsigned short>::max());
