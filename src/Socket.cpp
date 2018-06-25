@@ -71,7 +71,7 @@ namespace NET {
         //}
 #else
 
-        auto count = ::read(handle.value, buffer, buffer_size);
+        auto count = ::recv(handle.value, buffer, buffer_size, MSG_NOSIGNAL);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                 return completeio(ReadContext_, IOData_, TranslateError(), 0);
