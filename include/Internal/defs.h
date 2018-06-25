@@ -106,7 +106,7 @@ namespace NET {
 
         ContextImpl(ThreadCount t) : ThreadCount_(t)
         {
-            std::signal(SIGPIPE, SIG_IGN);
+        
             PendingIO = 0;
             Threads.reserve(ThreadCount_.value);
             ReadContexts.resize(std::numeric_limits<unsigned short>::max());
@@ -166,7 +166,7 @@ namespace NET {
                 }));
             }
 #else
-    
+            std::signal(SIGPIPE, SIG_IGN);
             IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
             if (IOCPHandle == -1 || EventWakeFd == -1) {
