@@ -11,9 +11,9 @@
 namespace SL {
 namespace NET {
 
-    Listener::Listener(Context &context, PlatformSocket &&acceptsocket, std::function<void(Socket )> &&accepthandler) : 
-    ContextImpl_(*context.ContextImpl_), AcceptSocket(std::move(acceptsocket)), AcceptHandler(std::move(accepthandler))
-    { 
+    Listener::Listener(Context &context, PlatformSocket &&acceptsocket, std::function<void(Socket)> &&accepthandler)
+        : ContextImpl_(*context.ContextImpl_), AcceptSocket(std::move(acceptsocket)), AcceptHandler(std::move(accepthandler))
+    {
         Keepgoing = true;
         Runner = std::thread([&]() {
             while (Keepgoing) {
@@ -33,9 +33,9 @@ namespace NET {
 
                 auto handle = ::accept4(AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
                 if (handle != INVALID_SOCKET) {
-                    PlatformSocket s(handle); 
+                    PlatformSocket s(handle);
                     epoll_event ev = {0};
-                    ev.events= EPOLLONESHOT;  
+                    ev.events = EPOLLONESHOT;
                     if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }
@@ -49,12 +49,17 @@ namespace NET {
     Listener::~Listener()
     {
         Keepgoing = false;
+        if (AcceptSocket) {
 #if _WIN32
-        AcceptSocket.close();
+            AcceptSocket.close();
 #else
-        AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
-#endif 
-        Runner.join(); 
+            AcceptSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
+#endif
+        }
+        if (Runner.joinable()) {
+
+            Runner.join();
+        }
     }
 } // namespace NET
 } // namespace SL
