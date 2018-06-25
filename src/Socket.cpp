@@ -123,7 +123,7 @@ namespace NET {
         //    PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
         //}
 #else
-        auto count = ::write(handle.value, buffer, buffer_size);
+        auto count = ::send(handle.value, buffer, buffer_size, MSG_NOSIGNAL);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
                 return completeio(WriteContext_, IOData_, TranslateError(), 0);

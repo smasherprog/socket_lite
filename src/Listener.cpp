@@ -35,7 +35,7 @@ namespace NET {
                 if (handle != INVALID_SOCKET) {
                     PlatformSocket s(handle); 
                     epoll_event ev = {0};
-                    ev.events= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;  
+                    ev.events= EPOLLONESHOT;  
                     if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle, &ev) == -1) {
                         continue; // this shouldnt happen but what ever
                     }

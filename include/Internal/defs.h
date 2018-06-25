@@ -29,7 +29,6 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
-#include <signal.h>
 #endif
 
 using namespace std::chrono_literals;
@@ -166,7 +165,7 @@ namespace NET {
                 }));
             }
 #else
-            signal(SIGPIPE, SIG_IGN);
+    
             IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
             EventWakeFd = eventfd(0, EFD_NONBLOCK);
             if (IOCPHandle == -1 || EventWakeFd == -1) {
