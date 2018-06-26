@@ -129,7 +129,7 @@ namespace NET {
             }
             for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
                 Threads.emplace_back(std::thread([&] {
-                    while (true) {
+                  for(;;){
                         DWORD numberofbytestransfered = 0;
                         Win_IO_Context *overlapped = nullptr;
                         void *completionkey = nullptr;
@@ -194,7 +194,7 @@ namespace NET {
                 Threads.emplace_back(std::thread([&] {
                     epoll_event epollevents[128];
                     std::vector<int> socketbuffer;
-                    while (true) {
+                    for (;;) {
                         auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
                         for (auto i = 0; i < count; i++) {
