@@ -197,12 +197,8 @@ namespace NET {
                     for (;;) {
                         auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
-                        for (auto i = 0; i < count; i++) {
-                            if (epollevents[i].data.fd == EventFd) {
-                             //   eventfd_t efd = 0;
-                               // eventfd_read(EventFd, &efd); 
-                            }
-                            else if (epollevents[i].data.fd != EventWakeFd) {
+                        for (auto i = 0; i < count; i++) { 
+                            if (epollevents[i].data.fd != EventWakeFd && epollevents[i].data.fd != EventFd) {
                                 auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
 
                                 SocketHandle handle(epollevents[i].data.fd);
@@ -219,7 +215,7 @@ namespace NET {
                                     else if (wctx.IOOperation == IO_OPERATION::IoWrite) {
                                         continue_io(!socketclosed, wctx, *this, handle);
                                     }
-                                }
+                                } 
                             }
                         }
                         if (!ReadSockets.empty()) {
