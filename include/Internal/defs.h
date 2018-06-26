@@ -199,8 +199,8 @@ namespace NET {
 
                         for (auto i = 0; i < count; i++) {
                             if (epollevents[i].data.fd == EventFd) {
-                                eventfd_t efd = 0;
-                                eventfd_read(EventFd, &efd); 
+                             //   eventfd_t efd = 0;
+                               // eventfd_read(EventFd, &efd); 
                             }
                             else if (epollevents[i].data.fd != EventWakeFd) {
                                 auto socketclosed = epollevents[i].events & EPOLLERR || epollevents[i].events & EPOLLHUP;
