@@ -298,8 +298,8 @@ namespace NET {
         else {
             auto bytestowrite = context.bufferlen - context.transfered_bytes;
             auto count = 0;
-            if (context.IOOperation == IO_OPERATION::IoRead) {
-                count = ::read(handle.value, context.buffer + context.transfered_bytes, bytestowrite);
+            if (context.IOOperation == IO_OPERATION::IoRead) { 
+                count = ::recv(handle.value, context.buffer + context.transfered_bytes, bytestowrite, MSG_NOSIGNAL);
                 if (count <= 0) { // possible error or continue
                     if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                         return completeio(context, iodata, TranslateError(), 0);
@@ -309,8 +309,8 @@ namespace NET {
                     }
                 }
             }
-            else {
-                count = ::write(handle.value, context.buffer + context.transfered_bytes, bytestowrite);
+            else { 
+                count = ::send(handle.value, context.buffer + context.transfered_bytes, bytestowrite, MSG_NOSIGNAL);
                 if (count < 0) { // possible error or continue
                     if (errno != EAGAIN && errno != EINTR) {
                         return completeio(context, iodata, TranslateError(), 0);
