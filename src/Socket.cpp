@@ -25,29 +25,7 @@ namespace NET {
             h(code, bytes);
         }
     }
-    StatusCode BindSocket(SOCKET sock, AddressFamily family)
-    {
-
-        if (family == AddressFamily::IPV4) {
-            sockaddr_in bindaddr = {0};
-            bindaddr.sin_family = AF_INET;
-            bindaddr.sin_addr.s_addr = INADDR_ANY;
-            bindaddr.sin_port = 0;
-            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
-                return TranslateError();
-            }
-        }
-        else {
-            sockaddr_in6 bindaddr = {0};
-            bindaddr.sin6_family = AF_INET6;
-            bindaddr.sin6_addr = in6addr_any;
-            bindaddr.sin6_port = 0;
-            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
-                return TranslateError();
-            }
-        }
-        return StatusCode::SC_SUCCESS;
-    }
+ 
     Socket::Socket(Context &c) : IOData_(c) {}
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c)
     {
@@ -168,6 +146,29 @@ namespace NET {
 #endif
     }
 #if _WIN32
+    StatusCode BindSocket(SOCKET sock, AddressFamily family)
+    {
+
+        if (family == AddressFamily::IPV4) {
+            sockaddr_in bindaddr = {0};
+            bindaddr.sin_family = AF_INET;
+            bindaddr.sin_addr.s_addr = INADDR_ANY;
+            bindaddr.sin_port = 0;
+            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
+                return TranslateError();
+            }
+        }
+        else {
+            sockaddr_in6 bindaddr = {0};
+            bindaddr.sin6_family = AF_INET6;
+            bindaddr.sin6_addr = in6addr_any;
+            bindaddr.sin6_port = 0;
+            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
+                return TranslateError();
+            }
+        }
+        return StatusCode::SC_SUCCESS;
+    }
     void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
         if (!success) {

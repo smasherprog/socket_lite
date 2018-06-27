@@ -30,8 +30,6 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
-#include <sys/types.h> 
-#include <sys/socket.h>
 #endif
 
 using namespace std::chrono_literals;
@@ -82,7 +80,6 @@ namespace NET {
     void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
     void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle); 
 
-    StatusCode BindSocket(SOCKET sock, AddressFamily family);
 
     class NetworkConfig : public INetworkConfig, public std::enable_shared_from_this<NetworkConfig> {
         std::shared_ptr<Context> Context_;
