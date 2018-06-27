@@ -83,9 +83,10 @@ namespace NET {
             }
         }
         else {
-            static int counter = 0;
-            ReadContext_.transfered_bytes = count;
-            if (counter++ % 4) {
+            static bool counter = false;
+            counter = !counter;
+            if (counter) {
+                ReadContext_.transfered_bytes = count;
                 IOData_.wakeupReadfd(handle.value);
             }
             else {
@@ -141,8 +142,10 @@ namespace NET {
             }
         }
         else {
-            static int counter = 0;
-            if (counter++ % 4) {
+            static bool counter = false;
+            counter = !counter;
+            if (counter) {
+                WriteContext_.transfered_bytes = count;
                 IOData_.wakeupWritefd(handle.value);
             }
             else {
