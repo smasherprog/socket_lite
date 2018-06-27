@@ -83,14 +83,14 @@ namespace NET {
             }
         }
         else {
-            static bool counter = false;
-            counter = !counter;
-            if (counter) {
-                ReadContext_.transfered_bytes = count;
-                IOData_.wakeupReadfd(handle.value);
+            static int counter = 0;
+            counter += 1;
+            ReadContext_.transfered_bytes = count;
+            if (counter % 4 != 0 && ReadContext_.transfered_bytes == ReadContext_.bufferlen) {  
+                  completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
             }
             else {
-                completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
+                IOData_.wakeupReadfd(handle.value);
             }
         }
 #endif
@@ -142,14 +142,14 @@ namespace NET {
             }
         }
         else {
-            static bool counter = false;
-            counter = !counter;
-            if (counter) {
-                WriteContext_.transfered_bytes = count;
-                IOData_.wakeupWritefd(handle.value);
+            static int counter = 0;
+            counter += 1;
+            WriteContext_.transfered_bytes = count;
+            if (counter %4 !=0 && WriteContext_.transfered_bytes == WriteContext_.bufferlen) { 
+                completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
             }
             else {
-                completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
+                IOData_.wakeupWritefd(handle.value);
             }
         }
 
