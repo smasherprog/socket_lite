@@ -39,6 +39,7 @@ namespace NET {
         std::vector<int> ReadSockets, WriteSockets;
         spinlock ReadSocketLock, WriteSocketLock;
 
+      public:
         int getIOHandle() const;
         void wakeup();
         void wakeupReadfd(int fd);
