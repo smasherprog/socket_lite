@@ -30,6 +30,8 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
+#include <sys/types.h> 
+#include <sys/socket.h>
 #endif
 
 using namespace std::chrono_literals;
