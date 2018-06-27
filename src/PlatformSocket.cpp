@@ -335,12 +335,13 @@ namespace NET {
         }
         return TranslateError();
     }
-
-    StatusCode PlatformSocket::getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &callback) const
-    {
 #ifdef _WIN32
+    StatusCode PlatformSocket::getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &) const
+    {
         return StatusCode::SC_NOTSUPPORTED;
 #else
+    StatusCode PlatformSocket::getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &callback) const
+    {
         long arg = 0;
         if ((arg = fcntl(Handle_.value, F_GETFL, NULL)) < 0) {
             return TranslateError();

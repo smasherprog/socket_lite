@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -10,10 +9,9 @@
 #include <optional>
 #endif
 #include <stdint.h>
-#include <thread>
-#include <tuple> 
-#include <vector>
 #include <string>
+#include <thread>
+#include <vector>
 
 #if defined(WINDOWS) || defined(_WIN32)
 #if defined(WS_LITE_DLL)
