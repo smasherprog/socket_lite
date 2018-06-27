@@ -4,12 +4,16 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#if __APPLE__
+#include <experimental/optional>
+#else
 #include <optional>
+#endif
 #include <stdint.h>
 #include <thread>
-#include <tuple>
-#include <variant>
+#include <tuple> 
 #include <vector>
+#include <string>
 
 #if defined(WINDOWS) || defined(_WIN32)
 #if defined(WS_LITE_DLL)
