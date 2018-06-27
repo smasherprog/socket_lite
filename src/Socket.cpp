@@ -5,8 +5,6 @@
 #include <type_traits>
 #include <variant>
 
-
-
 #if _WIN32
 #include <Ws2ipdef.h>
 #else
@@ -25,7 +23,7 @@ namespace NET {
             h(code, bytes);
         }
     }
- 
+
     Socket::Socket(Context &c) : IOData_(c) {}
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c)
     {
@@ -37,7 +35,7 @@ namespace NET {
     {
         IOData_.DeregisterSocket(PlatformSocket_.Handle());
         PlatformSocket_.close();
-    } 
+    }
     void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
@@ -85,15 +83,15 @@ namespace NET {
             }
         }
         else {
-            static int counter = 0; 
+            static int counter = 0;
             ReadContext_.transfered_bytes = count;
             if (counter++ % 4) {
-                return completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
+                IOData_.wakeupReadfd(handle.value);
             }
             else {
-                IOData_.wakeupReadfd(handle.value);
-            } 
-        } 
+                completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
+            }
+        }
 #endif
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -143,12 +141,12 @@ namespace NET {
             }
         }
         else {
-            static int counter = 0; 
+            static int counter = 0;
             if (counter++ % 4) {
-                return completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
-            }
-            else {  
                 IOData_.wakeupWritefd(handle.value);
+            }
+            else {
+                completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
             }
         }
 
@@ -208,14 +206,14 @@ namespace NET {
     }
     void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
-        if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) ==0) {
+        if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == 0) {
             completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
         }
         else {
             completeio(context, iodata, TranslateError(), 0);
         }
     }
- 
+
     void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
     {
         auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
@@ -234,7 +232,7 @@ namespace NET {
         socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
         auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
 
-        context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); }); 
+        context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
         context.IOOperation = IO_OPERATION::IoConnect;
         socket.IOData_.IncrementPendingIO();
 
@@ -310,7 +308,7 @@ namespace NET {
         else {
             auto bytestowrite = context.bufferlen - context.transfered_bytes;
             auto count = 0;
-            if (context.IOOperation == IO_OPERATION::IoRead) { 
+            if (context.IOOperation == IO_OPERATION::IoRead) {
                 count = ::recv(handle.value, context.buffer + context.transfered_bytes, bytestowrite, MSG_NOSIGNAL);
                 if (count <= 0) { // possible error or continue
                     if ((errno != EAGAIN && errno != EINTR) || count == 0) {
@@ -321,7 +319,7 @@ namespace NET {
                     }
                 }
             }
-            else { 
+            else {
                 count = ::send(handle.value, context.buffer + context.transfered_bytes, bytestowrite, MSG_NOSIGNAL);
                 if (count < 0) { // possible error or continue
                     if (errno != EAGAIN && errno != EINTR) {
