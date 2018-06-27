@@ -37,8 +37,8 @@
      <td>MT Echos Per Second</td>
      <td>2X</td>
      <td>2.5X</td>
-     <td>1.9X</td> 
-     <td>1.6X</td> 
+     <td>2X</td>    
+      <td>2X</td>    
     </tr>
       <tr>
      <td>ST Bulk Transfer Bytes Per Second</td>
