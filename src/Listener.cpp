@@ -40,7 +40,7 @@ namespace NET {
                     }
 #else
 
-                    auto handle = ::accept4(AcceptSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
+                    auto handle = ::accept4(ListenSocket.Handle().value, NULL, NULL, SOCK_NONBLOCK);
                     if (handle != INVALID_SOCKET) {
                         PlatformSocket s(handle);
                         epoll_event ev = {0};
