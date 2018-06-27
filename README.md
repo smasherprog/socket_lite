@@ -21,31 +21,31 @@
   <tbody>
      <tr>
      <td>ST Connections Per Second</td>
-      <td>200%(2X):fire:</td>
-      <td>200%(2X):fire:</td>
-      <td>200%(2X):fire:</td>
-      <td>200%(2X):fire:</td>
+      <td>200%(2X)</td>
+      <td>200%(2X)</td>
+      <td>200%(2X)</td>
+      <td>200%(2X)</td>
     </tr>
   <tr>
      <td>ST Echos Per Second</td>
-     <td>175%(1.75X):fire:</td> 
-     <td>175%(1.75X):fire:</td> 
-     <td></td>     
-   <td></td>  
+     <td>175%(1.75X)</td> 
+     <td>175%(1.75X)</td> 
+     <td>150%(1.5X)</td>    
+     <td>175%(1.75X)</td> 
     </tr>
    <tr>
      <td>MT Echos Per Second</td>
-     <td>200%%(2X):fire:</td> 
-     <td>248%(2.5X):fire:</td>
-     <td></td>  
-      <td></td>  
+     <td>200%%(2X)</td> 
+     <td>248%(2.5X)</td>
+     <td>190%%(1.9X)</td> 
+     <td>160%%(1.6X)</td> 
     </tr>
       <tr>
      <td>ST Bulk Transfer Bytes Per Second</td>
      <td>0% (Usually equal)</td>
      <td>0% (Usually equal)</td>
-     <td>0% (Usually equal)</td>
-    <td>0% (Usually equal)</td>
+     <td>150%(1.5X)</td>    
+      <td>150%(1.5X)</td>    
     </tr>
 </tbody>
 </table>
