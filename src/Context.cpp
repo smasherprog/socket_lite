@@ -155,7 +155,7 @@ namespace NET {
 
                     for (auto i = 0; i < count; i++) {
                         if (epollevents[i].data.fd != EventWakeFd && epollevents[i].data.fd != EventFd) {
-                            auto socketclosed = (epollevents[i].events & EPOLLERR) || (epollevents[i].events & EPOLLHUP) && KeepGoing_;
+                            auto socketclosed =( (epollevents[i].events & EPOLLERR) || (epollevents[i].events & EPOLLHUP) )&& KeepGoing_;
 
                             SocketHandle handle(epollevents[i].data.fd);
 
