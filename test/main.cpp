@@ -36,14 +36,7 @@ int main()
             std::this_thread::sleep_for(200ms);
         }
     });
-
-    myconnectiontest::myconnectiontest();
-    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0; 
-
-    asioconnectiontest::connectiontest();
-    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0;
+ 
     asiotest::asioechotest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
