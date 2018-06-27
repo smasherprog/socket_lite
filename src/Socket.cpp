@@ -85,10 +85,15 @@ namespace NET {
             }
         }
         else {
+            static int counter = 0; 
             ReadContext_.transfered_bytes = count;
-            IOData_.wakeupReadfd(handle.value);
-        }
-
+            if (counter++ % 4) {
+                return completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
+            }
+            else {
+                IOData_.wakeupReadfd(handle.value);
+            } 
+        } 
 #endif
     }
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
@@ -138,9 +143,13 @@ namespace NET {
             }
         }
         else {
-
-            WriteContext_.transfered_bytes = count;
-            IOData_.wakeupWritefd(handle.value);
+            static int counter = 0; 
+            if (counter++ % 4) {
+                return completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
+            }
+            else {  
+                IOData_.wakeupWritefd(handle.value);
+            }
         }
 
 #endif
