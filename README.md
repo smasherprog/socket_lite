@@ -12,22 +12,24 @@
  <thead>
    <tr>
      <th></th>
-     <th>Windows Socket Lite DEBUG</th> 
-     <th>Windows Socket Lite RELEASE</th> 
-     <th>Linux ASIO</th>
+     <th>Windows Debug</th> 
+     <th>Windows Release</th> 
+     <th>Linux Debug</th>
+     <th>Linux Release</th>
    </tr>
   </thead>
   <tbody>
      <tr>
      <td>ST Connections Per Second</td>
-      <td>1000%(10X):fire:</td>
-      <td>1000%(10X):fire:</td>
-      <td></td>  
+      <td>200%(2X):fire:</td>
+      <td>200%(2X):fire:</td>
+      <td>200%(2X):fire:</td>
+      <td>200%(2X):fire:</td>
     </tr>
   <tr>
      <td>ST Echos Per Second</td>
-     <td>174%(1.7X):fire:</td> 
-     <td>0% (Usually equal)</td>
+     <td>175%(1.75X):fire:</td> 
+     <td>175%(1.75X):fire:</td> 
      <td></td>     
    <td></td>  
     </tr>
@@ -36,14 +38,14 @@
      <td>200%%(2X):fire:</td> 
      <td>248%(2.5X):fire:</td>
      <td></td>  
-       <td></td>  
+      <td></td>  
     </tr>
       <tr>
      <td>ST Bulk Transfer Bytes Per Second</td>
      <td>0% (Usually equal)</td>
      <td>0% (Usually equal)</td>
-     <td></td>  
-     <td></td>  
+     <td>0% (Usually equal)</td>
+    <td>0% (Usually equal)</td>
     </tr>
 </tbody>
 </table>
