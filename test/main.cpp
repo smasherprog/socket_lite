@@ -8,7 +8,7 @@
 #include "asio_transfertest.h"
 #include "cpumem_monitor.h"
 #include "my_connectiontest.h"
-#include "my_echotest.h"
+#include "my_echotest.h" 
 #include "my_multithreadedecho.h"
 #include "my_transfertest.h"
 #include <chrono>
@@ -20,6 +20,8 @@ using namespace std::chrono_literals;
 int main()
 {
     std::cout << "Starting Network Benchmarks\n";
+    std::cout << std::fixed;
+    std::cout << std::setprecision(2);
     std::srand(std::time(nullptr));
     bool startwatching = true;
     float totalusage = 0.0f;
@@ -36,10 +38,9 @@ int main()
     });
 
     myconnectiontest::myconnectiontest();
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0;
+    counts = totalusage = 0; 
+
     asioconnectiontest::connectiontest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;

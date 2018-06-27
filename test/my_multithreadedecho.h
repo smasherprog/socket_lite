@@ -18,21 +18,19 @@ void myechotest()
     myechomodels::writeechos = 0;
     myechomodels::keepgoing = true;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    SL::NET::Context iocontext(SL::NET::ThreadCount(4));
-
-
-    SL::NET::Listener Listener(iocontext, 
-        myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
-        [](SL::NET::Socket socket) {
-        if (myechomodels::keepgoing) {
-            auto s = std::make_shared<myechomodels::session>(std::move(socket));
-            s->do_read();
-            s->do_write(); 
-        }
-    }); 
-    myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
-    myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
-    myechomodels::asioclient c2(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
+    auto iocontext = SL::NET::createContext(SL::NET::ThreadCount(4))
+                         ->AddListener(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
+                                       [](SL::NET::Socket socket) {
+                                           if (myechomodels::keepgoing) {
+                                               auto s = std::make_shared<myechomodels::session>(std::move(socket));
+                                               s->do_read();
+                                               s->do_write();
+                                           }
+                                       })
+                         ->run();
+    myechomodels::asioclient c(*iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
+    myechomodels::asioclient c1(*iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
+    myechomodels::asioclient c2(*iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
     c.do_connect();
     c1.do_connect();
     c2.do_connect();

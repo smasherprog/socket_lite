@@ -26,6 +26,8 @@ typedef socklen_t SOCKLEN_T;
 namespace SL {
 namespace NET {
 
+ 
+
     const unsigned char *SocketAddress::getSocketAddr() const { return SocketImpl; }
     int SocketAddress::getSocketAddrLen() const { return SocketImplLen; }
     const std::string &SocketAddress::getHost() const { return Host; }

@@ -1,9 +1,11 @@
-
+#include "Internal/Context.h"
 #include "Socket_Lite.h"
 #include "defs.h"
 #include <assert.h>
 #include <type_traits>
 #include <variant>
+
+
 
 #if _WIN32
 #include <Ws2ipdef.h>
@@ -16,27 +18,48 @@
 
 namespace SL {
 namespace NET {
-    void completeio(Win_IO_Context &context, ContextImpl &iodata, StatusCode code, size_t bytes)
+    void completeio(RW_Context &context, Context &iodata, StatusCode code, size_t bytes)
     {
         if (auto h(context.getCompletionHandler()); h) {
             iodata.DecrementPendingIO();
             h(code, bytes);
         }
     }
-    Socket::Socket(ContextImpl &c) : IOData_(c) {}
-    Socket::Socket(ContextImpl &c, PlatformSocket &&p) : Socket(c)
+    StatusCode BindSocket(SOCKET sock, AddressFamily family)
+    {
+
+        if (family == AddressFamily::IPV4) {
+            sockaddr_in bindaddr = {0};
+            bindaddr.sin_family = AF_INET;
+            bindaddr.sin_addr.s_addr = INADDR_ANY;
+            bindaddr.sin_port = 0;
+            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
+                return TranslateError();
+            }
+        }
+        else {
+            sockaddr_in6 bindaddr = {0};
+            bindaddr.sin6_family = AF_INET6;
+            bindaddr.sin6_addr = in6addr_any;
+            bindaddr.sin6_port = 0;
+            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
+                return TranslateError();
+            }
+        }
+        return StatusCode::SC_SUCCESS;
+    }
+    Socket::Socket(Context &c) : IOData_(c) {}
+    Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c)
     {
         PlatformSocket_ = std::move(p);
         IOData_.RegisterSocket(PlatformSocket_.Handle());
     }
-    Socket::Socket(Context &c, PlatformSocket &&p) : Socket(*c.ContextImpl_, std::move(p)) {}
-    Socket::Socket(Context &c) : Socket(*c.ContextImpl_) {}
     Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
     Socket::~Socket()
     {
         IOData_.DeregisterSocket(PlatformSocket_.Handle());
         PlatformSocket_.close();
-    }
+    } 
     void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
@@ -145,7 +168,7 @@ namespace NET {
 #endif
     }
 #if _WIN32
-    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
+    void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
         if (!success) {
             completeio(context, iodata, TranslateError(), 0);
@@ -173,37 +196,16 @@ namespace NET {
             }
         }
     }
-    void continue_connect(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
+    void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
-        if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+        if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) ==0) {
             completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
         }
         else {
             completeio(context, iodata, TranslateError(), 0);
         }
     }
-    StatusCode BindSocket(SOCKET sock, AddressFamily family)
-    {
-        if (family == AddressFamily::IPV4) {
-            sockaddr_in bindaddr = {0};
-            bindaddr.sin_family = AF_INET;
-            bindaddr.sin_addr.s_addr = INADDR_ANY;
-            bindaddr.sin_port = 0;
-            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
-                return TranslateError();
-            }
-        }
-        else {
-            sockaddr_in6 bindaddr = {0};
-            bindaddr.sin6_family = AF_INET6;
-            bindaddr.sin6_addr = in6addr_any;
-            bindaddr.sin6_port = 0;
-            if (::bind(sock, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
-                return TranslateError();
-            }
-        }
-        return StatusCode::SC_SUCCESS;
-    }
+ 
     void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
     {
         auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
@@ -222,7 +224,7 @@ namespace NET {
         socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
         auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
 
-        context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
+        context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); }); 
         context.IOOperation = IO_OPERATION::IoConnect;
         socket.IOData_.IncrementPendingIO();
 
@@ -277,7 +279,7 @@ namespace NET {
         }
     }
 
-    void continue_connect(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &)
+    void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &)
     {
         if (success) {
             completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
@@ -286,7 +288,7 @@ namespace NET {
             completeio(context, iodata, StatusCode::SC_CLOSED, 0);
         }
     }
-    void continue_io(bool success, Win_IO_Context &context, ContextImpl &iodata, const SocketHandle &handle)
+    void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
 
         if (!success) {

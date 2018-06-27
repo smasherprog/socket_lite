@@ -27,7 +27,7 @@ class session : public std::enable_shared_from_this<session> {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             }
-        }); 
+        });
     }
     void do_write()
     {
@@ -37,11 +37,11 @@ class session : public std::enable_shared_from_this<session> {
                 writeechos += 1.0;
                 self->do_write();
             }
-        }); 
+        });
     }
     SL::NET::Socket socket_;
 };
-  
+
 class asioclient {
   public:
     asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::SocketAddress> &endpoints) : Addresses(endpoints)
@@ -72,18 +72,15 @@ void mytransfertest()
     writeechos = 0.0;
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
-    SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    
-    SL::NET::Listener Listener(iocontext, 
-        myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
-        [](SL::NET::Socket socket) {
-         std::make_shared<session>(std::move(socket))->do_read();
-    });
-     
+    auto iocontext = SL::NET::createContext(SL::NET::ThreadCount(1))
+                         ->AddListener(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
+                                       [](SL::NET::Socket socket) { std::make_shared<session>(std::move(socket))->do_read(); })
+                         ->run();
+
     std::vector<SL::NET::SocketAddress> addresses;
     addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
 
-    auto c = std::make_shared<asioclient>(iocontext, addresses);
+    auto c = std::make_shared<asioclient>(*iocontext, addresses);
     c->do_connect();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;

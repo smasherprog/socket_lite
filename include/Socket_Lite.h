@@ -161,61 +161,36 @@ namespace NET {
         StatusCode bind(const SocketAddress &addr);
     };
     // forward declares
-    class ContextImpl;
     class Context;
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
-        ContextImpl &IOData_;
+        Context &IOData_;
 
       public:
-        Socket(ContextImpl &, PlatformSocket &&);
         Socket(Context &, PlatformSocket &&);
         Socket(Socket &&);
         Socket(Context &);
-        Socket(ContextImpl &);
         ~Socket();
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         void close();
         void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
         void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        friend class ContextImpl;
+        friend class Context;
         friend void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler);
     };
-    class SOCKET_LITE_EXTERN Context {
-      protected:
-        ContextImpl *ContextImpl_;
 
-      public:
-        Context(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
-        ~Context();
-        Context(const Context &) = delete;
-        Context(Context &&) = delete;
-        Context &operator=(Context &) = delete;
-
-        friend class Listener;
-        friend class Socket;
-    };
-    class SOCKET_LITE_EXTERN Listener {
-      protected:
-        ContextImpl &ContextImpl_;
-        PlatformSocket AcceptSocket;
-        std::function<void(Socket)> AcceptHandler;
-        std::thread Runner;
-        bool Keepgoing;
-
-      public:
-        Listener(Context &c, PlatformSocket &&acceptsocket, std::function<void(Socket)> &&accepthandler);
-        ~Listener();
-        Listener() = delete;
-        Listener(const Listener &) = delete;
-        Listener(Listener &&) = delete;
-        Listener &operator=(Listener &) = delete;
-    };
     [[nodiscard]] std::vector<SL::NET::SocketAddress> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port,
                                                                                      AddressFamily family = AddressFamily::IPANY);
 
     void SOCKET_LITE_EXTERN connect_async(Socket &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode)> &&);
+
+    class SOCKET_LITE_EXTERN INetworkConfig {
+      public:
+        virtual std::shared_ptr<INetworkConfig> AddListener(PlatformSocket &&, std::function<void(Socket)> &&) = 0;
+        virtual std::shared_ptr<Context> run() = 0;
+    };
+    std::shared_ptr<INetworkConfig> SOCKET_LITE_EXTERN createContext(ThreadCount threadcount = ThreadCount(std::thread::hardware_concurrency()));
 
 } // namespace NET
 } // namespace SL
