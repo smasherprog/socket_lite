@@ -39,8 +39,7 @@ int main()
 
     myconnectiontest::myconnectiontest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0; 
-
+    counts = totalusage = 0;  
     asioconnectiontest::connectiontest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;

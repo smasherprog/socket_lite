@@ -161,8 +161,8 @@ namespace NET {
 
         StatusCode listen(int backlog);
         StatusCode bind(const SocketAddress &addr);
-        std::tuple<StatusCode, int> send(unsigned char *buf, int len, int flags);
-        std::tuple<StatusCode, int> recv(unsigned char *buf, int len, int flags);
+        std::tuple<StatusCode, size_t> send(unsigned char *buf, size_t len, int flags);
+        std::tuple<StatusCode, size_t> recv(unsigned char *buf, size_t len, int flags);
     };
     // forward declares
     class Context;
@@ -170,9 +170,9 @@ namespace NET {
       protected:
         PlatformSocket PlatformSocket_;
         Context &IOData_;
-        void recv_success(size_t , unsigned char *, std::function<void(StatusCode, size_t)> &&, int);
+        void recv_success(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&, size_t);
         void recv_continue(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&);
-        void send_success(size_t , unsigned char *, std::function<void(StatusCode, size_t)> &&, int);
+        void send_success(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&, size_t);
         void send_continue(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&);
 
       public:

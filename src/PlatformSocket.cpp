@@ -114,9 +114,10 @@ namespace NET {
         }
     }
 
-    std::tuple<StatusCode, int> PlatformSocket::send(unsigned char *buf, int len, int flags) {
+    std::tuple<StatusCode, size_t> PlatformSocket::send(unsigned char *buf, size_t len, int flags)
+    {
 #if _WIN32
-        auto count = ::send(Handle_.value, (char *)buf, len, flags);
+        auto count = ::send(Handle_.value, (char *)buf, static_cast<int>(len), flags);
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
                 return std::tuple(TranslateError(&er), 0);
@@ -129,7 +130,7 @@ namespace NET {
             return std::tuple(StatusCode::SC_SUCCESS, count);
         }
 #else
-        auto count = ::send(Handle_.value, buf, len, flags | MSG_NOSIGNAL);
+        auto count = ::send(Handle_.value, buf, static_cast<int>(len), flags | MSG_NOSIGNAL);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
                 return std::tuple(TranslateError(), 0);
@@ -145,10 +146,10 @@ namespace NET {
     
     
     }
-    std::tuple<StatusCode, int> PlatformSocket::recv(unsigned char *buf, int len, int flags)
+    std::tuple<StatusCode, size_t> PlatformSocket::recv(unsigned char *buf, size_t len, int flags)
     {
 #if _WIN32
-        auto count = ::recv(Handle_.value, (char *)buf, len, flags);
+        auto count = ::recv(Handle_.value, (char *)buf, static_cast<int>(len), flags);
         if (count <= 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
                 return std::tuple(TranslateError(&er), 0);
@@ -161,7 +162,7 @@ namespace NET {
             return std::tuple(StatusCode::SC_SUCCESS, count);
         }
 #else
-        auto count = ::recv(Handle_.value,  buf, len, flags | MSG_NOSIGNAL);
+        auto count = ::recv(Handle_.value, buf, static_cast<int>(len), flags | MSG_NOSIGNAL);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                 return std::tuple(TranslateError(), 0);

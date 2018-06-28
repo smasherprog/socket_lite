@@ -50,8 +50,8 @@ namespace NET {
 
       public:
         IO_OPERATION IOOperation = IO_OPERATION::IoNone; 
-        size_t transfered_bytes = 0;
-        size_t bufferlen = 0;
+        int transfered_bytes = 0;
+        int bufferlen = 0;
         unsigned char *buffer = nullptr;
         RW_Context() { clear(); }
         RW_Context(const RW_Context &) { clear(); }

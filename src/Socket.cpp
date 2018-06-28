@@ -28,7 +28,7 @@ namespace NET {
     {
         context.buffer = buffer;
         context.transfered_bytes = 0;
-        context.bufferlen = buffer_size;
+        context.bufferlen = static_cast<int>(buffer_size);
         context.setCompletionHandler(std::move(handler));
         context.IOOperation = op;
 #if _WIN32
@@ -51,14 +51,14 @@ namespace NET {
     }
     void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
 
-    void Socket::recv_success(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler, int bytestransfered)
+    void Socket::recv_success(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler, size_t bytestransfered)
     {
         auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_.Handle());
         setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
 #if _WIN32
         PostQueuedCompletionStatus(IOData_.getIOHandle(), bytestransfered, PlatformSocket_.Handle().value, &(ReadContext_.Overlapped));
 #else
-        ReadContext_.transfered_bytes = bytestransfered;
+        ReadContext_.transfered_bytes = static_cast<int>( bytestransfered);
         IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
 #endif
     }
@@ -67,14 +67,14 @@ namespace NET {
         setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler)); 
         continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
     }
-    void Socket::send_success(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler, int bytestransfered)
+    void Socket::send_success(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler, size_t bytestransfered)
     {
         auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
         setup(WriteContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
 #if _WIN32
         PostQueuedCompletionStatus(IOData_.getIOHandle(), bytestransfered, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
 #else
-        WriteContext_.transfered_bytes = bytestransfered;
+        WriteContext_.transfered_bytes = static_cast<int>(bytestransfered);
         IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
 #endif
     }
