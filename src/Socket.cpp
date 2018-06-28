@@ -23,11 +23,6 @@ namespace NET {
             h(code, bytes);
         }
     }
-    void completeio(std::function<void(StatusCode, size_t)> &h, Context &iodata, StatusCode code, size_t bytes)
-    {
-        iodata.DecrementPendingIO();
-        h(code, bytes);
-    }
 
     template <class FUNC> void setup(RW_Context &context, Context &iodata, IO_OPERATION op, size_t buffer_size, unsigned char *buffer, FUNC &&handler)
     {
@@ -62,7 +57,7 @@ namespace NET {
         if (count <= 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
                 // error.. get out!
-                completeio(handler, IOData_, TranslateError(), 0);
+                handler(TranslateError(), 0); 
             }
             else {
                 // try again later
@@ -78,7 +73,7 @@ namespace NET {
             if (counter % 4 != 0) {
                 if (count == buffer_size) {
                     // execute callback meow!
-                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
+                    handler(StatusCode::SC_SUCCESS, count);  
                 }
                 else {
                     auto &ReadContext_ = IOData_.getReadContext(handle);
@@ -101,7 +96,7 @@ namespace NET {
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                 // error.. get out!
-                completeio(handler, IOData_, TranslateError(), 0);
+                handler(TranslateError(), 0); 
             }
             epoll_event ev = {0};
             ev.data.fd = handle.value;
@@ -118,7 +113,7 @@ namespace NET {
             if (counter % 4 != 0) {
                 if (count == buffer_size) {
                     // execute callback meow!
-                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
+                    handler(StatusCode::SC_SUCCESS, count);  
                 }
                 else {
                     auto &ReadContext_ = IOData_.getReadContext(handle); 
@@ -144,7 +139,7 @@ namespace NET {
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
                 // error.. get out!
-                completeio(handler, IOData_, TranslateError(), 0);
+                handler(TranslateError(), 0); 
             }
             else {
                 // try again later
@@ -160,7 +155,7 @@ namespace NET {
             if (counter % 4 != 0) {
                 if (count == buffer_size) {
                     // execute callback meow!
-                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
+                    handler(StatusCode::SC_SUCCESS, count); 
                 }
                 else {
                     auto &WriteContext_ = IOData_.getWriteContext(handle);
@@ -182,7 +177,7 @@ namespace NET {
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
                 // error.. get out!
-                completeio(handler, IOData_, TranslateError(), 0);
+                handler(TranslateError(), 0); 
             }
 
             epoll_event ev = {0};
@@ -200,7 +195,7 @@ namespace NET {
             if (counter % 4 != 0) {
                 if (count == buffer_size) {
                     // execute callback meow!
-                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
+                    handler(StatusCode::SC_SUCCESS, count); 
                 }
                 else {
                     auto &WriteContext_ = IOData_.getWriteContext(handle);
