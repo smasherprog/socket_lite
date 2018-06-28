@@ -114,7 +114,7 @@ namespace NET {
         }
     }
 
-    std::tuple<StatusCode, size_t> PlatformSocket::send(unsigned char *buf, size_t len, int flags)
+    std::tuple<StatusCode, int> PlatformSocket::send(unsigned char *buf, int len, int flags)
     {
 #if _WIN32
         auto count = ::send(Handle_.value, (char *)buf, static_cast<int>(len), flags);
@@ -143,10 +143,8 @@ namespace NET {
             return std::tuple(StatusCode::SC_SUCCESS, count);
         }
 #endif
-    
-    
     }
-    std::tuple<StatusCode, size_t> PlatformSocket::recv(unsigned char *buf, size_t len, int flags)
+    std::tuple<StatusCode, int> PlatformSocket::recv(unsigned char *buf, int len, int flags)
     {
 #if _WIN32
         auto count = ::recv(Handle_.value, (char *)buf, static_cast<int>(len), flags);

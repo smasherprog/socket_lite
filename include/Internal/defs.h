@@ -45,27 +45,27 @@ namespace NET {
         WSAOVERLAPPED Overlapped = {0};
 #endif
       private:
-        std::function<void(StatusCode, size_t)> completionhandler;
+        std::function<void(StatusCode, int)> completionhandler;
         std::atomic<int> Completion;
 
       public:
-        IO_OPERATION IOOperation = IO_OPERATION::IoNone; 
+        IO_OPERATION IOOperation = IO_OPERATION::IoNone;
         int transfered_bytes = 0;
         int bufferlen = 0;
         unsigned char *buffer = nullptr;
         RW_Context() { clear(); }
         RW_Context(const RW_Context &) { clear(); }
-        void setCompletionHandler(std::function<void(StatusCode, size_t)> &&c)
+        void setCompletionHandler(std::function<void(StatusCode, int)> &&c)
         {
             completionhandler = std::move(c);
             Completion = 1;
         }
-        std::function<void(StatusCode, size_t)> getCompletionHandler()
+        std::function<void(StatusCode, int)> getCompletionHandler()
         {
             if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
                 return std::move(completionhandler);
             }
-            std::function<void(StatusCode, size_t)> t;
+            std::function<void(StatusCode, int)> t;
             return t;
         }
         void clear()
@@ -76,10 +76,9 @@ namespace NET {
             completionhandler = nullptr;
         }
     };
-    void completeio(RW_Context &context, Context &iodata, StatusCode code, size_t bytes);
+    void completeio(RW_Context &context, Context &iodata, StatusCode code, int bytes);
     void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
-    void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle); 
-
+    void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
 
     class NetworkConfig : public INetworkConfig, public std::enable_shared_from_this<NetworkConfig> {
         std::shared_ptr<Context> Context_;
@@ -88,7 +87,7 @@ namespace NET {
         NetworkConfig(std::shared_ptr<Context> &&l) : Context_(std::move(l)) {}
         virtual std::shared_ptr<INetworkConfig> AddListener(PlatformSocket &&, std::function<void(Socket)> &&) override;
         virtual std::shared_ptr<Context> run() override;
-    }; 
+    };
 
 } // namespace NET
 } // namespace SL

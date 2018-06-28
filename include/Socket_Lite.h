@@ -161,8 +161,8 @@ namespace NET {
 
         StatusCode listen(int backlog);
         StatusCode bind(const SocketAddress &addr);
-        std::tuple<StatusCode, size_t> send(unsigned char *buf, size_t len, int flags);
-        std::tuple<StatusCode, size_t> recv(unsigned char *buf, size_t len, int flags);
+        std::tuple<StatusCode, int> send(unsigned char *buf, int len, int flags);
+        std::tuple<StatusCode, int> recv(unsigned char *buf, int len, int flags);
     };
     // forward declares
     class Context;
@@ -170,10 +170,10 @@ namespace NET {
       protected:
         PlatformSocket PlatformSocket_;
         Context &IOData_;
-        void recv_success(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&, size_t);
-        void recv_continue(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&);
-        void send_success(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&, size_t);
-        void send_continue(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&);
+        void recv_success(int, unsigned char *, std::function<void(StatusCode, int)> &&, int);
+        void recv_continue(int, unsigned char *, std::function<void(StatusCode, int)> &&);
+        void send_success(int, unsigned char *, std::function<void(StatusCode, int)> &&, int);
+        void send_continue(int, unsigned char *, std::function<void(StatusCode, int)> &&);
 
       public:
         Socket(Context &, PlatformSocket &&);
@@ -182,7 +182,8 @@ namespace NET {
         ~Socket();
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         void close();
-        template <class FUNC> void recv_async(size_t buffer_size, unsigned char *buffer, FUNC &&handler) { 
+        template <class FUNC> void recv_async(int buffer_size, unsigned char *buffer, FUNC &&handler)
+        {
             auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
             if (code == StatusCode::SC_SUCCESS) {
                 static int counter = 0;
@@ -199,9 +200,9 @@ namespace NET {
             }
             recv_continue(buffer_size, buffer, std::move(handler));
         }
-        template <class FUNC> void send_async(size_t buffer_size, unsigned char *buffer, FUNC &&handler)
-        {  
-             auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
+        template <class FUNC> void send_async(int buffer_size, unsigned char *buffer, FUNC &&handler)
+        {
+            auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
             if (code == StatusCode::SC_SUCCESS) {
                 static int counter = 0;
                 if (counter++ % 4 != 0 && bytes == buffer_size) {
