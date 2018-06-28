@@ -68,21 +68,29 @@ namespace NET {
     Context::~Context()
     {
         stop();
-        Listeners.clear(); 
-        for (auto &rcts : ReadContexts) {
-            completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
-        }
-        for (auto &rcts : WriteContexts) {
-            completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
-        }
+        Listeners.clear();
 #ifndef _WIN32
         while (getPendingIO() > 0) {
-            std::this_thread::sleep_for(10ms);
+
+            for (auto &rcts : ReadContexts) {
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+            }
+            for (auto &rcts : WriteContexts) {
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+            }
+            std::this_thread::sleep_for(100ms);
             wakeup();
         }
 #else
         while (getPendingIO() > 0) {
-            std::this_thread::sleep_for(10ms);
+
+            for (auto &rcts : ReadContexts) {
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+            }
+            for (auto &rcts : WriteContexts) {
+                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+            }
+            std::this_thread::sleep_for(100ms);
         }
 #endif
 
@@ -105,7 +113,7 @@ namespace NET {
 #endif
     }
     void Context::run()
-    { 
+    {
 #if _WIN32
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
             Threads.emplace_back(std::thread([&] {
@@ -130,7 +138,7 @@ namespace NET {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
                         continue_io(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
-                        break; 
+                        break;
                     case IO_OPERATION::IoConnect:
                         continue_connect(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
                         break;
@@ -155,7 +163,7 @@ namespace NET {
 
                     for (auto i = 0; i < count; i++) {
                         if (epollevents[i].data.fd != EventWakeFd && epollevents[i].data.fd != EventFd) {
-                            auto socketclosed =( (epollevents[i].events & EPOLLERR) || (epollevents[i].events & EPOLLHUP) )&& KeepGoing_;
+                            auto socketclosed = ((epollevents[i].events & EPOLLERR) || (epollevents[i].events & EPOLLHUP)) && KeepGoing_;
 
                             SocketHandle handle(epollevents[i].data.fd);
 
