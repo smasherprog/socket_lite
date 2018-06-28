@@ -170,6 +170,10 @@ namespace NET {
       protected:
         PlatformSocket PlatformSocket_;
         Context &IOData_;
+        void recv_success(size_t , unsigned char *, std::function<void(StatusCode, size_t)> &&, int);
+        void recv_continue(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&);
+        void send_success(size_t , unsigned char *, std::function<void(StatusCode, size_t)> &&, int);
+        void send_continue(size_t, unsigned char *, std::function<void(StatusCode, size_t)> &&);
 
       public:
         Socket(Context &, PlatformSocket &&);
@@ -178,8 +182,41 @@ namespace NET {
         ~Socket();
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
         void close();
-        void recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
-        void send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler);
+        template <class FUNC> void recv_async(size_t buffer_size, unsigned char *buffer, FUNC &&handler) { 
+            auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
+            if (code == StatusCode::SC_SUCCESS) {
+                static int counter = 0;
+                if (counter++ % 4 != 0 && bytes == buffer_size) {
+                    // execute callback meow!
+                    return handler(StatusCode::SC_SUCCESS, bytes);
+                }
+                else {
+                    return recv_success(buffer_size, buffer, std::move(handler), bytes);
+                }
+            }
+            else if (code == StatusCode::SC_CLOSED) {
+                return handler(code, 0);
+            }
+            recv_continue(buffer_size, buffer, std::move(handler));
+        }
+        template <class FUNC> void send_async(size_t buffer_size, unsigned char *buffer, FUNC &&handler)
+        {  
+             auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
+            if (code == StatusCode::SC_SUCCESS) {
+                static int counter = 0;
+                if (counter++ % 4 != 0 && bytes == buffer_size) {
+                    // execute callback meow!
+                    return handler(StatusCode::SC_SUCCESS, bytes);
+                }
+                else {
+                    return send_success(buffer_size, buffer, std::move(handler), bytes);
+                }
+            }
+            else if (code == StatusCode::SC_CLOSED) {
+                return handler(code, 0);
+            }
+            send_continue(buffer_size, buffer, std::move(handler));
+        }
         friend class Context;
         friend void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler);
     };

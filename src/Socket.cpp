@@ -50,64 +50,41 @@ namespace NET {
         PlatformSocket_.close();
     }
     void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
-    void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+
+    void Socket::recv_success(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler, int bytessent)
     {
-        auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
-        if (code == StatusCode::SC_SUCCESS) {
-            static int counter = 0;
-            if (counter++ % 4 != 0 && bytes == buffer_size) {
-                // execute callback meow!
-                return handler(StatusCode::SC_SUCCESS, bytes);
-            }
-            else {
-                auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_.Handle());
-                setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
-#if _WIN32
-                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(ReadContext_.Overlapped));
-#else
-                ReadContext_.transfered_bytes = bytes;
-                IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
-#endif 
-                return;
-            }
-        }
-        else if (code == StatusCode::SC_CLOSED) {
-            return handler(code, 0);
-        }
         auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_.Handle());
         setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
+#if _WIN32
+        PostQueuedCompletionStatus(IOData_.getIOHandle(), bytessent, PlatformSocket_.Handle().value, &(ReadContext_.Overlapped));
+#else
         ReadContext_.transfered_bytes = bytes;
+        IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
+#endif
+    }
+    void Socket::recv_continue(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler) {
+        auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_.Handle());
+        setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler)); 
         continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
     }
-    void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    void Socket::send_success(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler, int bytessent)
     {
-        auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
-        if (code == StatusCode::SC_SUCCESS) {
-            static int counter = 0;
-            if (counter++ % 4 != 0 && bytes == buffer_size) {
-                // execute callback meow!
-                return handler(StatusCode::SC_SUCCESS, bytes);
-            }
-            else {
-                auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-                setup(WriteContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler)); 
-#if _WIN32
-                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
-#else
-                WriteContext_.transfered_bytes = bytes;
-                IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
-#endif
-                return;
-            }
-        }
-        else if (code == StatusCode::SC_CLOSED) {
-            return handler(code, 0);
-        }
         auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-        setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
+        setup(WriteContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
+#if _WIN32
+        PostQueuedCompletionStatus(IOData_.getIOHandle(), bytessent, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
+#else
         WriteContext_.transfered_bytes = bytes;
+        IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
+#endif
+    }
+    void Socket::send_continue(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
+    {
+        auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
+        setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler)); 
         continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
     }
+ 
 #if _WIN32
     StatusCode BindSocket(SOCKET sock, AddressFamily family)
     {
