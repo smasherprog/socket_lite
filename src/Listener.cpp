@@ -74,6 +74,8 @@ namespace NET {
 
     std::shared_ptr<INetworkConfig> NetworkConfig::AddListener(PlatformSocket &&acceptsocket, std::function<void(Socket)> &&accepthandler)
     {
+        assert(acceptsocket);
+        assert(accepthandler);
         Context_->RegisterListener(std::make_shared<Listener>(*Context_, std::move(acceptsocket), std::move(accepthandler)));
         return shared_from_this();
     }

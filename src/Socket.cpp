@@ -23,6 +23,21 @@ namespace NET {
             h(code, bytes);
         }
     }
+    void completeio(std::function<void(StatusCode, size_t)> &h, Context &iodata, StatusCode code, size_t bytes)
+    {
+        iodata.DecrementPendingIO();
+        h(code, bytes);
+    }
+
+    template <class FUNC> void setup(RW_Context &context, Context &iodata, IO_OPERATION op, size_t buffer_size, unsigned char *buffer, FUNC &&handler)
+    {
+        context.buffer = buffer;
+        context.transfered_bytes = 0;
+        context.bufferlen = buffer_size;
+        context.setCompletionHandler(std::move(handler));
+        context.IOOperation = op;
+        iodata.IncrementPendingIO();
+    }
 
     Socket::Socket(Context &c) : IOData_(c) {}
     Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c)
@@ -40,27 +55,20 @@ namespace NET {
     void Socket::recv_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         auto handle = PlatformSocket_.Handle();
-        if (handle.value == INVALID_SOCKET) {
-            return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
-        }
-
-        auto &ReadContext_ = IOData_.getReadContext(handle);
-
-        ReadContext_.buffer = buffer;
-        ReadContext_.transfered_bytes = 0;
-        ReadContext_.bufferlen = buffer_size;
-        ReadContext_.setCompletionHandler(std::move(handler));
-        ReadContext_.IOOperation = IO_OPERATION::IoRead;
-        IOData_.IncrementPendingIO();
 #if _WIN32
-        ReadContext_.Overlapped = {0};
+
         // continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
         auto count = ::recv(handle.value, (char *)buffer, buffer_size, 0);
         if (count <= 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                completeio(ReadContext_, IOData_, TranslateError(), 0);
+                // error.. get out!
+                completeio(handler, IOData_, TranslateError(), 0);
             }
             else {
+                // try again later
+                auto &ReadContext_ = IOData_.getReadContext(handle);
+                ReadContext_.Overlapped = {0};
+                setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
                 continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
             }
         }
@@ -68,29 +76,38 @@ namespace NET {
             static int counter = 0;
             counter += 1;
             if (counter % 4 != 0) {
-                ReadContext_.transfered_bytes = count;
-                if (count == ReadContext_.bufferlen) { 
-                    completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
+                if (count == buffer_size) {
+                    // execute callback meow!
+                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
                 }
                 else {
+                    auto &ReadContext_ = IOData_.getReadContext(handle);
+                    ReadContext_.Overlapped = {0};
+                    setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
+                    ReadContext_.transfered_bytes = count;
                     continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
                 }
             }
             else {
+                auto &ReadContext_ = IOData_.getReadContext(handle);
+                ReadContext_.Overlapped = {0};
+                setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
                 PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(ReadContext_.Overlapped));
             }
         }
 
 #else
-
         auto count = ::recv(handle.value, buffer, buffer_size, MSG_NOSIGNAL);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                return completeio(ReadContext_, IOData_, TranslateError(), 0);
+                // error.. get out!
+                completeio(handler, IOData_, TranslateError(), 0);
             }
             epoll_event ev = {0};
             ev.data.fd = handle.value;
             ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            auto &ReadContext_ = IOData_.getReadContext(handle); 
+            setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
             if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
                 return completeio(ReadContext_, IOData_, TranslateError(), 0);
             }
@@ -98,11 +115,21 @@ namespace NET {
         else {
             static int counter = 0;
             counter += 1;
-            ReadContext_.transfered_bytes = count;
-            if (counter % 4 != 0 && ReadContext_.transfered_bytes == ReadContext_.bufferlen) {
-                completeio(ReadContext_, IOData_, StatusCode::SC_SUCCESS, count);
-            }
-            else {
+            if (counter % 4 != 0) {
+                if (count == buffer_size) {
+                    // execute callback meow!
+                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
+                }
+                else {
+                    auto &ReadContext_ = IOData_.getReadContext(handle); 
+                    setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
+                    ReadContext_.transfered_bytes = count;
+                    IOData_.wakeupReadfd(handle.value);
+                }
+            }else {
+                auto &ReadContext_ = IOData_.getReadContext(handle); 
+                setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
+                ReadContext_.transfered_bytes = count;
                 IOData_.wakeupReadfd(handle.value);
             }
         }
@@ -111,29 +138,19 @@ namespace NET {
     void Socket::send_async(size_t buffer_size, unsigned char *buffer, std::function<void(StatusCode, size_t)> &&handler)
     {
         auto handle = PlatformSocket_.Handle();
-        if (handle.value == INVALID_SOCKET) {
-            return handler(StatusCode::SC_CLOSED, 0); // socket is closed..
-        }
-
-        auto &WriteContext_ = IOData_.getWriteContext(handle);
-
-        WriteContext_.buffer = buffer;
-        WriteContext_.transfered_bytes = 0;
-        WriteContext_.bufferlen = buffer_size;
-        WriteContext_.setCompletionHandler(std::move(handler));
-        WriteContext_.IOOperation = IO_OPERATION::IoWrite;
-
-        // std::cout<<"write"<<handle.value<<std::endl;
-        IOData_.IncrementPendingIO();
 #if _WIN32
-        WriteContext_.Overlapped = {0};
         // continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
         auto count = ::send(handle.value, (char *)buffer, buffer_size, 0);
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                completeio(WriteContext_, IOData_, TranslateError(), 0);
+                // error.. get out!
+                completeio(handler, IOData_, TranslateError(), 0);
             }
             else {
+                // try again later
+                auto &WriteContext_ = IOData_.getWriteContext(handle);
+                WriteContext_.Overlapped = {0};
+                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
                 continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
             }
         }
@@ -141,15 +158,22 @@ namespace NET {
             static int counter = 0;
             counter += 1;
             if (counter % 4 != 0) {
-                WriteContext_.transfered_bytes = count;
-                if (count == WriteContext_.bufferlen) {
-                    completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
+                if (count == buffer_size) {
+                    // execute callback meow!
+                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
                 }
                 else {
+                    auto &WriteContext_ = IOData_.getWriteContext(handle);
+                    WriteContext_.Overlapped = {0};
+                    setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
+                    WriteContext_.transfered_bytes = count;
                     continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
                 }
             }
             else {
+                auto &WriteContext_ = IOData_.getWriteContext(handle);
+                WriteContext_.Overlapped = {0};
+                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
                 PostQueuedCompletionStatus(IOData_.getIOHandle(), count, handle.value, &(WriteContext_.Overlapped));
             }
         }
@@ -157,12 +181,15 @@ namespace NET {
         auto count = ::send(handle.value, buffer, buffer_size, MSG_NOSIGNAL);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
-                return completeio(WriteContext_, IOData_, TranslateError(), 0);
+                // error.. get out!
+                completeio(handler, IOData_, TranslateError(), 0);
             }
 
             epoll_event ev = {0};
             ev.data.fd = handle.value;
-            ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP; 
+            auto &WriteContext_ = IOData_.getWriteContext(handle); 
+            setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler)); 
             if (epoll_ctl(IOData_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
                 return completeio(WriteContext_, IOData_, TranslateError(), 0);
             }
@@ -170,13 +197,24 @@ namespace NET {
         else {
             static int counter = 0;
             counter += 1;
-            WriteContext_.transfered_bytes = count;
-            if (counter % 4 != 0 && WriteContext_.transfered_bytes == WriteContext_.bufferlen) {
-                completeio(WriteContext_, IOData_, StatusCode::SC_SUCCESS, count);
+            if (counter % 4 != 0) {
+                if (count == buffer_size) {
+                    // execute callback meow!
+                    completeio(handler, IOData_, StatusCode::SC_SUCCESS, count);
+                }
+                else {
+                    auto &WriteContext_ = IOData_.getWriteContext(handle);
+                    setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
+                    WriteContext_.transfered_bytes = count;
+                    IOData_.wakeupWritefd(handle.value);
+                }
             }
             else {
+                auto &WriteContext_ = IOData_.getWriteContext(handle);
+                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
+                WriteContext_.transfered_bytes = count;
                 IOData_.wakeupWritefd(handle.value);
-            }
+            } 
         }
 
 #endif

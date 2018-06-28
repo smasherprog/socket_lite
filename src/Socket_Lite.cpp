@@ -109,7 +109,7 @@ namespace NET {
         default:
             return StatusCode::SC_CLOSED;
         };
-    } // namespace NET
+    }  
 
 } // namespace NET
 } // namespace SL
