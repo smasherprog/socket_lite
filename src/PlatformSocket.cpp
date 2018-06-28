@@ -132,7 +132,7 @@ namespace NET {
         auto count = ::send(Handle_.value, buf, len, flags | MSG_NOSIGNAL);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
-                return std::tuple(TranslateError(&er), 0);
+                return std::tuple(TranslateError(), 0);
             }
             else {
                 return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
@@ -164,7 +164,7 @@ namespace NET {
         auto count = ::recv(Handle_.value,  buf, len, flags | MSG_NOSIGNAL);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                return std::tuple(TranslateError(&er), 0);
+                return std::tuple(TranslateError(), 0);
             }
             else {
                 return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
