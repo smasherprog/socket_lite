@@ -27,8 +27,7 @@ namespace SL {
 namespace NET {
 
     PlatformSocket::PlatformSocket() : Handle_(INVALID_SOCKET) {}
-    PlatformSocket::PlatformSocket(SocketHandle h) : Handle_(h) {
-    }
+    PlatformSocket::PlatformSocket(SocketHandle h) : Handle_(h) {}
     PlatformSocket::PlatformSocket(const AddressFamily &family, Blocking_Options opts) : Handle_(INVALID_SOCKET)
     {
         int typ = SOCK_STREAM;
@@ -44,18 +43,15 @@ namespace NET {
         }
         else {
             Handle_.value = socket(AF_INET6, typ, 0);
-        } 
+        }
 #if _WIN32
 
         if (opts == Blocking_Options::NON_BLOCKING) {
             [[maybe_unused]] auto e = setsockopt(BLOCKINGTag{}, opts);
-        } 
+        }
 #endif
     }
-    PlatformSocket::~PlatformSocket()
-    { 
-        close();
-    }
+    PlatformSocket::~PlatformSocket() { close(); }
     PlatformSocket::PlatformSocket(PlatformSocket &&p) : Handle_(std::move(p.Handle_)) { p.Handle_.value = INVALID_SOCKET; }
 
     PlatformSocket &PlatformSocket::operator=(PlatformSocket &&p)
@@ -72,7 +68,7 @@ namespace NET {
         auto t = Handle_.value;
         Handle_.value = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
-            
+
 #ifdef _WIN32
             closesocket(t);
 #else
@@ -116,7 +112,70 @@ namespace NET {
                 return;
             }
         }
-    } 
+    }
+
+    std::tuple<StatusCode, int> PlatformSocket::send(unsigned char *buf, int len, int flags) {
+#if _WIN32
+        auto count = ::send(Handle_.value, (char *)buf, len, flags);
+        if (count < 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+                return std::tuple(TranslateError(&er), 0);
+            }
+            else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        }
+        else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#else
+        auto count = ::send(Handle_.value, buffer, buffer_size, flags | MSG_NOSIGNAL);
+        if (count < 0) { // possible error or continue
+            if (errno != EAGAIN && errno != EINTR) {
+                return std::tuple(TranslateError(&er), 0);
+            }
+            else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        }
+        else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#endif
+    
+    
+    }
+    std::tuple<StatusCode, int> PlatformSocket::recv(unsigned char *buf, int len, int flags)
+    {
+#if _WIN32
+        auto count = ::recv(Handle_.value, (char *)buf, len, flags);
+        if (count <= 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+                return std::tuple(TranslateError(&er), 0);
+            }
+            else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        }
+        else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#else
+        auto count = ::recv(Handle_.value, (char *)buf, len, flags | MSG_NOSIGNAL);
+        if (count <= 0) { // possible error or continue
+            if ((errno != EAGAIN && errno != EINTR) || count == 0) {
+                return std::tuple(TranslateError(&er), 0);
+            }
+            else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        }
+        else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#endif
+    }
+
     StatusCode PlatformSocket::bind(const SocketAddress &addr)
     {
         if (::bind(Handle_.value, (::sockaddr *)SocketAddr(addr), SocketAddrLen(addr)) == SOCKET_ERROR) {

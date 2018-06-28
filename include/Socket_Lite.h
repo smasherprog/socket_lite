@@ -161,6 +161,8 @@ namespace NET {
 
         StatusCode listen(int backlog);
         StatusCode bind(const SocketAddress &addr);
+        std::tuple<StatusCode, int> send(unsigned char *buf, int len, int flags);
+        std::tuple<StatusCode, int> recv(unsigned char *buf, int len, int flags);
     };
     // forward declares
     class Context;
