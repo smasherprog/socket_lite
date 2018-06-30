@@ -71,7 +71,7 @@ namespace NET {
     void Socket::send_success(int buffer_size, unsigned char *buffer, std::function<void(StatusCode)> &&handler, int bytestransfered)
     {
         auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-        setup(WriteContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
+        setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
 #if _WIN32
         PostQueuedCompletionStatus(IOData_.getIOHandle(), bytestransfered, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
 #else
