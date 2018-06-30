@@ -40,7 +40,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.recv_async(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code, size_t) {
+        socket_.recv_async(sizeof(readecho), (unsigned char *)readecho, [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             }
@@ -50,7 +50,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
-        socket_.send_async(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code, size_t) {
+        socket_.send_async(sizeof(writeecho), (unsigned char *)writeecho, [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();

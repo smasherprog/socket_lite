@@ -73,10 +73,10 @@ namespace NET {
         while (getPendingIO() > 0) {
 
             for (auto &rcts : ReadContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+                completeio(rcts, *this, StatusCode::SC_CLOSED);
             }
             for (auto &rcts : WriteContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+                completeio(rcts, *this, StatusCode::SC_CLOSED);
             }
             std::this_thread::sleep_for(100ms);
             wakeup();
@@ -85,10 +85,10 @@ namespace NET {
         while (getPendingIO() > 0) {
 
             for (auto &rcts : ReadContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+                completeio(rcts, *this, StatusCode::SC_CLOSED);
             }
             for (auto &rcts : WriteContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED, 0);
+                completeio(rcts, *this, StatusCode::SC_CLOSED);
             }
             std::this_thread::sleep_for(100ms);
         }
@@ -133,8 +133,9 @@ namespace NET {
 
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
-                        overlapped->transfered_bytes += numberofbytestransfered;
-                        if (numberofbytestransfered == 0 && overlapped->bufferlen != 0 && bSuccess) {
+                        overlapped->remaining_bytes -= numberofbytestransfered;
+                        overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
+                        if (numberofbytestransfered == 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                         }
                         continue_io(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
@@ -266,8 +267,8 @@ namespace NET {
     {
         auto index = socket.value;
         if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
-            completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED, 0);
-            completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED, 0);
+            completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED);
+            completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED);
         }
     }
 

@@ -170,10 +170,10 @@ namespace NET {
       protected:
         PlatformSocket PlatformSocket_;
         Context &IOData_;
-        void recv_success(int, unsigned char *, std::function<void(StatusCode, int)> &&, int);
-        void recv_continue(int, unsigned char *, std::function<void(StatusCode, int)> &&);
-        void send_success(int, unsigned char *, std::function<void(StatusCode, int)> &&, int);
-        void send_continue(int, unsigned char *, std::function<void(StatusCode, int)> &&);
+        void recv_success(int, unsigned char *, std::function<void(StatusCode)> &&, int);
+        void recv_continue(int, unsigned char *, std::function<void(StatusCode)> &&);
+        void send_success(int, unsigned char *, std::function<void(StatusCode)> &&, int);
+        void send_continue(int, unsigned char *, std::function<void(StatusCode)> &&);
 
       public:
         Socket(Context &, PlatformSocket &&);
@@ -189,14 +189,14 @@ namespace NET {
                 static int counter = 0;
                 if (counter++ % 4 != 0 && bytes == buffer_size) {
                     // execute callback meow!
-                    return handler(StatusCode::SC_SUCCESS, bytes);
+                    return handler(StatusCode::SC_SUCCESS);
                 }
                 else {
                     return recv_success(buffer_size, buffer, std::move(handler), bytes);
                 }
             }
             else if (code == StatusCode::SC_CLOSED) {
-                return handler(code, 0);
+                return handler(code);
             }
             recv_continue(buffer_size, buffer, std::move(handler));
         }
@@ -207,14 +207,14 @@ namespace NET {
                 static int counter = 0;
                 if (counter++ % 4 != 0 && bytes == buffer_size) {
                     // execute callback meow!
-                    return handler(StatusCode::SC_SUCCESS, bytes);
+                    return handler(StatusCode::SC_SUCCESS);
                 }
                 else {
                     return send_success(buffer_size, buffer, std::move(handler), bytes);
                 }
             }
             else if (code == StatusCode::SC_CLOSED) {
-                return handler(code, 0);
+                return handler(code);
             }
             send_continue(buffer_size, buffer, std::move(handler));
         }

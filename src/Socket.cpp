@@ -16,19 +16,18 @@
 
 namespace SL {
 namespace NET {
-    void completeio(RW_Context &context, Context &iodata, StatusCode code, int bytes)
+    void completeio(RW_Context &context, Context &iodata, StatusCode code)
     {
         if (auto h(context.getCompletionHandler()); h) {
             iodata.DecrementPendingIO();
-            h(code, bytes);
+            h(code);
         }
     }
 
     template <class FUNC> void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, FUNC &&handler)
     {
         context.buffer = buffer;
-        context.transfered_bytes = 0;
-        context.bufferlen = static_cast<int>(buffer_size);
+        context.remaining_bytes = buffer_size;
         context.setCompletionHandler(std::move(handler));
         context.IOOperation = op;
 #if _WIN32
@@ -51,35 +50,37 @@ namespace NET {
     }
     void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
 
-    void Socket::recv_success(int buffer_size, unsigned char *buffer, std::function<void(StatusCode, int)> &&handler, int bytestransfered)
+    void Socket::recv_success(int buffer_size, unsigned char *buffer, std::function<void(StatusCode)> &&handler, int bytestransfered)
     {
         auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_.Handle());
         setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
 #if _WIN32
         PostQueuedCompletionStatus(IOData_.getIOHandle(), bytestransfered, PlatformSocket_.Handle().value, &(ReadContext_.Overlapped));
 #else
-        ReadContext_.transfered_bytes = static_cast<int>(bytestransfered);
+        ReadContext_.remaining_bytes -= bytestransfered;
+        ReadContext_.buffer += bytestransfered;
         IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
 #endif
     }
-    void Socket::recv_continue(int buffer_size, unsigned char *buffer, std::function<void(StatusCode, int)> &&handler)
+    void Socket::recv_continue(int buffer_size, unsigned char *buffer, std::function<void(StatusCode)> &&handler)
     {
         auto &ReadContext_ = IOData_.getReadContext(PlatformSocket_.Handle());
         setup(ReadContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
         continue_io(true, ReadContext_, IOData_, PlatformSocket_.Handle());
     }
-    void Socket::send_success(int buffer_size, unsigned char *buffer, std::function<void(StatusCode, int)> &&handler, int bytestransfered)
+    void Socket::send_success(int buffer_size, unsigned char *buffer, std::function<void(StatusCode)> &&handler, int bytestransfered)
     {
         auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
         setup(WriteContext_, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, std::move(handler));
 #if _WIN32
         PostQueuedCompletionStatus(IOData_.getIOHandle(), bytestransfered, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
 #else
-        WriteContext_.transfered_bytes = static_cast<int>(bytestransfered);
+        WriteContext_.remaining_bytes -= bytestransfered;
+        WriteContext_.buffer += bytestransfered;
         IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
 #endif
     }
-    void Socket::send_continue(int buffer_size, unsigned char *buffer, std::function<void(StatusCode, int)> &&handler)
+    void Socket::send_continue(int buffer_size, unsigned char *buffer, std::function<void(StatusCode)> &&handler)
     {
         auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
         setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, std::move(handler));
@@ -113,16 +114,15 @@ namespace NET {
     void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
         if (!success) {
-            completeio(context, iodata, TranslateError(), 0);
+            completeio(context, iodata, TranslateError());
         }
-        else if (context.bufferlen == context.transfered_bytes) {
-            completeio(context, iodata, StatusCode::SC_SUCCESS, context.transfered_bytes);
+        else if (context.remaining_bytes == 0) {
+            completeio(context, iodata, StatusCode::SC_SUCCESS);
         }
         else {
-            WSABUF wsabuf = {0};
-            auto bytesleft = static_cast<decltype(wsabuf.len)>(context.bufferlen - context.transfered_bytes);
-            wsabuf.buf = (char *)context.buffer + context.transfered_bytes;
-            wsabuf.len = bytesleft;
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)context.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(context.remaining_bytes);
             DWORD dwSendNumBytes(0), dwFlags(0);
             DWORD nRet = 0;
 
@@ -134,17 +134,17 @@ namespace NET {
             }
             auto lasterr = WSAGetLastError();
             if (nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                completeio(context, iodata, TranslateError(&lasterr), 0);
+                completeio(context, iodata, TranslateError(&lasterr));
             }
         }
     }
     void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
         if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == 0) {
-            completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
+            completeio(context, iodata, StatusCode::SC_SUCCESS);
         }
         else {
-            completeio(context, iodata, TranslateError(), 0);
+            completeio(context, iodata, TranslateError());
         }
     }
 
@@ -166,7 +166,7 @@ namespace NET {
         socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
         auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
 
-        context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
+        context.setCompletionHandler(std::move(handler));
         context.IOOperation = IO_OPERATION::IoConnect;
         socket.IOData_.IncrementPendingIO();
 
@@ -175,14 +175,14 @@ namespace NET {
         if (connectres == TRUE) {
             // connection completed immediatly!
             if (::setsockopt(hhandle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-                completeio(context, socket.IOData_, StatusCode::SC_SUCCESS, 0);
+                completeio(context, socket.IOData_, StatusCode::SC_SUCCESS);
             }
             else {
-                completeio(context, socket.IOData_, TranslateError(), 0);
+                completeio(context, socket.IOData_, TranslateError());
             }
         }
         else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
-            completeio(context, socket.IOData_, TranslateError(), 0);
+            completeio(context, socket.IOData_, TranslateError());
         }
     }
 #else
@@ -204,7 +204,7 @@ namespace NET {
             }
             else {
                 auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
-                context.setCompletionHandler([ihandler(std::move(handler))](StatusCode s, size_t) { ihandler(s); });
+                context.setCompletionHandler(std::move(handler));
                 context.IOOperation = IO_OPERATION::IoConnect;
                 socket.IOData_.IncrementPendingIO();
 
@@ -212,7 +212,7 @@ namespace NET {
                 ev.data.fd = hhandle;
                 ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
                 if (epoll_ctl(socket.IOData_.getIOHandle(), EPOLL_CTL_ADD, hhandle, &ev) == -1) {
-                    return completeio(context, socket.IOData_, TranslateError(), 0);
+                    return completeio(context, socket.IOData_, TranslateError());
                 }
             }
         }
@@ -224,29 +224,28 @@ namespace NET {
     void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &)
     {
         if (success) {
-            completeio(context, iodata, StatusCode::SC_SUCCESS, 0);
+            completeio(context, iodata, StatusCode::SC_SUCCESS);
         }
         else {
-            completeio(context, iodata, StatusCode::SC_CLOSED, 0);
+            completeio(context, iodata, StatusCode::SC_CLOSED);
         }
     }
     void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
     {
 
         if (!success) {
-            return completeio(context, iodata, StatusCode::SC_CLOSED, 0);
+            return completeio(context, iodata, StatusCode::SC_CLOSED);
         }
-        else if (context.bufferlen == context.transfered_bytes) {
-            return completeio(context, iodata, StatusCode::SC_SUCCESS, context.transfered_bytes);
+        else if (context.remaining_bytes == 0) {
+            return completeio(context, iodata, StatusCode::SC_SUCCESS);
         }
         else {
-            auto bytestowrite = context.bufferlen - context.transfered_bytes;
             auto count = 0;
             if (context.IOOperation == IO_OPERATION::IoRead) {
-                count = ::recv(handle.value, context.buffer + context.transfered_bytes, bytestowrite, MSG_NOSIGNAL);
+                count = ::recv(handle.value, context.buffer, context.remaining_bytes, MSG_NOSIGNAL);
                 if (count <= 0) { // possible error or continue
                     if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                        return completeio(context, iodata, TranslateError(), 0);
+                        return completeio(context, iodata, TranslateError());
                     }
                     else {
                         count = 0;
@@ -254,19 +253,20 @@ namespace NET {
                 }
             }
             else {
-                count = ::send(handle.value, context.buffer + context.transfered_bytes, bytestowrite, MSG_NOSIGNAL);
+                count = ::send(handle.value, context.buffer, context.remaining_bytes, MSG_NOSIGNAL);
                 if (count < 0) { // possible error or continue
                     if (errno != EAGAIN && errno != EINTR) {
-                        return completeio(context, iodata, TranslateError(), 0);
+                        return completeio(context, iodata, TranslateError());
                     }
                     else {
                         count = 0;
                     }
                 }
             }
-            context.transfered_bytes += count;
-            if (context.transfered_bytes == context.bufferlen) {
-                return completeio(context, iodata, StatusCode::SC_SUCCESS, context.bufferlen);
+            context.buffer += count;
+            context.remaining_bytes -= count;
+            if (context.remaining_bytes == 00) {
+                return completeio(context, iodata, StatusCode::SC_SUCCESS);
             }
 
             epoll_event ev = {0};
@@ -274,7 +274,7 @@ namespace NET {
             ev.events = context.IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
             ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
             if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-                return completeio(context, iodata, TranslateError(), 0);
+                return completeio(context, iodata, TranslateError());
             }
         }
     }
