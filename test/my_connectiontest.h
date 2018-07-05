@@ -22,14 +22,13 @@ std::shared_ptr<SL::NET::Context> iocontext;
 
 void connect()
 {
-    auto s = std::make_shared<SL::NET::Socket>(*iocontext);
-    SL::NET::connect_async(*s, addresses.back(), [](SL::NET::StatusCode, void *) {
+    socket = std::make_shared<SL::NET::Socket>(*iocontext);
+    SL::NET::connect_async(*socket, addresses.back(), [](SL::NET::StatusCode, void *) {
         connections += 1.0;
         if (keepgoing) {
             connect();
         }
     });
-    socket = s;
 }
 void myconnectiontest()
 {
