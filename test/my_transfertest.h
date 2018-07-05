@@ -23,19 +23,19 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code) {
+        socket_.recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [](SL::NET::StatusCode code, void *userdata) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_read();
+                // self->do_read();
             }
         });
     }
     void do_write()
     {
         auto self(shared_from_this());
-        socket_.send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code) {
+        socket_.send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [](SL::NET::StatusCode code, void *userdata) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
-                self->do_write();
+                //   self->do_write();
             }
         });
     }
@@ -50,13 +50,13 @@ class asioclient {
     }
     void do_connect()
     {
-        SL::NET::connect_async(socket_->socket_, Addresses.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::connect_async(socket_->socket_, Addresses.back(), [](SL::NET::StatusCode connectstatus, void *userdata) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                socket_->do_write();
+                //  socket_->do_write();
             }
             else {
-                Addresses.pop_back();
-                do_connect();
+                // Addresses.pop_back();
+                //  do_connect();
             }
         });
     }

@@ -8,7 +8,7 @@
 #include "asio_transfertest.h"
 #include "cpumem_monitor.h"
 #include "my_connectiontest.h"
-#include "my_echotest.h" 
+#include "my_echotest.h"
 #include "my_multithreadedecho.h"
 #include "my_transfertest.h"
 #include <chrono>
@@ -37,15 +37,6 @@ int main()
         }
     });
 
-    myconnectiontest::myconnectiontest();
-    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0;  
-    asioconnectiontest::connectiontest();
-    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0;
-    asiotest::asioechotest();
-    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-    counts = totalusage = 0;
     myechotest::myechotest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;

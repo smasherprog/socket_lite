@@ -11,7 +11,7 @@
 using namespace std::chrono_literals;
 
 namespace mymultithreadedechotest {
-
+std::vector<std::shared_ptr<myechomodels::session>> acceptsockets;
 void myechotest()
 {
     std::cout << "Starting My 4 thread Echos Test" << std::endl;
@@ -25,6 +25,7 @@ void myechotest()
                                                auto s = std::make_shared<myechomodels::session>(std::move(socket));
                                                s->do_read();
                                                s->do_write();
+                                               acceptsockets.push_back(s);
                                            }
                                        })
                          ->run();
@@ -41,6 +42,7 @@ void myechotest()
     c.close();
     c1.close();
     c2.close();
+    acceptsockets.clear();
 }
 
 } // namespace mymultithreadedechotest

@@ -31,10 +31,7 @@ namespace NET {
                     auto handle = ::accept(ListenSocket.Handle().value, NULL, NULL);
                     if (handle != INVALID_SOCKET) {
                         PlatformSocket s(handle);
-
-                        if (CreateIoCompletionPort((HANDLE)handle, ContextImpl_.getIOHandle(), handle, NULL) == NULL) {
-                            continue; // this shouldnt happen but what ever
-                        }
+                        ContextImpl_.RegisterSocket(s.Handle());
                         [[maybe_unused]] auto ret = s.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::NON_BLOCKING);
                         AcceptHandler(Socket(ContextImpl_, std::move(s)));
                     }
@@ -65,8 +62,8 @@ namespace NET {
 #else
                 ListenSocket.shutdown(ShutDownOptions::SHUTDOWN_READ);
 #endif
-            } 
-            if (Runner.joinable()) { 
+            }
+            if (Runner.joinable()) {
                 Runner.join();
             }
         }

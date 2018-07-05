@@ -7,38 +7,31 @@ namespace NET {
     {
         KeepGoing_ = true;
         PendingIO = 0;
-        Threads.reserve(ThreadCount_.value);
+        Threads.reserve(ThreadCount_.value * 2);
         ReadContexts.resize(std::numeric_limits<unsigned short>::max());
         WriteContexts.resize(std::numeric_limits<unsigned short>::max());
         ReadContexts.shrink_to_fit();
         WriteContexts.shrink_to_fit();
 
 #if _WIN32
-        IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, ThreadCount_.value);
-        if (IOCPHandle == NULL) {
-            abort();
-        }
+
         if (WSAStartup(0x202, &wsaData) != 0) {
             abort();
         }
+        IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, ThreadCount_.value);
+        assert(IOCPHandle != NULL);
         auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
         GUID guid = WSAID_CONNECTEX;
         DWORD bytes = 0;
         ConnectEx_ = nullptr;
         WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
-        if (ConnectEx_ == nullptr) {
-            closesocket(temphandle);
-            abort();
-        }
+        assert(ConnectEx_ != nullptr);
         GUID acceptex_guid = WSAID_ACCEPTEX;
         bytes = 0;
         AcceptEx_ = nullptr;
         WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_, sizeof(AcceptEx_), &bytes, NULL,
                  NULL);
-        if (AcceptEx_ == nullptr) {
-            closesocket(temphandle);
-            abort();
-        }
+        assert(AcceptEx_ != nullptr);
 #else
         std::signal(SIGPIPE, SIG_IGN);
         IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
@@ -129,11 +122,11 @@ namespace NET {
                         wakeup();
                         return;
                     }
-                    switch (overlapped->IOOperation) {
-
+                    switch (auto eventyype = overlapped->getEvent()) {
                     case IO_OPERATION::IoRead:
                     case IO_OPERATION::IoWrite:
-                        overlapped->remaining_bytes -= numberofbytestransfered;
+
+                        overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
                         overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
                         if (numberofbytestransfered == 0 && bSuccess) {
                             bSuccess = WSAGetLastError() == WSA_IO_PENDING;
@@ -224,10 +217,7 @@ namespace NET {
 #endif
     }
 
-#if _WIN32
-    HANDLE Context::getIOHandle() const { return IOCPHandle; }
-    void Context::wakeup() { PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL); }
-#else
+#ifndef _WIN32
     int Context::getIOHandle() const { return IOCPHandle; }
     void Context::wakeup() { eventfd_write(EventWakeFd, 1); }
     void Context::wakeupReadfd(int fd)
@@ -250,7 +240,16 @@ namespace NET {
 #endif
     void Context::RegisterListener(std::shared_ptr<Listener> l) { Listeners.push_back(l); }
 
-    void Context::RegisterSocket(const SocketHandle &) {}
+    bool Context::RegisterSocket(const SocketHandle &h)
+    {
+        if (h.value != INVALID_SOCKET) {
+#if _WIN32
+            return CreateIoCompletionPort((HANDLE)h.value, IOCPHandle, h.value, NULL) != NULL;
+#else
+#endif
+        }
+        return false;
+    }
     RW_Context &Context::getWriteContext(const SocketHandle &socket)
     {
         auto index = socket.value;

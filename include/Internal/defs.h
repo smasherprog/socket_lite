@@ -13,7 +13,7 @@
 #include <mutex>
 #include <vector>
 
-#if defined(WINDOWS) || defined(_WIN32)
+#if _WIN32
 #include <WinSock2.h>
 #include <Windows.h>
 #include <Ws2tcpip.h>
@@ -37,41 +37,55 @@ namespace SL {
 namespace NET {
 
     StatusCode TranslateError(int *errcode = nullptr);
-    enum IO_OPERATION { IoRead, IoWrite, IoConnect, IoAccept, IoNone };
-
+    enum IO_OPERATION : unsigned int { IoRead, IoWrite, IoConnect, IoAccept };
     class RW_Context {
       public:
 #ifdef _WIN32
         WSAOVERLAPPED Overlapped = {0};
 #endif
       private:
-        std::function<void(StatusCode)> completionhandler;
-        std::atomic<int> Completion;
+        std::atomic<Handler> completionhandler;
+        int remaining_bytes;
+        void *UserData;
 
       public:
-        IO_OPERATION IOOperation = IO_OPERATION::IoNone;
-        int remaining_bytes = 0;
         unsigned char *buffer = nullptr;
         RW_Context() { clear(); }
         RW_Context(const RW_Context &) { clear(); }
-        void setCompletionHandler(std::function<void(StatusCode)> &&c)
+        void setUserData(void *userdata) { UserData = userdata; }
+        void *getUserData() const { return UserData; }
+        void setCompletionHandler(Handler c)
         {
-            completionhandler = std::move(c);
-            Completion = 1;
+#if _WIN32
+            Overlapped = {0};
+#endif
+            completionhandler.store(c, std::memory_order_relaxed);
         }
-        std::function<void(StatusCode)> getCompletionHandler()
+        Handler getCompletionHandler()
         {
-            if (Completion.fetch_sub(1, std::memory_order_acquire) == 1) {
-                return std::move(completionhandler);
+            auto h = completionhandler.load(std::memory_order_relaxed);
+            if (h) {
+                while (!completionhandler.compare_exchange_weak(h, nullptr, std::memory_order_release, std::memory_order_relaxed))
+                    ; // empty on purpose
             }
-            std::function<void(StatusCode)> t;
-            return t;
+            return h;
         }
+        void setRemainingBytes(int remainingbytes)
+        {
+            auto p = (remainingbytes & ~0xC0000000);
+            auto p1 = (remaining_bytes & 0xC0000000);
+
+            remaining_bytes = p | p1;
+        }
+        int getRemainingBytes() const { return remaining_bytes & ~0xC0000000; }
+        void setEvent(IO_OPERATION op) { remaining_bytes = getRemainingBytes() | (op << 30); }
+        IO_OPERATION getEvent() const { return static_cast<IO_OPERATION>((remaining_bytes >> 30) & 0x00000003); }
+
         void clear()
         {
             remaining_bytes = 0;
             buffer = nullptr;
-            Completion = 0;
+            UserData = nullptr;
             completionhandler = nullptr;
         }
     };
