@@ -7,14 +7,7 @@ platform:
 configuration:
   - Debug
   - Release
-  
-environment:
-  matrix:
-  - SHARED: OFF
-    POSTFIXNAME: MT
-    POSTVCPKGNAME: -static
-        
-    
+
 matrix:
   fast_finish: true
 
@@ -26,7 +19,6 @@ build_script:
   - cd C:\projects\socket-lite\build\
   - if %platform%==x86 set generator=Visual Studio 15 2017
   - if %platform%==x64 set generator=Visual Studio 15 2017 Win64
-  - cmd: echo %generator% %SHARED% %configuration% 
-  - cmd: cmake -G"%generator%" -DBUILD_SHARED_LIBS=%SHARED% .. 
+  - cmd: cmake -G"%generator%" ..\test 
   - cmd: cmake --build .  --config %configuration%
   - ctest -C %configuration% -V 

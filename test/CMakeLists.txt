@@ -1,8 +1,33 @@
+cmake_minimum_required(VERSION 3.10)
 project(socket_lite_test)
-include_directories(
-	.
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+ include_directories(
+	../include
 )
-add_executable(${PROJECT_NAME} main.cpp asio_echotest.h asio_connectiontest.h  my_echotest.h asio_echomodels.h asio_transfertest.h my_connectiontest.h my_transfertest.h my_multithreadedecho.h my_echomodels.h asio_multithreadedechotest.h cpumem_monitor.h) 
+add_executable(${PROJECT_NAME} 
+	../include/Socket_Lite.h   
+	../include/Socket.h 
+	../include/defs.h 
+	../include/Context.h 
+	../include/spinlock.h 
+	../include/PlatformSocket.h 
+	../include/Listener.h 
+	main.cpp 
+	asio_echotest.h 
+	asio_connectiontest.h  
+	my_echotest.h 
+	asio_echomodels.h 
+	asio_transfertest.h 
+	my_connectiontest.h 
+	my_transfertest.h 
+	my_multithreadedecho.h 
+	my_echomodels.h 
+	asio_multithreadedechotest.h 
+	cpumem_monitor.h
+) 
 find_package(Threads REQUIRED)
 if(WIN32) 
 	add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)

@@ -2,8 +2,6 @@
 
 #define ASIO_STANDALONE
 #include "asio.hpp"
-
-#include "Socket_Lite.h"
 #include <chrono>
 #include <iostream>
 #include <optional>
@@ -23,8 +21,8 @@ auto keepgoing = true;
 using asio::ip::tcp;
 class asioserver {
   public:
-    asioserver(asio::io_context &io_context, SL::NET::PortNumber port) : 
-        acceptor_(io_context, tcp::endpoint(tcp::v4(), port.value)) {}
+    asioserver(asio::io_context &io_context, unsigned short port) : 
+        acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {}
 
     void do_accept()
     {
@@ -54,7 +52,7 @@ void connectiontest()
     connections = 0.0;
     asio::io_context iocontext;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    asioserver s(iocontext, SL::NET::PortNumber(porttouse));
+    asioserver s(iocontext,porttouse);
     s.do_accept();
 
     tcp::resolver resolver(iocontext);
