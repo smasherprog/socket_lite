@@ -1,31 +1,23 @@
-#include "Internal/Context.h"
-#include "Socket_Lite.h"
+#pragma once
+#include "Context.h"
+#include "PlatformSocket.h"
 #include "defs.h"
-#include <assert.h>
-#include <type_traits>
-#include <variant>
-
-#if _WIN32
-#include <Ws2ipdef.h>
-#else
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-#endif
 
 namespace SL {
 namespace NET {
-    void completeio(RW_Context &context, Context &iodata, StatusCode code)
+
+    template <class CALLBACKLIFETIMEOBJECT>
+    void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, StatusCode code)
     {
-        if (auto h(context.getCompletionHandler()); h) {
-            auto u = context.getUserData();
-            context.setUserData(nullptr);
-            h(code, u);
+        if (auto h(context.getCompletionHandler()); h) { 
+            auto obj(std::move(context.getUserData()));
+            h(code, obj);
             iodata.DecrementPendingIO();
         }
     }
-    void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, Handler handler, void *userdata)
+    template <class CALLBACKLIFETIMEOBJECT>
+    void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, IO_OPERATION op, int buffer_size,
+               unsigned char *buffer, void (*handler)(StatusCode, CALLBACKLIFETIMEOBJECT &), CALLBACKLIFETIMEOBJECT &userdata)
     {
         context.buffer = buffer;
         context.setRemainingBytes(buffer_size);
@@ -35,80 +27,95 @@ namespace NET {
         iodata.IncrementPendingIO();
     }
 
-    Socket::Socket(Context &c) : IOData_(c) {}
-    Socket::Socket(Context &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
-    Socket::Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
-    Socket::~Socket()
-    {
-        IOData_.DeregisterSocket(PlatformSocket_.Handle());
-        PlatformSocket_.close();
-    }
-    void Socket::close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
-    void Socket::send_async(int buffer_size, unsigned char *buffer, Handler handler, void *userdata)
-    {
-        auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
-        if (code == StatusCode::SC_SUCCESS) {
-            static int counter = 0;
-            if (counter++ % 4 != 0 && bytes == buffer_size) {
-                // execute callback meow!
-                return handler(StatusCode::SC_SUCCESS, userdata);
-            }
-            else {
+    template <class CALLBACKLIFETIMEOBJECT> class Socket {
+        static_assert(std::is_move_constructible<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
+        static_assert(std::is_move_assignable<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
 
-                auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, userdata);
+      public:
+        PlatformSocket PlatformSocket_;
+        Context<CALLBACKLIFETIMEOBJECT> &IOData_;
+
+        Socket(Context<CALLBACKLIFETIMEOBJECT> &c) : IOData_(c) {}
+        Socket(Context<CALLBACKLIFETIMEOBJECT> &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
+        Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
+        ~Socket()
+        {
+            IOData_.DeregisterSocket(PlatformSocket_.Handle());
+            PlatformSocket_.close();
+        }
+        [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
+        [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
+        void close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
+
+        void recv_async(int buffer_size, unsigned char *buffer, void (*handler)(StatusCode, CALLBACKLIFETIMEOBJECT &),
+                        CALLBACKLIFETIMEOBJECT &lifetimeobject)
+        {
+            auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
+            if (code == StatusCode::SC_SUCCESS) {
+                static int counter = 0;
+                if (counter++ % 4 != 0 && bytes == buffer_size) {
+                    // execute callback meow!
+                    handler(StatusCode::SC_SUCCESS, lifetimeobject);
+                }
+                else {
+
+                    auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
+                    setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler,lifetimeobject);
 #if _WIN32
-                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
+                    PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
 #else
-                WriteContext_.remaining_bytes -= bytestransfered;
-                WriteContext_.buffer += bytestransfered;
-                IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
+                    readcontext.remaining_bytes -= bytestransfered;
+                    readcontext.buffer += bytestransfered;
+                    IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
 #endif
+                }
             }
-        }
-        else if (code == StatusCode::SC_CLOSED) {
-            handler(code, userdata);
-        }
-        else {
-            auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-            setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, userdata);
-            continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
-        }
-    }
-
-    void Socket::recv_async(int buffer_size, unsigned char *buffer, Handler handler, void *userdata)
-    {
-        auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
-        if (code == StatusCode::SC_SUCCESS) {
-            static int counter = 0;
-            if (counter++ % 4 != 0 && bytes == buffer_size) {
-                // execute callback meow!
-                handler(StatusCode::SC_SUCCESS, userdata);
+            else if (code == StatusCode::SC_CLOSED) {
+                handler(code, lifetimeobject);
             }
             else {
-
                 auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
-                setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, userdata);
-#if _WIN32
-                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
-#else
-                readcontext.remaining_bytes -= bytestransfered;
-                readcontext.buffer += bytestransfered;
-                IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
-#endif
+                setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
+                continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
             }
         }
-        else if (code == StatusCode::SC_CLOSED) {
-            handler(code, userdata);
-        }
-        else {
-            auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
-            setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, userdata);
-            continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
-        }
-    }
+
+        void send_async(int buffer_size, unsigned char *buffer, void (*handler)(StatusCode, CALLBACKLIFETIMEOBJECT &),
+                        CALLBACKLIFETIMEOBJECT &lifetimeobject)
+        {
+            auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
+            if (code == StatusCode::SC_SUCCESS) {
+                static int counter = 0;
+                if (counter++ % 4 != 0 && bytes == buffer_size) {
+                    // execute callback meow!
+                    return handler(StatusCode::SC_SUCCESS, lifetimeobject);
+                }
+                else {
+
+                    auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
+                    setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler,lifetimeobject);
 #if _WIN32
-    StatusCode BindSocket(SOCKET sock, AddressFamily family)
+                    PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
+#else
+                    WriteContext_.remaining_bytes -= bytestransfered;
+                    WriteContext_.buffer += bytestransfered;
+                    IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
+#endif
+                }
+            }
+            else if (code == StatusCode::SC_CLOSED) {
+                handler(code, lifetimeobject);
+            }
+            else {
+                auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
+                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler,lifetimeobject);
+                continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+            }
+        }
+    };
+
+#if _WIN32
+    inline StatusCode BindConnectSocket(SOCKET sock, AddressFamily family)
     {
 
         if (family == AddressFamily::IPV4) {
@@ -131,7 +138,8 @@ namespace NET {
         }
         return StatusCode::SC_SUCCESS;
     }
-    void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
+    template <class CALLBACKLIFETIMEOBJECT>
+    void continue_io(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, const SocketHandle &handle)
     {
         if (!success) {
             completeio(context, iodata, TranslateError());
@@ -158,7 +166,9 @@ namespace NET {
             }
         }
     }
-    void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
+    template <class CALLBACKLIFETIMEOBJECT>
+    void continue_connect(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata,
+                          const SocketHandle &handle)
     {
         if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == 0) {
             completeio(context, iodata, StatusCode::SC_SUCCESS);
@@ -167,24 +177,27 @@ namespace NET {
             completeio(context, iodata, TranslateError());
         }
     }
-
-    void connect_async(Socket &socket, SocketAddress &address, Handler handler, void *userdata)
-    {
+    template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
+    void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address, CALLBACKHANDLER handler,
+                       CALLBACKLIFETIMEOBJECT &lifetimeobject)
+    { 
         auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         if (handle.Handle().value == INVALID_SOCKET) {
-            return handler(StatusCode::SC_CLOSED, userdata); // socket is closed..
+            return handler(StatusCode::SC_CLOSED, lifetimeobject); // socket is closed..
         }
-        auto bindret = BindSocket(handle.Handle().value, Family(address));
+        auto bindret = BindConnectSocket(handle.Handle().value, Family(address));
         if (bindret != StatusCode::SC_SUCCESS) {
-            return handler(bindret, userdata);
+            return handler(bindret, lifetimeobject);
         }
         socket.PlatformSocket_ = std::move(handle);
         auto hhandle = socket.PlatformSocket_.Handle().value;
-        socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
+        if (CreateIoCompletionPort((HANDLE)hhandle, socket.IOData_.getIOHandle(), hhandle, NULL) == NULL) {
+            return handler(StatusCode::SC_CLOSED, lifetimeobject); // socket is closed..
+        } 
         auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
 
         context.setCompletionHandler(handler);
-        context.setUserData(userdata);
+        context.setUserData(lifetimeobject);
         context.setEvent(IO_OPERATION::IoConnect);
         socket.IOData_.IncrementPendingIO();
 
@@ -298,5 +311,6 @@ namespace NET {
     }
 
 #endif
+
 } // namespace NET
 } // namespace SL
