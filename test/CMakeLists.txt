@@ -44,5 +44,5 @@ else()
 	find_package(Threads REQUIRED)
 	target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} dl)
 endif()
-
+enable_testing() 
 add_test (NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
