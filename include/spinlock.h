@@ -1,8 +1,7 @@
 #pragma once
 #include <atomic>
 
-namespace SL {
-namespace NET {
+namespace SL::NET {
     struct spinlock {
         std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
         void lock()
@@ -13,6 +12,4 @@ namespace NET {
         void unlock() { lock_.clear(std::memory_order_release); }
     };
 
-} // namespace NET
-} // namespace SL
-
+}  

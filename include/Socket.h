@@ -3,13 +3,12 @@
 #include "PlatformSocket.h"
 #include "defs.h"
 
-namespace SL {
-namespace NET {
+namespace SL::NET {
 
     template <class CALLBACKLIFETIMEOBJECT>
     void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, StatusCode code)
     {
-        if (auto h(context.getCompletionHandler()); h) { 
+        if (auto h(context.getCompletionHandler()); h) {
             auto obj(std::move(context.getUserData()));
             h(code, obj);
             iodata.DecrementPendingIO();
@@ -31,10 +30,10 @@ namespace NET {
         static_assert(std::is_move_constructible<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
         static_assert(std::is_move_assignable<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
 
-      public:
         PlatformSocket PlatformSocket_;
-        Context<CALLBACKLIFETIMEOBJECT> &IOData_;
+        Context<CALLBACKLIFETIMEOBJECT> &IOData_; 
 
+      public:
         Socket(Context<CALLBACKLIFETIMEOBJECT> &c) : IOData_(c) {}
         Socket(Context<CALLBACKLIFETIMEOBJECT> &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
         Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
@@ -60,7 +59,7 @@ namespace NET {
                 else {
 
                     auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
-                    setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler,lifetimeobject);
+                    setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
 #if _WIN32
                     PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
 #else
@@ -93,7 +92,7 @@ namespace NET {
                 else {
 
                     auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-                    setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler,lifetimeobject);
+                    setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
 #if _WIN32
                     PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
 #else
@@ -108,10 +107,11 @@ namespace NET {
             }
             else {
                 auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler,lifetimeobject);
+                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
                 continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
             }
         }
+        template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, F, T &);
     };
 
 #if _WIN32
@@ -180,7 +180,7 @@ namespace NET {
     template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
     void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address, CALLBACKHANDLER handler,
                        CALLBACKLIFETIMEOBJECT &lifetimeobject)
-    { 
+    {
         auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
         if (handle.Handle().value == INVALID_SOCKET) {
             return handler(StatusCode::SC_CLOSED, lifetimeobject); // socket is closed..
@@ -193,7 +193,7 @@ namespace NET {
         auto hhandle = socket.PlatformSocket_.Handle().value;
         if (CreateIoCompletionPort((HANDLE)hhandle, socket.IOData_.getIOHandle(), hhandle, NULL) == NULL) {
             return handler(StatusCode::SC_CLOSED, lifetimeobject); // socket is closed..
-        } 
+        }
         auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
 
         context.setCompletionHandler(handler);
@@ -312,5 +312,4 @@ namespace NET {
 
 #endif
 
-} // namespace NET
-} // namespace SL
+}  

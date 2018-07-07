@@ -3,8 +3,7 @@
 #include "PlatformSocket.h"
 #include "Socket.h"
 
-namespace SL {
-namespace NET {
+namespace SL::NET {
 
     template <class LISTENERCALLBACK, class CONTEXTTYPE> class Listener {
         static_assert(std::is_move_constructible<LISTENERCALLBACK>::value, "The listener callback must be moveable!"); 
@@ -68,5 +67,4 @@ namespace NET {
         }
     };
 
-} // namespace NET
-} // namespace SL
+}  

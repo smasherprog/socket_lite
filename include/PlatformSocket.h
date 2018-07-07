@@ -1,8 +1,7 @@
 #pragma once
 #include "defs.h"
 
-namespace SL {
-namespace NET {
+namespace SL::NET {
 
     class PlatformSocket {
         SocketHandle Handle_;
@@ -571,5 +570,4 @@ namespace NET {
         return addrs;
     }
 
-} // namespace NET
-} // namespace SL
+} 
