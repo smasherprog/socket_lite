@@ -166,14 +166,11 @@ namespace NET {
     };
     // forward declares
     class Context;
+    typedef void (*Handler)(StatusCode, void *);
     class SOCKET_LITE_EXTERN Socket {
       protected:
         PlatformSocket PlatformSocket_;
         Context &IOData_;
-        void recv_success(int, unsigned char *, std::function<void(StatusCode)> &&, int);
-        void recv_continue(int, unsigned char *, std::function<void(StatusCode)> &&);
-        void send_success(int, unsigned char *, std::function<void(StatusCode)> &&, int);
-        void send_continue(int, unsigned char *, std::function<void(StatusCode)> &&);
 
       public:
         Socket(Context &, PlatformSocket &&);
@@ -181,51 +178,18 @@ namespace NET {
         Socket(Context &);
         ~Socket();
         [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
+        [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
         void close();
-        template <class FUNC> void recv_async(int buffer_size, unsigned char *buffer, FUNC &&handler)
-        {
-            auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
-            if (code == StatusCode::SC_SUCCESS) {
-                static int counter = 0;
-                if (counter++ % 4 != 0 && bytes == buffer_size) {
-                    // execute callback meow!
-                    return handler(StatusCode::SC_SUCCESS);
-                }
-                else {
-                    return recv_success(buffer_size, buffer, std::move(handler), bytes);
-                }
-            }
-            else if (code == StatusCode::SC_CLOSED) {
-                return handler(code);
-            }
-            recv_continue(buffer_size, buffer, std::move(handler));
-        }
-        template <class FUNC> void send_async(int buffer_size, unsigned char *buffer, FUNC &&handler)
-        {
-            auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
-            if (code == StatusCode::SC_SUCCESS) {
-                static int counter = 0;
-                if (counter++ % 4 != 0 && bytes == buffer_size) {
-                    // execute callback meow!
-                    return handler(StatusCode::SC_SUCCESS);
-                }
-                else {
-                    return send_success(buffer_size, buffer, std::move(handler), bytes);
-                }
-            }
-            else if (code == StatusCode::SC_CLOSED) {
-                return handler(code);
-            }
-            send_continue(buffer_size, buffer, std::move(handler));
-        }
+        void recv_async(int buffer_size, unsigned char *buffer, Handler handler, void *userdata = nullptr);
+        void send_async(int buffer_size, unsigned char *buffer, Handler handler, void *userdata = nullptr);
         friend class Context;
-        friend void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler);
+        friend void connect_async(Socket &, SocketAddress &, Handler, void *);
     };
 
     [[nodiscard]] std::vector<SL::NET::SocketAddress> SOCKET_LITE_EXTERN getaddrinfo(const char *nodename, PortNumber port,
                                                                                      AddressFamily family = AddressFamily::IPANY);
 
-    void SOCKET_LITE_EXTERN connect_async(Socket &socket, SL::NET::SocketAddress &address, std::function<void(StatusCode)> &&);
+    void SOCKET_LITE_EXTERN connect_async(Socket &socket, SL::NET::SocketAddress &address, Handler handler, void *userdata = nullptr);
 
     class SOCKET_LITE_EXTERN INetworkConfig {
       public:
