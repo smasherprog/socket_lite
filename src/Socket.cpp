@@ -265,7 +265,7 @@ namespace NET {
             }
             context.buffer += count;
             context.remaining_bytes -= count;
-            if (context.remaining_bytes == 00) {
+            if (context.remaining_bytes == 0) {
                 return completeio(context, iodata, StatusCode::SC_SUCCESS);
             }
 
