@@ -85,7 +85,7 @@ class Socket {
         auto count = ::send(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                handler(TranslateError(&er));
+                handler(TranslateError(&er)); 
             }
 #else
         auto count = ::send(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);

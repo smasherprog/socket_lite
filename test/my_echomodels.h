@@ -39,7 +39,7 @@ class session : public std::enable_shared_from_this<session> {
         socket_.recv_async(readecho.size(), (unsigned char *)readecho.data(), [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
-            }
+            } 
         });
     }
 
@@ -50,28 +50,27 @@ class session : public std::enable_shared_from_this<session> {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();
-            }
+            } 
         });
     }
     SL::NET::Socket socket_;
     void close() { socket_.close(); }
 };
-template <class CONTEXTYPE> class asioclient {
+class asioclient {
   public:
     std::shared_ptr<session> socket_;
     std::vector<SL::NET::SocketAddress> addrs;
-    asioclient(CONTEXTYPE &io_context, const char *nodename, SL::NET::PortNumber port) : socket_(std::make_shared<session>(io_context))
+    asioclient(SL::NET::Context &io_context, const char *nodename, SL::NET::PortNumber port) : socket_(std::make_shared<session>(io_context))
     {
         addrs = SL::NET::getaddrinfo(nodename, port);
     }
     void close() { socket_->close(); }
     void do_connect()
-    {
-        auto self(socket_);
-        SL::NET::connect_async(socket_->socket_, addrs.back(), [self](SL::NET::StatusCode connectstatus) {
+    { 
+        SL::NET::connect_async(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                self->do_write();
-                self->do_read();
+                socket_->do_write();
+                socket_->do_read();
             }
         });
     }

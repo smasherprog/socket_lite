@@ -40,5 +40,4 @@ void myechotest(int buffersize = 128)
     listener.stop();
     iocontext.stop();
 }
-
 } // namespace myechotest

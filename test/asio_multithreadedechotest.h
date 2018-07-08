@@ -78,7 +78,7 @@ class asioclient {
     }
     void do_connect(const tcp::resolver::results_type &endpoints)
     {
-        asio::async_connect(socket_->socket_, endpoints, [this](std::error_code ec, tcp::endpoint) {
+        asio::async_connect(socket_->socket_, endpoints, [&](std::error_code ec, tcp::endpoint) {
             if (!ec) {
                 socket_->do_write();
                 socket_->do_read();
@@ -94,8 +94,8 @@ void asioechotest(int buffersize = 128)
     std::cout << "Starting ASIO 4 Threads Echo Test with buffer size of " << buffersize << " bytes" << std::endl;
     keepgoing = true;
     writeechos = 0;
-    asiomodels::writeecho.resize(buffersize);
-    asiomodels::readecho.resize(buffersize); 
+    writeecho.resize(buffersize);
+    readecho.resize(buffersize); 
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asio::io_context iocontext;
     auto s(std::make_shared<asioserver>(iocontext, porttouse));

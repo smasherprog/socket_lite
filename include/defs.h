@@ -153,7 +153,7 @@ typedef std::function<void(StatusCode)> SocketHandler;
 class RW_Context {
   public:
 #ifdef _WIN32
-    WSAOVERLAPPED Overlapped = {0};
+    WSAOVERLAPPED Overlapped;
 #endif
   private:
     SocketHandler completionhandler;
@@ -167,7 +167,9 @@ class RW_Context {
     void setCompletionHandler(const SocketHandler& c)
     {
 #if _WIN32
-        Overlapped = {0};
+        Overlapped.Internal = Overlapped.InternalHigh =0 ;
+        Overlapped.Offset = Overlapped.OffsetHigh = 0;
+        Overlapped.Pointer = Overlapped.hEvent = 0;
 #endif
         completioncounter = 1;
         completionhandler = std::move(c);
@@ -193,6 +195,9 @@ class RW_Context {
 
     void clear()
     {
+        Overlapped.Internal = Overlapped.InternalHigh = 0;
+        Overlapped.Offset = Overlapped.OffsetHigh = 0;
+        Overlapped.Pointer = Overlapped.hEvent = 0;
         completioncounter = 0;
         remaining_bytes = 0;
         buffer = nullptr;
