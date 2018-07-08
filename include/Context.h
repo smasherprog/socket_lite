@@ -3,14 +3,12 @@
 #include "spinlock.h"
 namespace SL::NET {
 // forward declare
-template <class T> class Socket;
-template <class T, class F> class Listener;
-template <class CALLBACKLIFETIMEOBJECT> class Context {
-    static_assert(std::is_move_constructible<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
-    static_assert(std::is_move_assignable<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
+class Socket;
+template <class T> class Listener;
+class Context {
     const ThreadCount ThreadCount_;
     std::vector<std::thread> Threads;
-    std::vector<RW_Context<CALLBACKLIFETIMEOBJECT>> ReadContexts, WriteContexts;
+    std::vector<RW_Context> ReadContexts, WriteContexts;
     bool KeepGoing_;
     std::atomic<int> PendingIO;
     std::vector<SocketHandle> ReadSockets, WriteSockets;
@@ -179,7 +177,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
                 std::vector<SocketHandle> socketbuffer;
                 for (;;) {
                     DWORD numberofbytestransfered = 0;
-                    RW_Context<CALLBACKLIFETIMEOBJECT> *overlapped = nullptr;
+                    RW_Context *overlapped = nullptr;
                     void *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
@@ -277,7 +275,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
             for (auto &rcts : WriteContexts) {
                 completeio(rcts, *this, StatusCode::SC_CLOSED);
             }
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 #endif
 
@@ -309,13 +307,13 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
     int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
     int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
 
-    RW_Context<CALLBACKLIFETIMEOBJECT> &getWriteContext(const SocketHandle &socket)
+    RW_Context &getWriteContext(const SocketHandle &socket)
     {
         auto index = socket.value;
         assert(index >= 0 && index < static_cast<decltype(index)>(WriteContexts.size()));
         return WriteContexts[index];
     }
-    RW_Context<CALLBACKLIFETIMEOBJECT> &getReadContext(const SocketHandle &socket)
+    RW_Context &getReadContext(const SocketHandle &socket)
     {
         auto index = socket.value;
         assert(index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size()));
@@ -329,11 +327,11 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
             completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED);
         }
     }
-    template <class T> friend class Socket;
-    template <class T, class F> friend class Listener;
-    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, const F&, T &);
-    template <class T, class F> friend void setup(RW_Context<T> &, Context<T> &, IO_OPERATION, int, unsigned char *, const F&, T &);
-    template <class T> friend void completeio(RW_Context<T> &, Context<T> &, StatusCode);
+    friend class Socket;
+    template <class T> friend class Listener;
+    friend void SL::NET::connect_async(Socket &, SocketAddress &, const SocketHandler &);
+    friend void SL::NET::setup(RW_Context &, Context &, IO_OPERATION, int, unsigned char *, const SocketHandler &);
+    friend void SL::NET::completeio(RW_Context &, Context &, StatusCode);
 };
 
 } // namespace SL::NET

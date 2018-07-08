@@ -11,13 +11,16 @@
 using namespace std::chrono_literals;
 
 namespace myechotest {
-void myechotest()
+void myechotest(int buffersize = 128)
 {
-    std::cout << "Starting My Echo Test" << std::endl;
+    std::cout << "Starting My Echo Test with buffer size of " << buffersize << " bytes" << std::endl;
     myechomodels::writeechos = 0;
     myechomodels::keepgoing = true;
+    myechomodels::writeecho.resize(buffersize);
+    myechomodels::readecho.resize(buffersize); 
+
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    SL::NET::Context<std::shared_ptr<myechomodels::session>> iocontext(SL::NET::ThreadCount(1));
+    SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     auto listencallback([](auto socket) {
         if (myechomodels::keepgoing) {
             auto asock = std::make_shared<myechomodels::session>(std::move(socket));

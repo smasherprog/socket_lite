@@ -148,37 +148,36 @@ inline const std::string &Host(const SocketAddress &s) { return s.getHost(); }
 inline unsigned short Port(const SocketAddress &s) { return s.getPort(); }
 inline AddressFamily Family(const SocketAddress &s) { return s.getFamily(); }
 
-template <class CALLBACKLIFETIMEOBJECT> class RW_Context {
+typedef std::function<void(StatusCode)> SocketHandler;
+
+class RW_Context {
   public:
-    typedef void (*Handler)(StatusCode, CALLBACKLIFETIMEOBJECT &);
 #ifdef _WIN32
     WSAOVERLAPPED Overlapped = {0};
 #endif
   private:
-    std::atomic<Handler> completionhandler;
+    SocketHandler completionhandler;
+    std::atomic<int> completioncounter;
     int remaining_bytes;
-    CALLBACKLIFETIMEOBJECT UserData;
 
   public:
     unsigned char *buffer = nullptr;
     RW_Context() { clear(); }
     RW_Context(const RW_Context &) { clear(); }
-    void setUserData(CALLBACKLIFETIMEOBJECT &userdata) { UserData = std::move(userdata); }
-    CALLBACKLIFETIMEOBJECT &getUserData() { return UserData; }
-    void setCompletionHandler(Handler c)
+    void setCompletionHandler(const SocketHandler& c)
     {
 #if _WIN32
         Overlapped = {0};
 #endif
-        completionhandler.store(c, std::memory_order_relaxed);
+        completioncounter = 1;
+        completionhandler = std::move(c);
     }
-    Handler getCompletionHandler()
+    SocketHandler getCompletionHandler()
     {
-        auto h = completionhandler.load(std::memory_order_relaxed);
-        if (h) {
-            while (!completionhandler.compare_exchange_weak(h, nullptr, std::memory_order_release, std::memory_order_relaxed))
-                ; // empty on purpose
+        if (completioncounter.fetch_sub(1, std::memory_order_relaxed) == 1) {
+            return std::move(completionhandler);
         }
+        SocketHandler h;
         return h;
     }
     void setRemainingBytes(int remainingbytes)
@@ -194,9 +193,9 @@ template <class CALLBACKLIFETIMEOBJECT> class RW_Context {
 
     void clear()
     {
+        completioncounter = 0;
         remaining_bytes = 0;
         buffer = nullptr;
-        auto p = std::move(UserData); // clear userdata
         completionhandler = nullptr;
     }
 };
@@ -225,14 +224,11 @@ static StatusCode TranslateError(int *errcode = nullptr)
         return StatusCode::SC_CLOSED;
     };
 }
-// need to forward declare functions for friend
-template <class T> class Socket;
-template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &, SocketAddress &,const CALLBACKHANDLER&, CALLBACKLIFETIMEOBJECT &);
-template <class T> class Context;
-template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, IO_OPERATION op, int buffer_size,
-           unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &userdata);
-template <class CALLBACKLIFETIMEOBJECT> void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &, Context<CALLBACKLIFETIMEOBJECT> &, StatusCode);
-
+class Socket;
+static void connect_async(Socket &, SocketAddress &, const SocketHandler &);
+class Context;
+static void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SocketHandler &handler);
+static void completeio(RW_Context &context, Context &iodata, StatusCode code);
+static void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
+static void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
 } // namespace SL::NET

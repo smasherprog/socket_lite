@@ -13,11 +13,13 @@ using namespace std::chrono_literals;
 namespace asiotest {
 
 using asio::ip::tcp;
-void asioechotest()
+void asioechotest(int buffersize = 128)
 {
-    std::cout << "Starting ASIO Echo Test" << std::endl;
+    std::cout << "Starting ASIO Echo Test with buffer size of " << buffersize << " bytes" << std::endl;
     asiomodels::writeechos = 0.0;
     asiomodels::keepgoing = true;
+    asiomodels::writeecho.resize(buffersize);
+    asiomodels::readecho.resize(buffersize); 
 
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asio::io_context iocontext;

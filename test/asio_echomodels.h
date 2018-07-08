@@ -12,8 +12,7 @@ using namespace std::chrono_literals;
 
 namespace asiomodels {
 
-char writeecho[] = "echo test";
-char readecho[] = "echo test";
+std::vector<char> writeecho, readecho;
 auto writeechos = 0.0;
 bool keepgoing = true;
 
@@ -26,7 +25,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        asio::async_read(self->socket_, asio::buffer(readecho, sizeof(readecho)), [self](std::error_code ec, std::size_t) {
+        asio::async_read(self->socket_, asio::buffer(readecho.data(), readecho.size()), [self](std::error_code ec, std::size_t) {
             if (!ec) {
                 self->do_read();
             }
@@ -36,7 +35,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
-        asio::async_write(socket_, asio::buffer(writeecho, sizeof(writeecho)), [self](std::error_code ec, std::size_t) {
+        asio::async_write(socket_, asio::buffer(writeecho.data(), writeecho.size()), [self](std::error_code ec, std::size_t) {
             if (!ec) {
                 writeechos += 1.0;
                 self->do_write();

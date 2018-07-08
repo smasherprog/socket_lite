@@ -12,8 +12,7 @@ using namespace std::chrono_literals;
 
 namespace asio_multithreadedechotest {
 
-char writeecho[] = "echo test";
-char readecho[] = "echo test";
+std::vector<char> writeecho, readecho;
 auto writeechos = 0.0;
 bool keepgoing = true;
 
@@ -27,7 +26,7 @@ class session : public std::enable_shared_from_this<session> {
     {
         auto self(shared_from_this());
         strand_.post([self]() {
-            asio::async_read(self->socket_, asio::buffer(readecho, sizeof(readecho)), [self](std::error_code ec, std::size_t) {
+            asio::async_read(self->socket_, asio::buffer(readecho.data(), readecho.size()), [self](std::error_code ec, std::size_t) {
                 if (!ec) {
                     self->do_read();
                 }
@@ -39,7 +38,7 @@ class session : public std::enable_shared_from_this<session> {
     {
         auto self(shared_from_this());
         strand_.post([self]() {
-            asio::async_write(self->socket_, asio::buffer(writeecho, sizeof(writeecho)), [self](std::error_code ec, std::size_t ) {
+            asio::async_write(self->socket_, asio::buffer(writeecho.data(), writeecho.size()), [self](std::error_code ec, std::size_t) {
                 writeechos += 1.0;
                 if (!ec) {
                     self->do_write();
@@ -90,11 +89,13 @@ class asioclient {
     std::shared_ptr<session> socket_;
 };
 
-void asioechotest()
+void asioechotest(int buffersize = 128)
 {
-    std::cout << "Starting ASIO 4 Threads Echo Test" << std::endl;
+    std::cout << "Starting ASIO 4 Threads Echo Test with buffer size of " << buffersize << " bytes" << std::endl;
     keepgoing = true;
     writeechos = 0;
+    asiomodels::writeecho.resize(buffersize);
+    asiomodels::readecho.resize(buffersize); 
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
     asio::io_context iocontext;
     auto s(std::make_shared<asioserver>(iocontext, porttouse));

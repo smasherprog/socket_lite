@@ -36,7 +36,7 @@ int main()
             std::this_thread::sleep_for(200ms);
         }
     });
-     
+
     myconnectiontest::myconnectiontest();
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
@@ -47,6 +47,12 @@ int main()
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
     myechotest::myechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asiotest::asioechotest(1024 * 10); // 10k
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    myechotest::myechotest(1024 * 10); // 10k
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
 
@@ -60,6 +66,12 @@ int main()
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
     mymultithreadedechotest::myechotest();
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    asio_multithreadedechotest::asioechotest(1024 * 10); // 10k
+    std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+    counts = totalusage = 0;
+    mymultithreadedechotest::myechotest(1024 * 10); // 10k
     std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
     counts = totalusage = 0;
     startwatching = false;

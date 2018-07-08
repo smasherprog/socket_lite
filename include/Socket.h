@@ -5,37 +5,29 @@
 
 namespace SL::NET {
 
-template <class CALLBACKLIFETIMEOBJECT>
-void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, StatusCode code)
-{
-    if (auto h(context.getCompletionHandler()); h) {
-        auto obj(std::move(context.getUserData()));
-        h(code, obj);
-        iodata.DecrementPendingIO();
-    }
-}
-template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, IO_OPERATION op, int buffer_size,
-           unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &userdata)
+static void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SocketHandler &handler)
 {
     context.buffer = buffer;
     context.setRemainingBytes(buffer_size);
     context.setCompletionHandler(handler);
     context.setEvent(op);
-    context.setUserData(userdata);
     iodata.IncrementPendingIO();
 }
+static void completeio(RW_Context &context, Context &iodata, StatusCode code)
+{
+    if (auto h(context.getCompletionHandler()); h) {
+        h(code);
+        iodata.DecrementPendingIO();
+    }
+}
 
-template <class CALLBACKLIFETIMEOBJECT> class Socket {
-    static_assert(std::is_move_constructible<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
-    static_assert(std::is_move_assignable<CALLBACKLIFETIMEOBJECT>::value, "The object which retains the callbacks lifetime must be moveable!");
-
+class Socket {
     PlatformSocket PlatformSocket_;
-    Context<CALLBACKLIFETIMEOBJECT> &IOData_;
+    Context &IOData_;
 
   public:
-    Socket(Context<CALLBACKLIFETIMEOBJECT> &c) : IOData_(c) {}
-    Socket(Context<CALLBACKLIFETIMEOBJECT> &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
+    Socket(Context &c) : IOData_(c) {}
+    Socket(Context &c, PlatformSocket &&p) : Socket(c) { PlatformSocket_ = std::move(p); }
     Socket(Socket &&sock) : Socket(sock.IOData_, std::move(sock.PlatformSocket_)) {}
     ~Socket()
     {
@@ -45,38 +37,37 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
     [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
     [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
     void close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
-    template <class CALLBACKHANDLER>
-    void recv_async(int buffer_size, unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
+    void recv_async(int buffer_size, unsigned char *buffer, const SocketHandler &handler)
     {
         static int counter = 0;
 #if _WIN32
         auto count = ::recv(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
         if (count <= 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                 handler(TranslateError(&er), lifetimeobject);
+                handler(TranslateError(&er));
             }
 #else
         auto count = ::recv(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);
         if (count <= 0) { // possible error or continue
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                 handler(TranslateError(), lifetimeobject);
+                handler(TranslateError());
             }
 
 #endif
             else {
                 auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
-                setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
+                setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler);
                 continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
             }
         }
         else if (counter++ % 8 != 0 && count == buffer_size) {
             // execute callback meow!
-            handler(StatusCode::SC_SUCCESS, lifetimeobject);
+            handler(StatusCode::SC_SUCCESS);
         }
         else {
 
             auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
-            setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
+            setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler);
 #if _WIN32
             PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
 #else
@@ -86,36 +77,36 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
 #endif
         }
     }
-    template <class CALLBACKHANDLER>
-    void send_async(int buffer_size, unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
+
+    void send_async(int buffer_size, unsigned char *buffer, const SocketHandler &handler)
     {
         static int counter = 0;
 #if _WIN32
         auto count = ::send(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                handler(TranslateError(&er), lifetimeobject); 
+                handler(TranslateError(&er));
             }
 #else
         auto count = ::send(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
-                handler(TranslateError(), lifetimeobject); 
+                handler(TranslateError(), lifetimeobject);
             }
 #endif
             else {
                 auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
+                setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
                 continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
             }
         }
         else if (counter++ % 8 != 0 && count == buffer_size) {
             // execute callback meow!
-            handler(StatusCode::SC_SUCCESS, lifetimeobject);
+            handler(StatusCode::SC_SUCCESS);
         }
         else {
             auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-            setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
+            setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
 #if _WIN32
             PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
 #else
@@ -125,8 +116,8 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
 #endif
         }
     }
-    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, const F &, T &);
-}; // namespace SL::NET
+    friend void SL::NET::connect_async(Socket &, SocketAddress &, const SocketHandler &);
+};
 
 #if _WIN32
 inline StatusCode BindConnectSocket(SOCKET sock, AddressFamily family)
@@ -152,8 +143,8 @@ inline StatusCode BindConnectSocket(SOCKET sock, AddressFamily family)
     }
     return StatusCode::SC_SUCCESS;
 }
-template <class CALLBACKLIFETIMEOBJECT>
-void continue_io(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, const SocketHandle &handle)
+
+static void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
 {
     if (!success) {
         completeio(context, iodata, TranslateError());
@@ -180,8 +171,8 @@ void continue_io(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context, Cont
         }
     }
 }
-template <class CALLBACKLIFETIMEOBJECT>
-void continue_connect(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, const SocketHandle &handle)
+
+static void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
 {
     if (success && ::setsockopt(handle.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) == 0) {
         completeio(context, iodata, StatusCode::SC_SUCCESS);
@@ -190,27 +181,24 @@ void continue_connect(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context,
         completeio(context, iodata, TranslateError());
     }
 }
-template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address, const CALLBACKHANDLER &handler,
-                   CALLBACKLIFETIMEOBJECT &lifetimeobject)
+static void connect_async(Socket &socket, SocketAddress &address, const SocketHandler &handler)
 {
     auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
     if (handle.Handle().value == INVALID_SOCKET) {
-        return handler(StatusCode::SC_CLOSED, lifetimeobject); // socket is closed..
+        return handler(StatusCode::SC_CLOSED); // socket is closed..
     }
     auto bindret = BindConnectSocket(handle.Handle().value, Family(address));
     if (bindret != StatusCode::SC_SUCCESS) {
-        return handler(bindret, lifetimeobject);
+        return handler(bindret);
     }
     socket.PlatformSocket_ = std::move(handle);
     auto hhandle = socket.PlatformSocket_.Handle().value;
     if (CreateIoCompletionPort((HANDLE)hhandle, socket.IOData_.getIOHandle(), hhandle, NULL) == NULL) {
-        return handler(StatusCode::SC_CLOSED, lifetimeobject); // socket is closed..
+        return handler(StatusCode::SC_CLOSED); // socket is closed..
     }
     auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
 
     context.setCompletionHandler(handler);
-    context.setUserData(lifetimeobject);
     context.setEvent(IO_OPERATION::IoConnect);
     socket.IOData_.IncrementPendingIO();
 

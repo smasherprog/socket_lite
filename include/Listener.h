@@ -5,16 +5,16 @@
 
 namespace SL::NET {
 
-    template <class LISTENERCALLBACK, class CONTEXTTYPE> class Listener {
+    template <class LISTENERCALLBACK> class Listener {
         static_assert(std::is_move_constructible<LISTENERCALLBACK>::value, "The listener callback must be moveable!"); 
         PlatformSocket ListenSocket;
         LISTENERCALLBACK AcceptHandler;
         std::thread Runner;
         bool Keepgoing;
-        CONTEXTTYPE &ContextImpl_;
+        Context &ContextImpl_;
  
       public:
-        Listener(CONTEXTTYPE &c, PlatformSocket &&acceptsocket, LISTENERCALLBACK &accepthandler)
+        Listener(Context &c, PlatformSocket &&acceptsocket, LISTENERCALLBACK &accepthandler)
             : ListenSocket(std::move(acceptsocket)), AcceptHandler(std::move(accepthandler)), ContextImpl_(c)
         {
             Keepgoing = true;

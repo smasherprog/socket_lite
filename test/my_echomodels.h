@@ -24,42 +24,36 @@ SL::NET::PlatformSocket listengetaddrinfo(const char *nodename, SL::NET::PortNum
     }
     return SL::NET::PlatformSocket(); // empty socket
 }
-
-char writeecho[] = "echo test";
-char readecho[] = "echo test";
+std::vector<char> writeecho, readecho; 
 auto writeechos = 0.0;
 bool keepgoing = true;
 
 class session : public std::enable_shared_from_this<session> {
 
   public:
-    session(SL::NET::Socket<std::shared_ptr<session>> socket) : socket_(std::move(socket)) {}
+    session(SL::NET::Socket socket) : socket_(std::move(socket)) {}
     ~session() { close(); }
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.recv_async(sizeof(readecho), (unsigned char *)readecho,
-                           [](SL::NET::StatusCode code, std::shared_ptr<session> &userdata) {
-                               if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                                   userdata->do_read();
-                               }
-                           },
-                           self);
+        socket_.recv_async(readecho.size(), (unsigned char *)readecho.data(), [self](SL::NET::StatusCode code) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                self->do_read();
+            }
+        });
     }
 
     void do_write()
     {
         auto self(shared_from_this());
-        socket_.send_async(sizeof(writeecho), (unsigned char *)writeecho,
-                           [](SL::NET::StatusCode code, std::shared_ptr<session> &userdata) {
-                               if (code == SL::NET::StatusCode::SC_SUCCESS) {
-                                   writeechos += 1.0;
-                                   userdata->do_write();
-                               }
-                           },
-                           self);
+        socket_.send_async(writeecho.size(), (unsigned char *)writeecho.data(), [self](SL::NET::StatusCode code) {
+            if (code == SL::NET::StatusCode::SC_SUCCESS) {
+                writeechos += 1.0;
+                self->do_write();
+            }
+        });
     }
-    SL::NET::Socket<std::shared_ptr<session>> socket_;
+    SL::NET::Socket socket_;
     void close() { socket_.close(); }
 };
 template <class CONTEXTYPE> class asioclient {
@@ -74,14 +68,12 @@ template <class CONTEXTYPE> class asioclient {
     void do_connect()
     {
         auto self(socket_);
-        SL::NET::connect_async(socket_->socket_, addrs.back(),
-                               [](SL::NET::StatusCode connectstatus, std::shared_ptr<session> &userdata) {
-                                   if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
-                                       userdata->do_write();
-                                       userdata->do_read();
-                                   }
-                               },
-                               self);
+        SL::NET::connect_async(socket_->socket_, addrs.back(), [self](SL::NET::StatusCode connectstatus) {
+            if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
+                self->do_write();
+                self->do_read();
+            }
+        });
     }
 };
 
