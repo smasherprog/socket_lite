@@ -227,7 +227,6 @@ static void connect_async(Socket &socket, SocketAddress &address, const SocketHa
     }
     auto hhandle = handle.Handle().value;
     socket.PlatformSocket_ = std::move(handle);
-    socket.IOData_.RegisterSocket(socket.PlatformSocket_.Handle());
     auto ret = ::connect(hhandle, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
     if (ret == -1) { // will complete some time later
         auto err = errno;
