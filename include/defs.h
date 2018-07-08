@@ -138,7 +138,7 @@ class SocketAddress {
 
     const unsigned char *getSocketAddr() const { return SocketImpl; }
     int getSocketAddrLen() const { return SocketImplLen; }
-    const std::string &SocketAddress::getHost() const { return Host; }
+    const std::string &getHost() const { return Host; }
     unsigned short getPort() const { return Port; }
     AddressFamily getFamily() const { return Family; }
 };
@@ -152,7 +152,7 @@ typedef std::function<void(StatusCode)> SocketHandler;
 
 class RW_Context {
   public:
-#ifdef _WIN32
+#if _WIN32
     WSAOVERLAPPED Overlapped;
 #endif
   private:
@@ -195,9 +195,11 @@ class RW_Context {
 
     void clear()
     {
+#if _WIN32
         Overlapped.Internal = Overlapped.InternalHigh = 0;
         Overlapped.Offset = Overlapped.OffsetHigh = 0;
         Overlapped.Pointer = Overlapped.hEvent = 0;
+#endif
         completioncounter = 0;
         remaining_bytes = 0;
         buffer = nullptr;

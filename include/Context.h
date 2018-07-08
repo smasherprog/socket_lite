@@ -111,7 +111,7 @@ class Context {
     Context(ThreadCount t) : ThreadCount_(t)
     {
         KeepGoing_ = true;
-        IOCPHandle = nullptr;
+       
         PendingIO = 0;
         Threads.reserve(ThreadCount_.value * 2);
         ReadContexts.resize(std::numeric_limits<unsigned short>::max());
@@ -120,7 +120,7 @@ class Context {
         WriteContexts.shrink_to_fit();
 
 #if _WIN32
-
+        IOCPHandle = nullptr;
         ConnectEx_ = nullptr;
         AcceptEx_ = nullptr;
         if (WSAStartup(0x202, &wsaData) != 0) {
@@ -141,6 +141,7 @@ class Context {
                  NULL);
         assert(AcceptEx_ != nullptr);
 #else
+        IOCPHandle = 0;
         EventWakeFd = EventFd = 0;
         std::signal(SIGPIPE, SIG_IGN);
         IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
@@ -232,10 +233,10 @@ class Context {
                             }
                             else {
                                 auto &wctx = getWriteContext(handle);
-                                if (wctx.IOOperation == IO_OPERATION::IoConnect) {
+                                if (wctx.->getEvent() == IO_OPERATION::IoConnect) {
                                     continue_connect(!socketclosed, wctx, *this, handle);
                                 }
-                                else if (wctx.IOOperation == IO_OPERATION::IoWrite) {
+                                else if (wctx.->getEvent() == IO_OPERATION::IoWrite) {
                                     continue_io(!socketclosed, wctx, *this, handle);
                                 }
                             }
