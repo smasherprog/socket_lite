@@ -225,6 +225,7 @@ static StatusCode TranslateError(int *errcode = nullptr)
         return StatusCode::SC_CLOSED;
     };
 }
+// need to forward declare functions for friend
 template <class T> class Socket;
 template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
 void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &, SocketAddress &, CALLBACKHANDLER, CALLBACKLIFETIMEOBJECT &);

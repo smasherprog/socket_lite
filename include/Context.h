@@ -1,5 +1,6 @@
 #pragma once
 #include "defs.h"
+#include "spinlock.h"
 namespace SL::NET {
 // forward declare
 template <class T> class Socket;
@@ -12,6 +13,9 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
     std::vector<RW_Context<CALLBACKLIFETIMEOBJECT>> ReadContexts, WriteContexts;
     bool KeepGoing_;
     std::atomic<int> PendingIO;
+    std::vector<SocketHandle> ReadSockets, WriteSockets;
+    spinlock ReadSocketLock, WriteSocketLock;
+
 #if _WIN32
     HANDLE IOCPHandle;
     WSADATA wsaData;
@@ -25,12 +29,26 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
         }
     }
     HANDLE getIOHandle() const { return IOCPHandle; }
+    void wakeupReadfd(SocketHandle fd)
+    {
+        {
+            std::lock_guard<spinlock> lock(ReadSocketLock);
+            ReadSockets.push_back(fd);
+        }
+        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
+    }
+    void wakeupWritefd(SocketHandle fd)
+    {
+        {
+            std::lock_guard<spinlock> lock(WriteSocketLock);
+            WriteSockets.push_back(fd);
+        }
+        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
+    }
 #else
     int EventWakeFd;
     int EventFd;
     int IOCPHandle;
-    std::vector<int> ReadSockets, WriteSockets;
-    spinlock ReadSocketLock, WriteSocketLock;
     int getIOHandle() const { return IOCPHandle; }
     void wakeup()
     {
@@ -38,7 +56,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
             eventfd_write(EventWakeFd, 1);
         }
     }
-    void wakeupReadfd(int fd)
+    void wakeupReadfd(SocketHandle fd)
     {
         {
             std::lock_guard<spinlock> lock(ReadSocketLock);
@@ -46,7 +64,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
         }
         eventfd_write(EventFd, 1);
     }
-    void wakeupWritefd(int fd)
+    void wakeupWritefd(SocketHandle fd)
     {
         {
             std::lock_guard<spinlock> lock(WriteSocketLock);
@@ -56,6 +74,41 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
     }
 
 #endif
+    void HandlePendingIO(std::vector<SocketHandle> &socketbuffer)
+    {
+        if (!ReadSockets.empty()) {
+            {
+                std::lock_guard<spinlock> lock(ReadSocketLock);
+                for (auto a : ReadSockets) {
+                    socketbuffer.push_back(a);
+                }
+                ReadSockets.clear();
+            }
+            for (auto a : socketbuffer) {
+                SocketHandle handle(a);
+                auto &rctx = getReadContext(handle);
+                continue_io(true, rctx, *this, handle);
+            }
+            socketbuffer.clear();
+        }
+
+        if (!WriteSockets.empty()) {
+            {
+                std::lock_guard<spinlock> lock(WriteSocketLock);
+                for (auto a : WriteSockets) {
+                    socketbuffer.push_back(a);
+                }
+                WriteSockets.clear();
+            }
+            for (auto a : socketbuffer) {
+                SocketHandle handle(a);
+                auto &rctx = getWriteContext(handle);
+                continue_io(true, rctx, *this, handle);
+            }
+            socketbuffer.clear();
+        }
+    }
+
   public:
     Context(ThreadCount t) : ThreadCount_(t)
     {
@@ -123,6 +176,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
 #if _WIN32
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
             Threads.emplace_back(std::thread([&] {
+                std::vector<SocketHandle> socketbuffer;
                 for (;;) {
                     DWORD numberofbytestransfered = 0;
                     RW_Context<CALLBACKLIFETIMEOBJECT> *overlapped = nullptr;
@@ -131,27 +185,27 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
                                     KeepGoing_;
-                    if (overlapped == NULL) {
-                        wakeup();
-                        return;
-                    }
-                    switch (auto eventyype = overlapped->getEvent()) {
-                    case IO_OPERATION::IoRead:
-                    case IO_OPERATION::IoWrite:
+                    if (overlapped != NULL) {
+                        switch (auto eventyype = overlapped->getEvent()) {
+                        case IO_OPERATION::IoRead:
+                        case IO_OPERATION::IoWrite:
 
-                        overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
-                        overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
-                        if (numberofbytestransfered == 0 && bSuccess) {
-                            bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                            overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
+                            overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
+                            if (numberofbytestransfered == 0 && bSuccess) {
+                                bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                            }
+                            continue_io(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
+                            break;
+                        case IO_OPERATION::IoConnect:
+                            continue_connect(bSuccess, *overlapped, *this,
+                                             SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
+                            break;
+                        default:
+                            break;
                         }
-                        continue_io(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
-                        break;
-                    case IO_OPERATION::IoConnect:
-                        continue_connect(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
-                        break;
-                    default:
-                        break;
                     }
+                    HandlePendingIO(socketbuffer);
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
@@ -163,8 +217,8 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
 
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
             Threads.emplace_back(std::thread([&] {
-                epoll_event epollevents[128];
-                std::vector<int> socketbuffer;
+                epoll_event epollevents[128]; 
+                 std::vector<SocketHandle> socketbuffer;
                 for (;;) {
                     auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 
@@ -189,37 +243,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
                             }
                         }
                     }
-                    if (!ReadSockets.empty()) {
-                        {
-                            std::lock_guard<spinlock> lock(ReadSocketLock);
-                            for (auto a : ReadSockets) {
-                                socketbuffer.push_back(a);
-                            }
-                            ReadSockets.clear();
-                        }
-                        for (auto a : socketbuffer) {
-                            SocketHandle handle(a);
-                            auto &rctx = getReadContext(handle);
-                            continue_io(true, rctx, *this, handle);
-                        }
-                        socketbuffer.clear();
-                    }
-
-                    if (!WriteSockets.empty()) {
-                        {
-                            std::lock_guard<spinlock> lock(WriteSocketLock);
-                            for (auto a : WriteSockets) {
-                                socketbuffer.push_back(a);
-                            }
-                            WriteSockets.clear();
-                        }
-                        for (auto a : socketbuffer) {
-                            SocketHandle handle(a);
-                            auto &rctx = getWriteContext(handle);
-                            continue_io(true, rctx, *this, handle);
-                        }
-                        socketbuffer.clear();
-                    }
+                    HandlePendingIO(socketbuffer);
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
