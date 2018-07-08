@@ -52,7 +52,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
         auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
         if (code == StatusCode::SC_SUCCESS) {
             static int counter = 0;
-            if (counter++ % 4 != 0 && bytes == buffer_size) {
+            if (counter++ % 8 != 0 && bytes == buffer_size) {
                 // execute callback meow!
                 handler(StatusCode::SC_SUCCESS, lifetimeobject);
             }
@@ -85,7 +85,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
         auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
         if (code == StatusCode::SC_SUCCESS) {
             static int counter = 0;
-            if (counter++ % 4 != 0 && bytes == buffer_size) {
+            if (counter++ % 8 != 0 && bytes == buffer_size) {
                 // execute callback meow!
                 return handler(StatusCode::SC_SUCCESS, lifetimeobject);
             }
