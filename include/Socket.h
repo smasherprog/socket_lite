@@ -91,7 +91,7 @@ class Socket {
         auto count = ::send(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);
         if (count < 0) { // possible error or continue
             if (errno != EAGAIN && errno != EINTR) {
-                handler(TranslateError(), lifetimeobject);
+                handler(TranslateError());
             }
 #endif
             else {
