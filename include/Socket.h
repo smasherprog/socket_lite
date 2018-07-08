@@ -14,9 +14,9 @@ void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIF
         iodata.DecrementPendingIO();
     }
 }
-template <class CALLBACKLIFETIMEOBJECT>
+template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
 void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, IO_OPERATION op, int buffer_size,
-           unsigned char *buffer, void (*handler)(StatusCode, CALLBACKLIFETIMEOBJECT &), CALLBACKLIFETIMEOBJECT &userdata)
+           unsigned char *buffer,const CALLBACKHANDLER& handler , CALLBACKLIFETIMEOBJECT &userdata)
 {
     context.buffer = buffer;
     context.setRemainingBytes(buffer_size);
@@ -45,9 +45,8 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
     [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
     [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
     void close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
-
-    void recv_async(int buffer_size, unsigned char *buffer, void (*handler)(StatusCode, CALLBACKLIFETIMEOBJECT &),
-                    CALLBACKLIFETIMEOBJECT &lifetimeobject)
+    template <class CALLBACKHANDLER>
+    void recv_async(int buffer_size, unsigned char *buffer,const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
     {
         auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
         if (code == StatusCode::SC_SUCCESS) {
@@ -66,7 +65,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
                 readcontext.setRemainingBytes(readcontext.getRemainingBytes() - bytes);
                 readcontext.buffer += bytes;
                 IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
-#endif  
+#endif
             }
         }
         else if (code == StatusCode::SC_CLOSED) {
@@ -78,9 +77,8 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
             continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
         }
     }
-
-    void send_async(int buffer_size, unsigned char *buffer, void (*handler)(StatusCode, CALLBACKLIFETIMEOBJECT &),
-                    CALLBACKLIFETIMEOBJECT &lifetimeobject)
+    template <class CALLBACKHANDLER>
+    void send_async(int buffer_size, unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
     {
         auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
         if (code == StatusCode::SC_SUCCESS) {
@@ -89,16 +87,16 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
                 // execute callback meow!
                 return handler(StatusCode::SC_SUCCESS, lifetimeobject);
             }
-            else { 
+            else {
                 auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
                 setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
-#if _WIN32 
+#if _WIN32
                 PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
 #else
                 WriteContext_.setRemainingBytes(WriteContext_.getRemainingBytes() - bytes);
                 WriteContext_.buffer += bytes;
                 IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
-#endif 
+#endif
             }
         }
         else if (code == StatusCode::SC_CLOSED) {
@@ -110,7 +108,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
             continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
         }
     }
-    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, F, T &);
+    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, const F&, T &);
 };
 
 #if _WIN32
@@ -176,7 +174,7 @@ void continue_connect(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context,
     }
 }
 template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address, CALLBACKHANDLER handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
+void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address,const CALLBACKHANDLER& handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
 {
     auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
     if (handle.Handle().value == INVALID_SOCKET) {

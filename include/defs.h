@@ -228,11 +228,11 @@ static StatusCode TranslateError(int *errcode = nullptr)
 // need to forward declare functions for friend
 template <class T> class Socket;
 template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &, SocketAddress &, CALLBACKHANDLER, CALLBACKLIFETIMEOBJECT &);
+void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &, SocketAddress &,const CALLBACKHANDLER&, CALLBACKLIFETIMEOBJECT &);
 template <class T> class Context;
-template <class CALLBACKLIFETIMEOBJECT>
-void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &, Context<CALLBACKLIFETIMEOBJECT> &, IO_OPERATION, int, unsigned char *,
-           void (*)(StatusCode, CALLBACKLIFETIMEOBJECT &), CALLBACKLIFETIMEOBJECT &);
+template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
+void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, IO_OPERATION op, int buffer_size,
+           unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &userdata);
 template <class CALLBACKLIFETIMEOBJECT> void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &, Context<CALLBACKLIFETIMEOBJECT> &, StatusCode);
 
 } // namespace SL::NET

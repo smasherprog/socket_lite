@@ -331,8 +331,8 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
     }
     template <class T> friend class Socket;
     template <class T, class F> friend class Listener;
-    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, F, T &);
-    template <class T> friend void setup(RW_Context<T> &, Context<T> &, IO_OPERATION, int, unsigned char *, void (*)(StatusCode, T &), T &);
+    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, const F&, T &);
+    template <class T, class F> friend void setup(RW_Context<T> &, Context<T> &, IO_OPERATION, int, unsigned char *, const F&, T &);
     template <class T> friend void completeio(RW_Context<T> &, Context<T> &, StatusCode);
 };
 
