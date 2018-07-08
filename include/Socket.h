@@ -85,7 +85,7 @@ class Socket {
         auto count = ::send(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                handler(TranslateError(&er)); 
+                handler(TranslateError(&er));
             }
 #else
         auto count = ::send(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);
@@ -219,7 +219,7 @@ static void connect_async(Socket &socket, SocketAddress &address, const SocketHa
 }
 #else
 
-void connect_async(Socket &socket, SocketAddress &address, std::function<void(StatusCode)> &&handler)
+static void connect_async(Socket &socket, SocketAddress &address, const SocketHandler &handler)
 {
     auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
     if (handle.Handle().value == INVALID_SOCKET) {
@@ -236,8 +236,8 @@ void connect_async(Socket &socket, SocketAddress &address, std::function<void(St
         }
         else {
             auto &context = socket.IOData_.getWriteContext(socket.PlatformSocket_.Handle());
-            context.setCompletionHandler(std::move(handler));
-            context.IOOperation = IO_OPERATION::IoConnect;
+            context.setCompletionHandler(handler);
+            context.setEvent(IO_OPERATION::IoConnect);
             socket.IOData_.IncrementPendingIO();
 
             epoll_event ev = {0};
@@ -253,7 +253,7 @@ void connect_async(Socket &socket, SocketAddress &address, std::function<void(St
     }
 }
 
-void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &)
+static void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
 {
     if (success) {
         completeio(context, iodata, StatusCode::SC_SUCCESS);
@@ -262,7 +262,7 @@ void continue_connect(bool success, RW_Context &context, Context &iodata, const 
         completeio(context, iodata, StatusCode::SC_CLOSED);
     }
 }
-void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
+static void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
 {
 
     if (!success) {
@@ -273,7 +273,7 @@ void continue_io(bool success, RW_Context &context, Context &iodata, const Socke
     }
     else {
         auto count = 0;
-        if (context.IOOperation == IO_OPERATION::IoRead) {
+        if (context.getEvent() == IO_OPERATION::IoRead) {
             count = ::recv(handle.value, context.buffer, context.remaining_bytes, MSG_NOSIGNAL);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
@@ -294,16 +294,16 @@ void continue_io(bool success, RW_Context &context, Context &iodata, const Socke
                     count = 0;
                 }
             }
-        }
+        } 
         context.buffer += count;
-        context.remaining_bytes -= count;
+        context.setRemainingBytes(context.getRemainingBytes() - count);
         if (context.remaining_bytes == 0) {
             return completeio(context, iodata, StatusCode::SC_SUCCESS);
         }
 
         epoll_event ev = {0};
         ev.data.fd = handle.value;
-        ev.events = context.IOOperation == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
+        ev.events = context.getEvent() == IO_OPERATION::IoRead ? EPOLLIN : EPOLLOUT;
         ev.events |= EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
         if (epoll_ctl(iodata.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
             return completeio(context, iodata, TranslateError());
