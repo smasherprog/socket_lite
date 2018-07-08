@@ -16,7 +16,7 @@ void completeio(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIF
 }
 template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
 void setup(RW_Context<CALLBACKLIFETIMEOBJECT> &context, Context<CALLBACKLIFETIMEOBJECT> &iodata, IO_OPERATION op, int buffer_size,
-           unsigned char *buffer,const CALLBACKHANDLER& handler , CALLBACKLIFETIMEOBJECT &userdata)
+           unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &userdata)
 {
     context.buffer = buffer;
     context.setRemainingBytes(buffer_size);
@@ -46,70 +46,87 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
     [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
     void close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
     template <class CALLBACKHANDLER>
-    void recv_async(int buffer_size, unsigned char *buffer,const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
+    void recv_async(int buffer_size, unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
     {
-        auto[code, bytes] = PlatformSocket_.recv(buffer, buffer_size, 0);
-        if (code == StatusCode::SC_SUCCESS) {
-            static int counter = 0;
-            if (counter++ % 8 != 0 && bytes == buffer_size) {
-                // execute callback meow!
-                handler(StatusCode::SC_SUCCESS, lifetimeobject);
+        static int counter = 0;
+#if _WIN32
+        auto count = ::recv(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
+        if (count <= 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+                 handler(TranslateError(&er), lifetimeobject);
             }
-            else {
+#else
+        auto count = ::recv(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);
+        if (count <= 0) { // possible error or continue
+            if ((errno != EAGAIN && errno != EINTR) || count == 0) {
+                 handler(TranslateError(), lifetimeobject);
+            }
 
+#endif
+            else {
                 auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
                 setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
-#if _WIN32
-                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
-#else
-                readcontext.setRemainingBytes(readcontext.getRemainingBytes() - bytes);
-                readcontext.buffer += bytes;
-                IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
-#endif
+                continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
             }
         }
-        else if (code == StatusCode::SC_CLOSED) {
-            handler(code, lifetimeobject);
+        else if (counter++ % 8 != 0 && count == buffer_size) {
+            // execute callback meow!
+            handler(StatusCode::SC_SUCCESS, lifetimeobject);
         }
         else {
+
             auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
             setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
-            continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
+#if _WIN32
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
+#else
+            readcontext.setRemainingBytes(readcontext.getRemainingBytes() - count);
+            readcontext.buffer += count;
+            IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
+#endif
         }
     }
     template <class CALLBACKHANDLER>
     void send_async(int buffer_size, unsigned char *buffer, const CALLBACKHANDLER &handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
     {
-        auto[code, bytes] = PlatformSocket_.send(buffer, buffer_size, 0);
-        if (code == StatusCode::SC_SUCCESS) {
-            static int counter = 0;
-            if (counter++ % 8 != 0 && bytes == buffer_size) {
-                // execute callback meow!
-                return handler(StatusCode::SC_SUCCESS, lifetimeobject);
+        static int counter = 0;
+#if _WIN32
+        auto count = ::send(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
+        if (count < 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+                handler(TranslateError(&er), lifetimeobject); 
             }
+#else
+        auto count = ::send(PlatformSocket_.Handle().value, buffer, static_cast<int>(buffer_size), MSG_NOSIGNAL);
+        if (count < 0) { // possible error or continue
+            if (errno != EAGAIN && errno != EINTR) {
+                handler(TranslateError(), lifetimeobject); 
+            }
+#endif
             else {
                 auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
                 setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
-#if _WIN32
-                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
-#else
-                WriteContext_.setRemainingBytes(WriteContext_.getRemainingBytes() - bytes);
-                WriteContext_.buffer += bytes;
-                IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
-#endif
+                continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
             }
         }
-        else if (code == StatusCode::SC_CLOSED) {
-            handler(code, lifetimeobject);
+        else if (counter++ % 8 != 0 && count == buffer_size) {
+            // execute callback meow!
+            handler(StatusCode::SC_SUCCESS, lifetimeobject);
         }
         else {
             auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
             setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
-            continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
+#if _WIN32
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
+#else
+            WriteContext_.setRemainingBytes(WriteContext_.getRemainingBytes() - count);
+            WriteContext_.buffer += count;
+            IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
+#endif
         }
     }
-    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, const F&, T &);
-};
+    template <class T, class F> friend void SL::NET::connect_async(Socket<T> &, SocketAddress &, const F &, T &);
+}; // namespace SL::NET
 
 #if _WIN32
 inline StatusCode BindConnectSocket(SOCKET sock, AddressFamily family)
@@ -174,7 +191,8 @@ void continue_connect(bool success, RW_Context<CALLBACKLIFETIMEOBJECT> &context,
     }
 }
 template <class CALLBACKLIFETIMEOBJECT, class CALLBACKHANDLER>
-void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address,const CALLBACKHANDLER& handler, CALLBACKLIFETIMEOBJECT &lifetimeobject)
+void connect_async(Socket<CALLBACKLIFETIMEOBJECT> &socket, SocketAddress &address, const CALLBACKHANDLER &handler,
+                   CALLBACKLIFETIMEOBJECT &lifetimeobject)
 {
     auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
     if (handle.Handle().value == INVALID_SOCKET) {
