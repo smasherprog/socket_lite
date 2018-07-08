@@ -297,7 +297,7 @@ static void continue_io(bool success, RW_Context &context, Context &iodata, cons
         } 
         context.buffer += count;
         context.setRemainingBytes(context.getRemainingBytes() - count);
-        if (context.remaining_bytes == 0) {
+        if (context.getRemainingBytes() == 0) {
             return completeio(context, iodata, StatusCode::SC_SUCCESS);
         }
 

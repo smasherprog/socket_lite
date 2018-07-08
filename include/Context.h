@@ -233,10 +233,10 @@ class Context {
                             }
                             else {
                                 auto &wctx = getWriteContext(handle);
-                                if (wctx->getEvent() == IO_OPERATION::IoConnect) {
+                                if (wctx.getEvent() == IO_OPERATION::IoConnect) {
                                     continue_connect(!socketclosed, wctx, *this, handle);
                                 }
-                                else if (wctx->getEvent() == IO_OPERATION::IoWrite) {
+                                else if (wctx.getEvent() == IO_OPERATION::IoWrite) {
                                     continue_io(!socketclosed, wctx, *this, handle);
                                 }
                             }
