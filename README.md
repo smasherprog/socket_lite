@@ -28,22 +28,22 @@
     </tr>
   <tr>
      <td>ST Echos Per Second</td>
-     <td>1.75X</td> 
+     <td>2.5X</td> 
     <td>1.75X</td> 
    <td>1.5X</td>   
    <td>1.75X</td> 
     </tr>
    <tr>
      <td>MT Echos Per Second</td>
-     <td>2X</td>
+     <td>4X</td>
      <td>2.5X</td>
      <td>2X</td>    
       <td>2X</td>    
     </tr>
       <tr>
      <td>ST Bulk Transfer Bytes Per Second</td>
-     <td>0% (Usually equal)</td>
-     <td>0% (Usually equal)</td>
+     <td>0% CPU usage is half</td>
+     <td>0% CPU usage is half</td>
      <td>1.5X</td>    
       <td>1.5X</td>    
     </tr>
