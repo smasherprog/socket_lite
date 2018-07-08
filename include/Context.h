@@ -233,10 +233,10 @@ class Context {
                             }
                             else {
                                 auto &wctx = getWriteContext(handle);
-                                if (wctx.->getEvent() == IO_OPERATION::IoConnect) {
+                                if (wctx->getEvent() == IO_OPERATION::IoConnect) {
                                     continue_connect(!socketclosed, wctx, *this, handle);
                                 }
-                                else if (wctx.->getEvent() == IO_OPERATION::IoWrite) {
+                                else if (wctx->getEvent() == IO_OPERATION::IoWrite) {
                                     continue_io(!socketclosed, wctx, *this, handle);
                                 }
                             }
@@ -333,6 +333,7 @@ class Context {
     friend void SL::NET::connect_async(Socket &, SocketAddress &, const SocketHandler &);
     friend void SL::NET::setup(RW_Context &, Context &, IO_OPERATION, int, unsigned char *, const SocketHandler &);
     friend void SL::NET::completeio(RW_Context &, Context &, StatusCode);
+    friend void SL::NET::continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
 };
 
 } // namespace SL::NET

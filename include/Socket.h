@@ -268,13 +268,13 @@ static void continue_io(bool success, RW_Context &context, Context &iodata, cons
     if (!success) {
         return completeio(context, iodata, StatusCode::SC_CLOSED);
     }
-    else if (context.remaining_bytes == 0) {
+    else if (context.getRemainingBytes() == 0) {
         return completeio(context, iodata, StatusCode::SC_SUCCESS);
     }
     else {
         auto count = 0;
         if (context.getEvent() == IO_OPERATION::IoRead) {
-            count = ::recv(handle.value, context.buffer, context.remaining_bytes, MSG_NOSIGNAL);
+            count = ::recv(handle.value, context.buffer, context.getRemainingBytes(), MSG_NOSIGNAL);
             if (count <= 0) { // possible error or continue
                 if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                     return completeio(context, iodata, TranslateError());
@@ -285,7 +285,7 @@ static void continue_io(bool success, RW_Context &context, Context &iodata, cons
             }
         }
         else {
-            count = ::send(handle.value, context.buffer, context.remaining_bytes, MSG_NOSIGNAL);
+            count = ::send(handle.value, context.buffer, context.getRemainingBytes(), MSG_NOSIGNAL);
             if (count < 0) { // possible error or continue
                 if (errno != EAGAIN && errno != EINTR) {
                     return completeio(context, iodata, TranslateError());
