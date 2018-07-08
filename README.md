@@ -42,8 +42,8 @@
     </tr>
       <tr>
      <td>ST Bulk Transfer Bytes Per Second</td>
-     <td>0% Same, but CPU usage is half</td>
-     <td>0% Same, but CPU usage is half</td>
+     <td>0% CPU usage is half</td>
+     <td>0% CPU usage is half</td>
      <td>1.5X</td>    
       <td>1.5X</td>    
     </tr>
