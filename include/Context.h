@@ -185,7 +185,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
                                     KeepGoing_;
-                    if (overlapped != NULL) {
+                    if (overlapped != nullptr) {
                         switch (auto eventyype = overlapped->getEvent()) {
                         case IO_OPERATION::IoRead:
                         case IO_OPERATION::IoWrite:
@@ -205,7 +205,7 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
                             break;
                         }
                     }
-                    HandlePendingIO(socketbuffer);
+
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
@@ -217,8 +217,8 @@ template <class CALLBACKLIFETIMEOBJECT> class Context {
 
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
             Threads.emplace_back(std::thread([&] {
-                epoll_event epollevents[128]; 
-                 std::vector<SocketHandle> socketbuffer;
+                epoll_event epollevents[128];
+                std::vector<SocketHandle> socketbuffer;
                 for (;;) {
                     auto count = epoll_wait(IOCPHandle, epollevents, 128, -1);
 

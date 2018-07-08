@@ -60,10 +60,13 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
 
                 auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
                 setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler, lifetimeobject);
+#if _WIN32
+                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
+#else
                 readcontext.setRemainingBytes(readcontext.getRemainingBytes() - bytes);
                 readcontext.buffer += bytes;
                 IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
-
+#endif  
             }
         }
         else if (code == StatusCode::SC_CLOSED) {
@@ -89,9 +92,13 @@ template <class CALLBACKLIFETIMEOBJECT> class Socket {
             else { 
                 auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
                 setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler, lifetimeobject);
+#if _WIN32 
+                PostQueuedCompletionStatus(IOData_.getIOHandle(), bytes, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
+#else
                 WriteContext_.setRemainingBytes(WriteContext_.getRemainingBytes() - bytes);
                 WriteContext_.buffer += bytes;
                 IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
+#endif 
             }
         }
         else if (code == StatusCode::SC_CLOSED) {
