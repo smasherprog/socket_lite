@@ -37,7 +37,7 @@ class Socket {
     [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
     [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
     void close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
-    void recv_async(int buffer_size, unsigned char *buffer, const SocketHandler &handler)
+    template <class SOCKEtHANDLERTYPE> void recv_async(int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler)
     {
         static int counter = 0;
 #if _WIN32
@@ -77,8 +77,7 @@ class Socket {
 #endif
         }
     }
-
-    void send_async(int buffer_size, unsigned char *buffer, const SocketHandler &handler)
+    template <class SOCKEtHANDLERTYPE> void send_async(int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler)
     {
         static int counter = 0;
 #if _WIN32
@@ -293,7 +292,7 @@ static void continue_io(bool success, RW_Context &context, Context &iodata, cons
                     count = 0;
                 }
             }
-        } 
+        }
         context.buffer += count;
         context.setRemainingBytes(context.getRemainingBytes() - count);
         if (context.getRemainingBytes() == 0) {
