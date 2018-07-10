@@ -296,9 +296,18 @@ class Context {
             IOCPHandle = nullptr;
         }
 #else
-        ::close(EventFd);
-        ::close(EventWakeFd);
-        ::close(IOCPHandle);
+        if (EventFd != 0) {
+            ::close(EventFd);
+            EventFd = 0;
+        }
+        if (EventWakeFd != 0) {
+            ::close(EventWakeFd);
+            EventWakeFd = 0;
+        }
+        if (IOCPHandle != 0) {
+            ::close(IOCPHandle);
+            IOCPHandle = 0;
+        }
 #endif
     }
 
