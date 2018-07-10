@@ -164,10 +164,10 @@ class RW_Context {
     unsigned char *buffer = nullptr;
     RW_Context() { clear(); }
     RW_Context(const RW_Context &) { clear(); }
-    void setCompletionHandler(const SocketHandler& c)
+    template <class T> void setCompletionHandler(const T &c)
     {
 #if _WIN32
-        Overlapped.Internal = Overlapped.InternalHigh =0 ;
+        Overlapped.Internal = Overlapped.InternalHigh = 0;
         Overlapped.Offset = Overlapped.OffsetHigh = 0;
         Overlapped.Pointer = Overlapped.hEvent = 0;
 #endif
@@ -232,7 +232,7 @@ static StatusCode TranslateError(int *errcode = nullptr)
     };
 }
 class Socket;
-static void connect_async(Socket &, SocketAddress &, const SocketHandler &);
+template <class T> void connect_async(Socket &, SocketAddress &, const T &);
 class Context;
 static void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SocketHandler &handler);
 static void completeio(RW_Context &context, Context &iodata, StatusCode code);

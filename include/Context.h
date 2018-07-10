@@ -111,7 +111,7 @@ class Context {
     Context(ThreadCount t) : ThreadCount_(t)
     {
         KeepGoing_ = true;
-       
+
         PendingIO = 0;
         Threads.reserve(ThreadCount_.value * 2);
         ReadContexts.resize(std::numeric_limits<unsigned short>::max());
@@ -330,7 +330,7 @@ class Context {
     }
     friend class Socket;
     template <class T> friend class Listener;
-    friend void SL::NET::connect_async(Socket &, SocketAddress &, const SocketHandler &);
+    template <class T> friend void SL::NET::connect_async(Socket &, SocketAddress &, const T &);
     friend void SL::NET::setup(RW_Context &, Context &, IO_OPERATION, int, unsigned char *, const SocketHandler &);
     friend void SL::NET::completeio(RW_Context &, Context &, StatusCode);
     friend void SL::NET::continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
