@@ -41,7 +41,7 @@ class Socket {
     {
         static int counter = 0;
 #if _WIN32
-        auto count = ::recv(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
+        auto count = ::recv(PlatformSocket_.Handle().value, reinterpret_cast<char *>(buffer), static_cast<int>(buffer_size), 0);
         if (count <= 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
                 handler(TranslateError(&er));
@@ -60,8 +60,19 @@ class Socket {
                 continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
             }
         }
-        else if (counter++ % 8 != 0 && count == buffer_size) {
-            // execute callback meow!
+        else if (count != buffer_size) { // not all the data has been sent
+            auto &context = IOData_.getReadContext(PlatformSocket_.Handle());
+            setup(context, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler);
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)context.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(context.getRemainingBytes());
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            DWORD nRet = WSARecv(PlatformSocket_.Handle().value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
+            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
+                handler(TranslateError(&lasterr));
+            }
+        }
+        else if (counter++ % 8 != 0) {
             handler(StatusCode::SC_SUCCESS);
         }
         else {
@@ -82,7 +93,7 @@ class Socket {
     {
         static int counter = 0;
 #if _WIN32
-        auto count = ::send(PlatformSocket_.Handle().value, (char *)buffer, static_cast<int>(buffer_size), 0);
+        auto count = ::send(PlatformSocket_.Handle().value, reinterpret_cast<char *>(buffer), static_cast<int>(buffer_size), 0);
         if (count < 0) { // possible error or continue
             if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
                 handler(TranslateError(&er));
@@ -100,17 +111,28 @@ class Socket {
                 continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
             }
         }
-        else if (counter++ % 8 != 0 && count == buffer_size) {
-            // execute callback meow!
+        else if (count != buffer_size) { // not all the data has been sent
+            auto &context = IOData_.getWriteContext(PlatformSocket_.Handle());
+            setup(context, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)context.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(context.getRemainingBytes());
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            DWORD nRet = WSARecv(PlatformSocket_.Handle().value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
+            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
+                handler(TranslateError(&lasterr));
+            }
+        }
+        else if (counter++ % 8 != 0) {
             handler(StatusCode::SC_SUCCESS);
         }
         else {
-            auto &WriteContext_ = IOData_.getWriteContext(PlatformSocket_.Handle());
-            setup(WriteContext_, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
+            auto &context = IOData_.getWriteContext(PlatformSocket_.Handle());
+            setup(context, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
 #if _WIN32
-            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(WriteContext_.Overlapped));
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(context.Overlapped));
 #else
-            WriteContext_.setRemainingBytes(WriteContext_.getRemainingBytes() - count);
+            WriteContext_.setRemainingBytes(context.getRemainingBytes() - count);
             WriteContext_.buffer += count;
             IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
 #endif
@@ -293,7 +315,7 @@ static void continue_io(bool success, RW_Context &context, Context &iodata, cons
                     count = 0;
                 }
             }
-        } 
+        }
         context.buffer += count;
         context.setRemainingBytes(context.getRemainingBytes() - count);
         if (context.getRemainingBytes() == 0) {
