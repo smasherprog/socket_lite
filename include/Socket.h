@@ -82,13 +82,13 @@ class Socket {
 #endif
         else {
 
-            auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
-            setup(readcontext, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler);
+            auto &context = IOData_.getReadContext(PlatformSocket_.Handle());
+            setup(context, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler);
 #if _WIN32
-            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(readcontext.Overlapped));
+            PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(context.Overlapped));
 #else
-            readcontext.setRemainingBytes(readcontext.getRemainingBytes() - count);
-            readcontext.buffer += count;
+            context.setRemainingBytes(readcontext.getRemainingBytes() - count);
+            context.buffer += count;
             IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
 #endif
         }
@@ -142,8 +142,8 @@ class Socket {
 #if _WIN32
             PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(context.Overlapped));
 #else
-            WriteContext_.setRemainingBytes(context.getRemainingBytes() - count);
-            WriteContext_.buffer += count;
+            context.setRemainingBytes(context.getRemainingBytes() - count);
+            context.buffer += count;
             IOData_.wakeupWritefd(PlatformSocket_.Handle().value);
 #endif
         }
