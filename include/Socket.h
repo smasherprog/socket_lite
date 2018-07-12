@@ -37,7 +37,7 @@ class Socket {
     [[nodiscard]] PlatformSocket &Handle() { return PlatformSocket_; }
     [[nodiscard]] const PlatformSocket &Handle() const { return PlatformSocket_; }
     void close() { PlatformSocket_.shutdown(ShutDownOptions::SHUTDOWN_BOTH); }
-    void recv_async(int buffer_size, unsigned char *buffer, const SocketHandler &handler)
+    template <class SOCKEtHANDLERTYPE> void recv_async(int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler)
     {
         static int counter = 0;
 #if _WIN32
@@ -52,7 +52,6 @@ class Socket {
             if ((errno != EAGAIN && errno != EINTR) || count == 0) {
                 handler(TranslateError());
             }
-
 #endif
             else {
                 auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
@@ -88,8 +87,7 @@ class Socket {
 #endif
         }
     }
-
-    void send_async(int buffer_size, unsigned char *buffer, const SocketHandler &handler)
+    template <class SOCKEtHANDLERTYPE> void send_async(int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler)
     {
         static int counter = 0;
 #if _WIN32
@@ -138,7 +136,7 @@ class Socket {
 #endif
         }
     }
-    friend void SL::NET::connect_async(Socket &, SocketAddress &, const SocketHandler &);
+    template <class T> friend void SL::NET::connect_async(Socket &, SocketAddress &, const T &);
 };
 
 #if _WIN32
@@ -203,7 +201,8 @@ static void continue_connect(bool success, RW_Context &context, Context &iodata,
         completeio(context, iodata, TranslateError());
     }
 }
-static void connect_async(Socket &socket, SocketAddress &address, const SocketHandler &handler)
+
+template <class SOCKEtHANDLERTYPE> void connect_async(Socket &socket, SocketAddress &address, const SOCKEtHANDLERTYPE &handler)
 {
     auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
     if (handle.Handle().value == INVALID_SOCKET) {
@@ -241,7 +240,7 @@ static void connect_async(Socket &socket, SocketAddress &address, const SocketHa
 }
 #else
 
-static void connect_async(Socket &socket, SocketAddress &address, const SocketHandler &handler)
+template <class SOCKEtHANDLERTYPE> void connect_async(Socket &socket, SocketAddress &address, const SOCKEtHANDLERTYPE &handler)
 {
     auto handle = PlatformSocket(Family(address), Blocking_Options::NON_BLOCKING);
     if (handle.Handle().value == INVALID_SOCKET) {
