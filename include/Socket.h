@@ -87,7 +87,7 @@ class Socket {
 #if _WIN32
             PostQueuedCompletionStatus(IOData_.getIOHandle(), count, PlatformSocket_.Handle().value, &(context.Overlapped));
 #else
-            context.setRemainingBytes(readcontext.getRemainingBytes() - count);
+            context.setRemainingBytes(context.getRemainingBytes() - count);
             context.buffer += count;
             IOData_.wakeupReadfd(PlatformSocket_.Handle().value);
 #endif
