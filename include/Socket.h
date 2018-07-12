@@ -123,7 +123,7 @@ class Socket {
             wsabuf.buf = (char *)context.buffer;
             wsabuf.len = static_cast<decltype(wsabuf.len)>(context.getRemainingBytes());
             DWORD dwSendNumBytes(0), dwFlags(0);
-            DWORD nRet = WSARecv(PlatformSocket_.Handle().value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
+            DWORD nRet = WSASend(PlatformSocket_.Handle().value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context.Overlapped), NULL);
             if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
                 handler(TranslateError(&lasterr));
             }
