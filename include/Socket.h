@@ -59,6 +59,7 @@ class Socket {
                 continue_io(true, readcontext, IOData_, PlatformSocket_.Handle());
             }
         }
+#if _WIN32
         else if (count != buffer_size) { // not all the data has been sent
             auto &context = IOData_.getReadContext(PlatformSocket_.Handle());
             setup(context, IOData_, IO_OPERATION::IoRead, buffer_size, buffer, handler);
@@ -74,6 +75,11 @@ class Socket {
         else if (counter++ % 8 != 0) {
             handler(StatusCode::SC_SUCCESS);
         }
+#else
+        else if (counter++ % 8 != 0 && count == buffer_size) {
+            handler(StatusCode::SC_SUCCESS);
+        }
+#endif
         else {
 
             auto &readcontext = IOData_.getReadContext(PlatformSocket_.Handle());
@@ -109,6 +115,7 @@ class Socket {
                 continue_io(true, WriteContext_, IOData_, PlatformSocket_.Handle());
             }
         }
+#if _WIN32
         else if (count != buffer_size) { // not all the data has been sent
             auto &context = IOData_.getWriteContext(PlatformSocket_.Handle());
             setup(context, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
@@ -124,6 +131,11 @@ class Socket {
         else if (counter++ % 8 != 0) {
             handler(StatusCode::SC_SUCCESS);
         }
+#else
+        else if (counter++ % 8 != 0 && count == buffer_size) {
+            handler(StatusCode::SC_SUCCESS);
+        }
+#endif
         else {
             auto &context = IOData_.getWriteContext(PlatformSocket_.Handle());
             setup(context, IOData_, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
