@@ -10,12 +10,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 )
 add_executable(${PROJECT_NAME} 
 	../include/Socket_Lite.h   
-	../include/Socket.h 
 	../include/defs.h 
 	../include/Context.h 
 	../include/spinlock.h 
 	../include/PlatformSocket.h 
-	../include/Listener.h 
+	../include/AsyncAcceptor.h 
+	../include/AsyncPlatformSocket.h 
 	main.cpp 
 	asio_echotest.h 
 	asio_connectiontest.h  

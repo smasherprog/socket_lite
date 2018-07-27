@@ -10,50 +10,50 @@ using namespace std::chrono_literals;
 
 namespace myechomodels {
 
-SL::NET::PlatformSocket listengetaddrinfo(const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family)
+SL::NET::AsyncSocket listengetaddrinfo(const char *nodename, SL::NET::PortNumber port, SL::NET::AddressFamily family, SL::NET::Context &context)
 {
     auto addrs = SL::NET::getaddrinfo(nodename, port, family);
     for (auto &a : addrs) {
-        SL::NET::PlatformSocket h(a.getFamily(), SL::NET::Blocking_Options::BLOCKING);
-        if (h.bind(a) == SL::NET::StatusCode::SC_SUCCESS) {
-            if (h.listen(INT_MAX) == SL::NET::StatusCode::SC_SUCCESS) {
-                [[maybe_unused]] auto reter = h.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
-                return h;
+        auto[statuscode, socket] = SL::NET::AsyncSocket::Create(a.getFamily(), context);
+        if (statuscode == SL::NET::StatusCode::SC_SUCCESS && socket.bind(a) == SL::NET::StatusCode::SC_SUCCESS) {
+            if (socket.listen(INT_MAX) == SL::NET::StatusCode::SC_SUCCESS) {
+                [[maybe_unused]] auto reter = socket.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
+                return std::move(socket);
             }
         }
     }
-    return SL::NET::PlatformSocket(); // empty socket
+    return SL::NET::AsyncSocket(context); // empty socket
 }
-std::vector<char> writeecho, readecho; 
+std::vector<char> writeecho, readecho;
 auto writeechos = 0.0;
 bool keepgoing = true;
 
 class session : public std::enable_shared_from_this<session> {
 
   public:
-    session(SL::NET::Socket socket) : socket_(std::move(socket)) {}
+    session(SL::NET::AsyncSocket socket) : socket_(std::move(socket)) {}
     ~session() { close(); }
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.recv_async(readecho.size(), (unsigned char *)readecho.data(), [self](SL::NET::StatusCode code) {
+        socket_.recv((unsigned char *)readecho.data(), readecho.size(), [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
-            } 
+            }
         });
     }
 
     void do_write()
     {
         auto self(shared_from_this());
-        socket_.send_async(writeecho.size(), (unsigned char *)writeecho.data(), [self](SL::NET::StatusCode code) {
+        socket_.send((unsigned char *)writeecho.data(), writeecho.size(), [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();
-            } 
+            }
         });
     }
-    SL::NET::Socket socket_;
+    SL::NET::AsyncSocket socket_;
     void close() { socket_.close(); }
 };
 class asioclient {
@@ -66,8 +66,8 @@ class asioclient {
     }
     void close() { socket_->close(); }
     void do_connect()
-    { 
-        SL::NET::connect_async(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
+    {
+        SL::NET::AsyncSocket::connect() SL::NET::connect(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 socket_->do_write();
                 socket_->do_read();

@@ -35,7 +35,7 @@ void myconnectiontest()
 }
 void connect()
 {
-    auto socket(std::make_shared<SL::NET::Socket>(*context));
+    auto socket(std::make_shared<SL::NET::Socket_impl>(*context));
     SL::NET::connect_async(*socket, addresses.back(), [socket](SL::NET::StatusCode) {
         connections += 1.0;
         if (keepgoing) {

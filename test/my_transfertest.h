@@ -17,7 +17,7 @@ bool keepgoing = true;
 
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(SL::NET::Socket socket) : socket_(std::move(socket)) {}
+    session(SL::NET::Socket_impl socket) : socket_(std::move(socket)) {}
 
     void do_read()
     {
@@ -38,7 +38,7 @@ class session : public std::enable_shared_from_this<session> {
             }
         });
     }
-    SL::NET::Socket socket_;
+    SL::NET::Socket_impl socket_;
 };
 
 template <class CONTEXTYPE> class asioclient {

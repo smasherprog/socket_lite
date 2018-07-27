@@ -2,9 +2,7 @@
 #include "defs.h"
 #include "spinlock.h"
 namespace SL::NET {
-// forward declare
-class Socket;
-template <class T> class Listener;
+
 class Context {
     const ThreadCount ThreadCount_;
     std::vector<std::thread> Threads;
@@ -18,7 +16,6 @@ class Context {
     HANDLE IOCPHandle;
     WSADATA wsaData;
     LPFN_CONNECTEX ConnectEx_;
-    LPFN_ACCEPTEX AcceptEx_;
     void wakeup() { wakeup(IOCPHandle); }
     static void wakeup(const HANDLE h)
     {
@@ -27,7 +24,7 @@ class Context {
         }
     }
     HANDLE getIOHandle() const { return IOCPHandle; }
-    void wakeupReadfd(SocketHandle fd)
+    void PostDeferredReadIO(SocketHandle fd)
     {
         {
             std::lock_guard<spinlock> lock(ReadSocketLock);
@@ -35,7 +32,7 @@ class Context {
         }
         PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
     }
-    void wakeupWritefd(SocketHandle fd)
+    void PostDeferredWriteIO(SocketHandle fd)
     {
         {
             std::lock_guard<spinlock> lock(WriteSocketLock);
@@ -54,7 +51,7 @@ class Context {
             eventfd_write(EventWakeFd, 1);
         }
     }
-    void wakeupReadfd(SocketHandle fd)
+    void PostDeferredReadIO(SocketHandle fd)
     {
         {
             std::lock_guard<spinlock> lock(ReadSocketLock);
@@ -62,7 +59,7 @@ class Context {
         }
         eventfd_write(EventFd, 1);
     }
-    void wakeupWritefd(SocketHandle fd)
+    void PostDeferredWriteIO(SocketHandle fd)
     {
         {
             std::lock_guard<spinlock> lock(WriteSocketLock);
@@ -122,7 +119,6 @@ class Context {
 #if _WIN32
         IOCPHandle = nullptr;
         ConnectEx_ = nullptr;
-        AcceptEx_ = nullptr;
         if (WSAStartup(0x202, &wsaData) != 0) {
             abort();
         }
@@ -134,12 +130,6 @@ class Context {
         ConnectEx_ = nullptr;
         WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
         assert(ConnectEx_ != nullptr);
-        GUID acceptex_guid = WSAID_ACCEPTEX;
-        bytes = 0;
-        AcceptEx_ = nullptr;
-        WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_, sizeof(AcceptEx_), &bytes, NULL,
-                 NULL);
-        assert(AcceptEx_ != nullptr);
 #else
         IOCPHandle = 0;
         EventWakeFd = EventFd = 0;
@@ -199,6 +189,10 @@ class Context {
                         case IO_OPERATION::IoConnect:
                             continue_connect(bSuccess, *overlapped, *this,
                                              SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
+                            break;
+                        case IO_OPERATION::IoAccept:
+                            continue_accept(bSuccess, *overlapped, *this,
+                                            SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
                             break;
                         default:
                             break;
@@ -337,12 +331,6 @@ class Context {
             completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED);
         }
     }
-    friend class Socket;
-    template <class T> friend class Listener;
-    template <class T> friend void SL::NET::connect_async(Socket &, SocketAddress &, const T &);
-    friend void SL::NET::setup(RW_Context &, Context &, IO_OPERATION, int, unsigned char *, const SocketHandler &);
-    friend void SL::NET::completeio(RW_Context &, Context &, StatusCode);
-    friend void SL::NET::continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
 };
 
 } // namespace SL::NET

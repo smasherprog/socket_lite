@@ -51,6 +51,8 @@ namespace SL::NET {
 
 struct SocketHandleTag {
 };
+struct AsyncSocketHandleTag {
+};
 struct PorNumbertTag {
 };
 struct ThreadCountTag {
@@ -94,7 +96,7 @@ enum class[[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC
                                    SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
 enum class LingerOptions { LINGER_OFF, LINGER_ON };
 enum class SockOptStatus { ENABLED, DISABLED };
-enum class AddressFamily { IPV4, IPV6, IPANY };
+enum AddressFamily : unsigned short { IPV4 = AF_INET, IPV6 = AF_INET6, IPANY = AF_UNSPEC };
 enum class SocketStatus { CLOSED, CONNECTING, OPEN };
 enum class ShutDownOptions { SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH };
 struct LingerOption {
@@ -104,49 +106,58 @@ struct LingerOption {
 #ifdef _WIN32
 #if ((UINTPTR_MAX) == (UINT_MAX))
 typedef Explicit<unsigned short, SocketHandleTag> SocketHandle;
+typedef Explicit<unsigned short, AsyncSocketHandleTag> AsyncSocketHandle;
 #else
 typedef Explicit<unsigned long long, SocketHandleTag> SocketHandle;
+typedef Explicit<unsigned long long, SocketHandleTag> AsyncSocketHandle;
 #endif
 #else
+
+struct IOCompleteHeader {
+    int IO_op : 2;
+    int SocketId : 30;
+};
 typedef Explicit<int, SocketHandleTag> SocketHandle;
+typedef Explicit<int, SocketHandleTag> AsyncSocketHandle;
 #endif
 enum IO_OPERATION : unsigned int { IoRead, IoWrite, IoConnect, IoAccept };
 
 class SocketAddress {
-    unsigned char SocketImpl[65] = {0};
-    int SocketImplLen = 0;
-    std::string Host;
-    unsigned short Port = 0;
-    AddressFamily Family = AddressFamily::IPV4;
+    ::sockaddr_storage Storage;
+    int Length;
 
   public:
-    SocketAddress() {}
-
-    SocketAddress(const SocketAddress &addr) : SocketImplLen(addr.SocketImplLen), Host(addr.Host), Port(addr.Port), Family(addr.Family)
+    SocketAddress() : Length(0), Storage({}) {}
+    SocketAddress(SocketAddress &&addr) : Length(addr.Length)
     {
-        memcpy(SocketImpl, addr.SocketImpl, sizeof(SocketImpl));
+        memcpy(&Storage, &addr.Storage, addr.Length);
+        addr.Length = 0;
     }
-    SocketAddress(unsigned char *buffer, int len, const char *host, unsigned short port, AddressFamily family)
+    SocketAddress(const SocketAddress &addr) : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
+    SocketAddress(::sockaddr *buffer, int len)
     {
-        assert(static_cast<size_t>(len) < sizeof(SocketImpl));
-        memcpy(SocketImpl, buffer, len);
-        SocketImplLen = len;
-        Host = host;
-        Port = port;
-        Family = family;
+        assert(static_cast<size_t>(len) < sizeof(Storage));
+        memcpy(&Storage, buffer, len);
+        Length = len;
     }
 
-    const unsigned char *getSocketAddr() const { return SocketImpl; }
-    int getSocketAddrLen() const { return SocketImplLen; }
-    const std::string &getHost() const { return Host; }
-    unsigned short getPort() const { return Port; }
-    AddressFamily getFamily() const { return Family; }
+    const sockaddr *getSocketAddr() const { return reinterpret_cast<const ::sockaddr *>(&Storage); }
+    int getSocketAddrLen() const { return Length; }
+    std::string getHost() const
+    {
+        char str[INET_ADDRSTRLEN] = {};
+        auto sockin = reinterpret_cast<const ::sockaddr_in *>(&Storage);
+        inet_ntop(Storage.ss_family, &(sockin->sin_addr), str, INET_ADDRSTRLEN);
+        return std::string(str);
+    }
+    unsigned short getPort() const
+    {
+        // both ipv6 and ipv4 structs have their port in the same place!
+        auto sockin = reinterpret_cast<const sockaddr_in *>(&Storage);
+        return ntohs(sockin->sin_port);
+    }
+    AddressFamily getFamily() const { return static_cast<AddressFamily>(Storage.ss_family); }
 };
-inline const unsigned char *SocketAddr(const SocketAddress &s) { return s.getSocketAddr(); }
-inline int SocketAddrLen(const SocketAddress &s) { return s.getSocketAddrLen(); }
-inline const std::string &Host(const SocketAddress &s) { return s.getHost(); }
-inline unsigned short Port(const SocketAddress &s) { return s.getPort(); }
-inline AddressFamily Family(const SocketAddress &s) { return s.getFamily(); }
 
 typedef std::function<void(StatusCode)> SocketHandler;
 
@@ -231,11 +242,31 @@ static StatusCode TranslateError(int *errcode = nullptr)
         return StatusCode::SC_CLOSED;
     };
 }
-class Socket;
-template <class T> void connect_async(Socket &, SocketAddress &, const T &);
+
+template <class SOCKEtHANDLERTYPE, class CONTEXTTYPE>
+void setup(RW_Context &context, CONTEXTTYPE &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler)
+{
+    context.buffer = buffer;
+    context.setRemainingBytes(buffer_size);
+    context.setCompletionHandler(handler);
+    context.setEvent(op);
+    iodata.IncrementPendingIO();
+}
+
+template <class CONTEXTTYPE> void completeio(RW_Context &context, CONTEXTTYPE &iodata, StatusCode code)
+{
+    if (auto h(context.getCompletionHandler()); h) {
+        h(code);
+        iodata.DecrementPendingIO();
+    }
+}
+
 class Context;
-static void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SocketHandler &handler);
-static void completeio(RW_Context &context, Context &iodata, StatusCode code);
-static void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
-static void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
+template <class SOCKEtHANDLERTYPE>
+void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler);
+void completeio(RW_Context &context, Context &iodata, StatusCode code);
+void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
+void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
+void continue_accept(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
+
 } // namespace SL::NET
