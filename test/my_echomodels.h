@@ -56,6 +56,27 @@ class session : public std::enable_shared_from_this<session> {
     SL::NET::AsyncSocket socket_;
     void close() { socket_.close(); }
 };
+class asioserver {
+  public:
+    asioserver(SL::NET::Context &io_context, short port)
+        : acceptor_(listengetaddrinfo(nullptr, SL::NET::PortNumber(port), SL::NET::AddressFamily::IPV4, io_context))
+    {
+    }
+
+    void do_accept()
+    {
+        acceptor_.accept([&](auto , auto socket) {
+            if (keepgoing) {
+                auto s = std::make_shared<session>(std::move(socket));
+                s->do_read();
+                s->do_write();
+                do_accept();
+            }
+        });
+    }
+
+     SL::NET::AsyncAcceptor acceptor_;
+};
 class asioclient {
   public:
     std::shared_ptr<session> socket_;
@@ -67,7 +88,7 @@ class asioclient {
     void close() { socket_->close(); }
     void do_connect()
     {
-        SL::NET::AsyncSocket::connect() SL::NET::connect(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
+        SL::NET::AsyncSocket::connect(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 socket_->do_write();
                 socket_->do_read();

@@ -17,12 +17,12 @@ bool keepgoing = true;
 
 class session : public std::enable_shared_from_this<session> {
   public:
-    session(SL::NET::Socket_impl socket) : socket_(std::move(socket)) {}
+    session(SL::NET::AsyncSocket socket) : socket_(std::move(socket)) {}
 
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.recv_async(readbuffer.size(), (unsigned char *)readbuffer.data(), [self](SL::NET::StatusCode code) {
+        socket_.recv( (unsigned char *)readbuffer.data(), readbuffer.size(),[self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             }
@@ -31,14 +31,14 @@ class session : public std::enable_shared_from_this<session> {
     void do_write()
     {
         auto self(shared_from_this());
-        socket_.send_async(writebuffer.size(), (unsigned char *)writebuffer.data(), [self](SL::NET::StatusCode code) {
+        socket_.send((unsigned char *)writebuffer.data(), writebuffer.size(), [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 writeechos += 1.0;
                 self->do_write();
             }
         });
     }
-    SL::NET::Socket_impl socket_;
+    SL::NET::AsyncSocket socket_;
 };
 
 template <class CONTEXTYPE> class asioclient {
@@ -50,7 +50,7 @@ template <class CONTEXTYPE> class asioclient {
     void do_connect()
     {
         auto self(socket_);
-        SL::NET::connect_async(socket_->socket_, Addresses.back(), [self](SL::NET::StatusCode connectstatus) {
+        SL::NET::AsyncSocket::connect(socket_->socket_, Addresses.back(), [self](SL::NET::StatusCode connectstatus) {
             if (connectstatus == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_write();
             }
@@ -61,6 +61,26 @@ template <class CONTEXTYPE> class asioclient {
     std::shared_ptr<session> socket_;
 };
 
+class asioserver {
+  public:
+    asioserver(SL::NET::Context &io_context, short port)
+        : acceptor_(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(port), SL::NET::AddressFamily::IPV4, io_context))
+    {
+        do_accept();
+    }
+
+    void do_accept()
+    {
+        acceptor_.accept([&](auto ec, auto socket) {
+            if (!ec) {
+                std::make_shared<session>(std::move(socket))->do_read();
+            }
+        });
+    }
+
+   SL::NET::AsyncAcceptor acceptor_;
+};
+ 
 void mytransfertest()
 {
     std::cout << "Starting My MB per Second Test" << std::endl;
@@ -70,16 +90,13 @@ void mytransfertest()
     readbuffer.resize(1024 * 1024 * 8);
     auto listencallback([](auto socket) { std::make_shared<session>(std::move(socket))->do_read(); });
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    SL::NET::Listener listener(iocontext, myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
-                               listencallback);
+
 
     iocontext.start();
-    listener.start();
     asioclient c(iocontext, SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse)));
     c.do_connect();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
-    listener.stop();
     iocontext.stop();
     std::cout << "My MB per Second " << (writeechos / 10) * 8 << std::endl;
 }

@@ -10,18 +10,18 @@ void complete_accept(StatusCode statuscode, AsyncPlatformSocket<CONTEXTTYPE> &so
     if (statuscode == StatusCode::SC_SUCCESS) {
         if (::setsockopt(sock.Handle().value, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&listensocket, sizeof(listensocket)) == SOCKET_ERROR ||
             CreateIoCompletionPort((HANDLE)sock.Handle().value, sock.getContext().getIOHandle(), NULL, NULL) == NULL) {
-            callback(StatusCode::SC_SUCCESS);
+            callback(StatusCode::SC_SUCCESS, std::move(sock));
         }
         else {
-            callback(TranslateError());
+            callback(TranslateError(), std::move(sock));
         }
     }
     else {
-        callback(statuscode);
+        callback(statuscode, std::move(sock));
     }
 }
 #endif
-template <class CONTEXTTYPE = Context> class AsyncAcceptor {
+template <class CONTEXTTYPE = Context> class AsyncPlatformAcceptor {
     AsyncPlatformSocket<CONTEXTTYPE> AsyncPlatformSocket_;
 
 #if _WIN32
@@ -30,21 +30,21 @@ template <class CONTEXTTYPE = Context> class AsyncAcceptor {
 #endif
 
   public:
-    AsyncAcceptor(AsyncPlatformSocket<CONTEXTTYPE> &&socket) : AsyncPlatformSocket_(std::forward<AsyncPlatformSocket<CONTEXTTYPE>>(socket))
+    AsyncPlatformAcceptor(AsyncPlatformSocket<CONTEXTTYPE> &&socket) : AsyncPlatformSocket_(std::forward<AsyncPlatformSocket<CONTEXTTYPE>>(socket))
     {
 #if _WIN32
         AcceptEx_ = nullptr;
         GUID acceptex_guid = WSAID_ACCEPTEX;
-        bytes = 0;
+        DWORD bytes = 0;
         AcceptEx_ = nullptr;
         WSAIoctl(AsyncPlatformSocket_.Handle().value, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
                  sizeof(AcceptEx_), &bytes, NULL, NULL);
         assert(AcceptEx_ != nullptr);
 #endif
     }
-    ~AsyncAcceptor() {}
+    ~AsyncPlatformAcceptor() {}
 
-    template <class SOCKETHANDLERTYPE> StatusCode accept(const SOCKETHANDLERTYPE &callback)
+    template <class SOCKETHANDLERTYPE> void accept(const SOCKETHANDLERTYPE &callback)
     {
 #if _WIN32
 
@@ -81,8 +81,7 @@ template <class CONTEXTTYPE = Context> class AsyncAcceptor {
 #endif
     }
 };
-
-inline void continue_accept(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle)
+template <class CONTEXTTYPE> void continue_accept(bool success, RW_Context &context, CONTEXTTYPE &iodata)
 {
 #if _WIN32
     if (success) {
@@ -95,4 +94,5 @@ inline void continue_accept(bool success, RW_Context &context, Context &iodata, 
 
 #endif
 }
+typedef SL::NET::AsyncPlatformAcceptor<> AsyncAcceptor;
 } // namespace SL::NET

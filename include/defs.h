@@ -134,11 +134,11 @@ class SocketAddress {
         addr.Length = 0;
     }
     SocketAddress(const SocketAddress &addr) : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
-    SocketAddress(::sockaddr *buffer, int len)
+    SocketAddress(::sockaddr *buffer, size_t len)
     {
-        assert(static_cast<size_t>(len) < sizeof(Storage));
+        assert(len < sizeof(Storage));
         memcpy(&Storage, buffer, len);
-        Length = len;
+        Length = static_cast<int>(len);
     }
 
     const sockaddr *getSocketAddr() const { return reinterpret_cast<const ::sockaddr *>(&Storage); }
@@ -243,8 +243,8 @@ static StatusCode TranslateError(int *errcode = nullptr)
     };
 }
 
-template <class SOCKEtHANDLERTYPE, class CONTEXTTYPE>
-void setup(RW_Context &context, CONTEXTTYPE &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler)
+template <class SOCKETHANDLERTYPE, class CONTEXTTYPE>
+void setup(RW_Context &context, CONTEXTTYPE &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SOCKETHANDLERTYPE &handler)
 {
     context.buffer = buffer;
     context.setRemainingBytes(buffer_size);
@@ -260,13 +260,6 @@ template <class CONTEXTTYPE> void completeio(RW_Context &context, CONTEXTTYPE &i
         iodata.DecrementPendingIO();
     }
 }
-
-class Context;
-template <class SOCKEtHANDLERTYPE>
-void setup(RW_Context &context, Context &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SOCKEtHANDLERTYPE &handler);
-void completeio(RW_Context &context, Context &iodata, StatusCode code);
-void continue_io(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
-void continue_connect(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
-void continue_accept(bool success, RW_Context &context, Context &iodata, const SocketHandle &handle);
+template <class CONTEXTTYPE> void continue_accept(bool success, RW_Context &context, CONTEXTTYPE &iodata);
 
 } // namespace SL::NET

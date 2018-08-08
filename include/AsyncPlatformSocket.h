@@ -2,11 +2,10 @@
 #include "PlatformSocket.h"
 
 namespace SL::NET {
-
-template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public PlatformSocket {
+template <class CONTEXTTYPE> class AsyncPlatformSocket : public PlatformSocket {
     CONTEXTTYPE &Context_;
 
-    template <class IOCONTEXTTYPE> StatusCode continue_partial_send_async(const IOCONTEXTTYPE &context)
+    template <class IOCONTEXTTYPE> void continue_partial_send_async(const IOCONTEXTTYPE &context)
     {
 #if _WIN32
         WSABUF wsabuf;
@@ -21,8 +20,56 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
         context.PostDeferredWriteIO(Handle.value);
 #endif
     }
-
-    template <class IOCONTEXTTYPE> StatusCode continue_partial_recv_async(const IOCONTEXTTYPE &context)
+    template <class IOCONTEXTTYPE> void continue_send_async(RW_Context &rwcontext)
+    {
+        if (rwcontext.getRemainingBytes() <= 0) {
+            completeio(rwcontext, Context_, StatusCode::SC_SUCCESS);
+        }
+        else {
+            auto[statuscode, count] = send(buffer, buffer_size);
+            if (statuscode == StatusCode::SC_SUCCESS) {
+                if (count == buffer_size) {
+                    completeio(rwcontext, Context_, StatusCode::SC_SUCCESS);
+                }
+                else {
+                    context.setRemainingBytes(context.getRemainingBytes() - count);
+                    context.buffer += count;
+                    continue_partial_send_async(rwcontext);
+                }
+            }
+            else if (statuscode == StatusCode::SC_EWOULDBLOCK) {
+                continue_send_async(rwcontext);
+            }
+            else {
+                completeio(rwcontext, Context_, TranslateError());
+            }
+        }
+    }
+    template <class IOCONTEXTTYPE> void continue_recv_async(RW_Context &rwcontext)
+    {
+        if (rwcontext.getRemainingBytes() <= 0) {
+            completeio(rwcontext, Context_, StatusCode::SC_SUCCESS);
+        }
+        else {
+            auto[statuscode, count] = recv(buffer, buffer_size);
+            if (statuscode == StatusCode::SC_SUCCESS) {
+                if (count == buffer_size) {
+                    completeio(rwcontext, Context_, StatusCode::SC_SUCCESS);
+                }
+                else { 
+                    context.buffer += count;
+                    continue_partial_recv_async(rwcontext);
+                }
+            }
+            else if (statuscode == StatusCode::SC_EWOULDBLOCK) {
+                continue_recv_async(Context_);
+            }
+            else {
+                handler(TranslateError());
+            }
+        }
+    }
+    template <class IOCONTEXTTYPE> void continue_partial_recv_async(const IOCONTEXTTYPE &context)
     {
 #if _WIN32
         WSABUF wsabuf;
@@ -37,7 +84,7 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
         context.PostDeferredReadIO(Handle.value);
 #endif
     }
-    template <class IOCONTEXTTYPE> StatusCode continue_recv_async(const IOCONTEXTTYPE &context)
+    template <class IOCONTEXTTYPE> void continue_recv_async(const IOCONTEXTTYPE &context)
     {
 
 #if _WIN32
@@ -50,7 +97,6 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
             completeio(context, Context_, TranslateError(&lasterr));
         }
 #else
-
         epoll_event ev = {0};
         ev.data.fd = handle.value;
         ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
@@ -59,7 +105,7 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
         }
 #endif
     }
-    template <class IOCONTEXTTYPE> StatusCode continue_send_async(const IOCONTEXTTYPE &context)
+    template <class IOCONTEXTTYPE> void continue_send_async(const IOCONTEXTTYPE &context)
     {
 #if _WIN32
         WSABUF wsabuf;
@@ -71,7 +117,6 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
             completeio(context, Context_, TranslateError(&lasterr));
         }
 #else
-
         epoll_event ev = {0};
         ev.data.fd = handle.value;
         ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
@@ -80,16 +125,21 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
         }
 #endif
     }
+    AsyncPlatformSocket(CONTEXTTYPE &c, SocketHandle h) : Context_(c), Handle_(h){}
 
   public:
-    AsyncPlatformSocket(const CONTEXTTYPE &c) : Context_(c) {}
-    AsyncPlatformSocket(AsyncPlatformSocket &&p) : Handle_(std::move(p.Handle_)) { p.Handle_.value = INVALID_SOCKET; }
-    ~AsyncPlatformSocket() { Context_.DeregisterSocket(Handle); }
+    AsyncPlatformSocket(CONTEXTTYPE &c) : Context_(c) {}
+    AsyncPlatformSocket(AsyncPlatformSocket &&p) : Context_(p.Context_)
+    {
+        Handle_.value = p.Handle_.value;
+        p.Handle_.value = INVALID_SOCKET;
+    }
+    ~AsyncPlatformSocket() { Context_.DeregisterSocket(Handle_); }
     CONTEXTTYPE &getContext() { return Context_; }
-    template <class SOCKEtHANDLERTYPE> StatusCode send(unsigned char *buffer, int buffer_size, const SOCKEtHANDLERTYPE &handler)
+    template <class SOCKETHANDLERTYPE> void send(unsigned char *buffer, int buffer_size, const SOCKETHANDLERTYPE &handler)
     {
         static counter = 0;
-        auto[statuscode, count] = send(buffer, len);
+        auto[statuscode, count] = send(buffer, buffer_size);
         if (statuscode == StatusCode::SC_SUCCESS) {
             if (count == buffer_size) {
                 if (counter++ < 8) {
@@ -121,10 +171,10 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
         }
     }
 
-    template <class SOCKEtHANDLERTYPE> StatusCode recv(unsigned char *buffer, int buffer_size, const SOCKEtHANDLERTYPE &handler)
+    template <class SOCKETHANDLERTYPE> void recv(unsigned char *buffer, int buffer_size, const SOCKETHANDLERTYPE &handler)
     {
         static counter = 0;
-        auto[statuscode, count] = recv(buffer, len);
+        auto[statuscode, count] = recv(buffer, buffer_size);
         if (statuscode == StatusCode::SC_SUCCESS) {
             if (count == buffer_size) {
                 if (counter++ < 8) {
@@ -152,27 +202,27 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
             handler(TranslateError());
         }
     }
-    static std::tuple<StatusCode, AsyncPlatformSocket> Create(const AddressFamily &family, const CONTEXTTYPE &context)
+    static std::tuple<StatusCode, AsyncPlatformSocket> Create(const AddressFamily &family, CONTEXTTYPE &context)
     {
         int typ = SOCK_STREAM;
-        AsyncSocketHandle handle(context);
+        AsyncPlatformSocket handle(context);
         auto errcode = StatusCode::SC_SUCCESS;
 #if !_WIN32
         typ |= SOCK_NONBLOCK;
 #endif
         if (family == AddressFamily::IPV4) {
-            handle.value = socket(AF_INET, typ, 0);
+            handle.Handle_.value = socket(AF_INET, typ, 0);
         }
         else {
-            handle.value = socket(AF_INET6, typ, 0);
+            handle.Handle_.value = socket(AF_INET6, typ, 0);
         }
-        if (handle.value == INVALID_SOCKET) {
-            return std::tuple(TranslateError(), handle);
+        if (handle.Handle_.value == INVALID_SOCKET) {
+            return std::tuple(TranslateError(), std::move(handle));
         }
 #if _WIN32
         [[maybe_unused]] auto e = handle.setsockopt(BLOCKINGTag{}, Blocking_Options::NON_BLOCKING);
-        if (CreateIoCompletionPort((HANDLE)handle.value, context.getIOHandle(), handle.value, NULL) == NULL) {
-            return std::tuple(TranslateError(), handle);
+        if (CreateIoCompletionPort((HANDLE)handle.Handle_.value, context.getIOHandle(), handle.Handle_.value, NULL) == NULL) {
+            return std::tuple(TranslateError(), std::move(handle));
         }
 #else
         epoll_event ev = {0};
@@ -182,15 +232,14 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
             return std::tuple(TranslateError(), handle);
         }
 #endif
-        return std::tuple(handle, errcode);
+        return std::tuple(errcode, std::move(handle));
     }
 
-    template <class SOCKEtHANDLERTYPE>
-    static StatusCode connect(AsyncPlatformSocket &socket, SocketAddress &address, const SOCKEtHANDLERTYPE &handler)
+    template <class SOCKETHANDLERTYPE> static void connect(AsyncPlatformSocket &socket, SocketAddress &address, const SOCKETHANDLERTYPE &handler)
     {
         auto[statucode, sock] = Create(Family(address), socket.getContext());
         if (statucode != StatusCode::SC_SUCCESS) {
-            return statucode;
+            return handler(statucode);
         }
         auto handle = sock.Handle_.value;
         socket.close();
@@ -202,7 +251,7 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
             bindaddr.sin_addr.s_addr = INADDR_ANY;
             bindaddr.sin_port = 0;
             if (::bind(handle, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
-                return TranslateError();
+                return handler(TranslateError());
             }
         }
         else {
@@ -211,7 +260,7 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
             bindaddr.sin6_addr = in6addr_any;
             bindaddr.sin6_port = 0;
             if (::bind(handle, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
-                return TranslateError();
+                return handler(TranslateError());
             }
         }
         auto &context = sock.Context_.getWriteContext(sock.Handle_);
@@ -259,7 +308,9 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformSocket : public Platfo
         }
 #endif
     }
+    friend CONTEXTTYPE;
 };
-typedef SL::NET::AsyncPlatformSocket<> AsyncSocket;
+class Context;
+typedef SL::NET::AsyncPlatformSocket<Context> AsyncSocket;
 
 } // namespace SL::NET

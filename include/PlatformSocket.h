@@ -4,6 +4,7 @@
 namespace SL::NET {
 
 class PlatformSocket {
+  protected:
     SocketHandle Handle_;
 
   public:

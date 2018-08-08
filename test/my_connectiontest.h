@@ -9,38 +9,54 @@ using namespace std::chrono_literals;
 namespace myconnectiontest {
 auto connections = 0.0;
 bool keepgoing = true;
-void connect();
-SL::NET::Context *context;
-std::vector<SL::NET::SocketAddress> addresses;
+
+class asioserver {
+  public:
+    asioserver(SL::NET::Context &io_context, unsigned short port)
+        : acceptor_(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(port), SL::NET::AddressFamily::IPV4, io_context))
+    {
+    }
+
+    void do_accept()
+    {
+        acceptor_.accept([&](auto, auto) {
+            if (keepgoing) {
+                do_accept();
+            }
+        });
+    }
+
+    SL::NET::AsyncAcceptor acceptor_;
+};
+std::vector<SL::NET::SocketAddress> endpoints;
+void connect(SL::NET::Context &io_context)
+{
+    auto socket(std::make_shared<SL::NET::AsyncSocket>(io_context));
+    SL::NET::AsyncSocket::connect(*socket, endpoints.back(), [socket, &io_context](SL::NET::StatusCode) {
+        connections += 1.0;
+        if (keepgoing) {
+            connect(io_context);
+        }
+    });
+}
+
 void myconnectiontest()
 {
 
     std::cout << "Starting My Connections per Second Test" << std::endl;
     connections = 0.0;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
-    auto listencallback(([](auto) {})); // empty function does nothing
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    context = &iocontext;
-    SL::NET::Listener listener(iocontext, myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4),
-                               listencallback);
+
+    asioserver s(iocontext, porttouse);
+    s.do_accept();
     iocontext.start();
-    listener.start();
-    addresses = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
-    connect();
+
+    endpoints = SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse));
+    connect(iocontext);
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
     keepgoing = false;
-    listener.stop();
     iocontext.stop();
     std::cout << "My Connections per Second " << connections / 10 << std::endl;
-}
-void connect()
-{
-    auto socket(std::make_shared<SL::NET::Socket_impl>(*context));
-    SL::NET::connect_async(*socket, addresses.back(), [socket](SL::NET::StatusCode) {
-        connections += 1.0;
-        if (keepgoing) {
-            connect();
-        }
-    });
 }
 } // namespace myconnectiontest

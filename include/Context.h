@@ -1,9 +1,12 @@
 #pragma once
 #include "defs.h"
 #include "spinlock.h"
+#include <mutex>
+
 namespace SL::NET {
 
 class Context {
+    template <class T> friend class AsyncPlatformSocket;
     const ThreadCount ThreadCount_;
     std::vector<std::thread> Threads;
     std::vector<RW_Context> ReadContexts, WriteContexts;
@@ -175,24 +178,33 @@ class Context {
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
                                     KeepGoing_;
                     if (overlapped != nullptr) {
+                
+                        SL::NET::AsyncPlatformSocket sock(*this);
+                        sock.Handle_.value = reinterpret_cast<decltype(SocketHandle::value)>(completionkey);
                         switch (auto eventyype = overlapped->getEvent()) {
                         case IO_OPERATION::IoRead:
-                        case IO_OPERATION::IoWrite:
-
                             overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
                             overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
                             if (numberofbytestransfered == 0 && bSuccess) {
                                 bSuccess = WSAGetLastError() == WSA_IO_PENDING;
                             }
-                            continue_io(bSuccess, *overlapped, *this, SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
+                            sock.continue_recv_async(*overlapped);
+
+                            break;
+                        case IO_OPERATION::IoWrite:
+                            overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
+                            overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
+                            if (numberofbytestransfered == 0 && bSuccess) {
+                                bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                            }
+                            sock.continue_send_async(*overlapped);
                             break;
                         case IO_OPERATION::IoConnect:
                             continue_connect(bSuccess, *overlapped, *this,
                                              SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
                             break;
                         case IO_OPERATION::IoAccept:
-                            continue_accept(bSuccess, *overlapped, *this,
-                                            SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
+                            continue_accept(bSuccess, *overlapped, *this);
                             break;
                         default:
                             break;
