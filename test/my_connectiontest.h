@@ -19,8 +19,9 @@ class asioserver {
 
     void do_accept()
     {
-        acceptor_.accept([&](auto, auto) {
+        acceptor_.accept([&](SL::NET::StatusCode sc, SL::NET::AsyncPlatformSocket s) {
             if (keepgoing) {
+              //  std::cout << "Connected" << std::endl;
                 do_accept();
             }
         });

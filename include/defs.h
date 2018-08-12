@@ -134,7 +134,13 @@ class SocketAddress {
         addr.Length = 0;
     }
     SocketAddress(const SocketAddress &addr) : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
-    SocketAddress(::sockaddr *buffer, size_t len)
+    SocketAddress(::sockaddr *buffer, socklen_t len)
+    {
+        assert(len < sizeof(Storage));
+        memcpy(&Storage, buffer, len);
+        Length = static_cast<int>(len);
+    }
+    SocketAddress(::sockaddr_storage *buffer, socklen_t len)
     {
         assert(len < sizeof(Storage));
         memcpy(&Storage, buffer, len);
@@ -260,6 +266,4 @@ template <class CONTEXTTYPE> void completeio(RW_Context &context, CONTEXTTYPE &i
         iodata.DecrementPendingIO();
     }
 }
-template <class CONTEXTTYPE> void continue_accept(bool success, RW_Context &context, CONTEXTTYPE &iodata);
-
 } // namespace SL::NET

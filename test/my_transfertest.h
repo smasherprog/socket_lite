@@ -22,7 +22,7 @@ class session : public std::enable_shared_from_this<session> {
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.recv( (unsigned char *)readbuffer.data(), readbuffer.size(),[self](SL::NET::StatusCode code) {
+        socket_.recv((unsigned char *)readbuffer.data(), readbuffer.size(), [self](SL::NET::StatusCode code) {
             if (code == SL::NET::StatusCode::SC_SUCCESS) {
                 self->do_read();
             }
@@ -72,15 +72,15 @@ class asioserver {
     void do_accept()
     {
         acceptor_.accept([&](auto ec, auto socket) {
-            if (!ec) {
+            if (ec == SL::NET::StatusCode::SC_SUCCESS) {
                 std::make_shared<session>(std::move(socket))->do_read();
             }
         });
     }
 
-   SL::NET::AsyncAcceptor acceptor_;
+    SL::NET::AsyncAcceptor acceptor_;
 };
- 
+
 void mytransfertest()
 {
     std::cout << "Starting My MB per Second Test" << std::endl;
@@ -90,7 +90,6 @@ void mytransfertest()
     readbuffer.resize(1024 * 1024 * 8);
     auto listencallback([](auto socket) { std::make_shared<session>(std::move(socket))->do_read(); });
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-
 
     iocontext.start();
     asioclient c(iocontext, SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse)));

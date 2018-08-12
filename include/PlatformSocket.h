@@ -173,7 +173,8 @@ class PlatformSocket {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
         if (::getpeername(Handle_.value, (::sockaddr *)&addr, &len) == 0) {
-            cb(SocketAddress(addr, len));
+            cb(SocketAddress(&addr, len));
+            return StatusCode::SC_SUCCESS;
         }
         return TranslateError();
     }
@@ -182,7 +183,7 @@ class PlatformSocket {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
         if (::getsockname(Handle_.value, (::sockaddr *)&addr, &len) == 0) {
-            cb(SocketAddress(addr, len));
+            cb(SocketAddress(&addr, len));
             return StatusCode::SC_SUCCESS;
         }
         return TranslateError();
@@ -547,7 +548,7 @@ class PlatformSocket {
         return addrs;
     }
     for (auto ptr = result; ptr != NULL; ptr = ptr->ai_next) {
-        addrs.emplace_back(SocketAddress(ptr->ai_addr, ptr->ai_addrlen));
+        addrs.emplace_back(SocketAddress(ptr->ai_addr, static_cast<socklen_t>(ptr->ai_addrlen)));
     }
     freeaddrinfo(result);
     return addrs;

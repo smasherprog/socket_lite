@@ -1,4 +1,5 @@
 #pragma once
+#include "AsyncPlatformSocket.h"
 #include "defs.h"
 #include "spinlock.h"
 #include <mutex>
@@ -6,7 +7,15 @@
 namespace SL::NET {
 
 class Context {
-    template <class T> friend class AsyncPlatformSocket;
+    friend class AsyncPlatformAcceptor;
+    friend class AsyncPlatformSocket;
+    template <class SOCKETHANDLERTYPE, class CONTEXTTYPE>
+    friend void setup(RW_Context &context, CONTEXTTYPE &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer,
+                      const SOCKETHANDLERTYPE &handler);
+    template <class CONTEXTTYPE> friend void completeio(RW_Context &context, CONTEXTTYPE &iodata, StatusCode code);
+    template <class SOCKETHANDLERTYPE>
+    friend void complete_accept(StatusCode statuscode, SocketHandle sock, SocketHandle listensocket, const SOCKETHANDLERTYPE &callback, Context &ctx);
+
     const ThreadCount ThreadCount_;
     std::vector<std::thread> Threads;
     std::vector<RW_Context> ReadContexts, WriteContexts;
@@ -43,6 +52,7 @@ class Context {
         }
         PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
     }
+    void HandlePendingIO(std::vector<SocketHandle> &) {}
 #else
     int EventWakeFd;
     int EventFd;
@@ -70,10 +80,9 @@ class Context {
         }
         eventfd_write(EventFd, 1);
     }
-
-#endif
     void HandlePendingIO(std::vector<SocketHandle> &socketbuffer)
     {
+
         if (!ReadSockets.empty()) {
             {
                 std::lock_guard<spinlock> lock(ReadSocketLock);
@@ -106,7 +115,7 @@ class Context {
             socketbuffer.clear();
         }
     }
-
+#endif
   public:
     Context(ThreadCount t) : ThreadCount_(t)
     {
@@ -178,39 +187,43 @@ class Context {
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
                                     KeepGoing_;
                     if (overlapped != nullptr) {
-                
-                        SL::NET::AsyncPlatformSocket sock(*this);
-                        sock.Handle_.value = reinterpret_cast<decltype(SocketHandle::value)>(completionkey);
-                        switch (auto eventyype = overlapped->getEvent()) {
-                        case IO_OPERATION::IoRead:
-                            overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
-                            overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
-                            if (numberofbytestransfered == 0 && bSuccess) {
-                                bSuccess = WSAGetLastError() == WSA_IO_PENDING;
-                            }
-                            sock.continue_recv_async(*overlapped);
+                        if (!bSuccess) {
+                            completeio(*overlapped, *this, TranslateError());
+                        }
+                        else {
+                            switch (auto eventyype = overlapped->getEvent()) {
+                            case IO_OPERATION::IoRead:
+                                overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
+                                overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
+                                if (numberofbytestransfered == 0 && bSuccess) {
+                                    bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                                } 
+                                if (overlapped->getRemainingBytes() <= 0) {
+                                    completeio(*overlapped, *this, StatusCode::SC_SUCCESS);
+                                }
+                                sock.continue_recv_async(bSuccess, *overlapped);
 
-                            break;
-                        case IO_OPERATION::IoWrite:
-                            overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
-                            overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
-                            if (numberofbytestransfered == 0 && bSuccess) {
-                                bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                                break;
+                            case IO_OPERATION::IoWrite:
+                                overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
+                                overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
+                                if (numberofbytestransfered == 0 && bSuccess) {
+                                    bSuccess = WSAGetLastError() == WSA_IO_PENDING;
+                                }
+                                if (overlapped->getRemainingBytes() <= 0) {
+                                    completeio(*overlapped, *this, StatusCode::SC_SUCCESS);
+                                }
+                                sock.continue_send_async(bSuccess, *overlapped);
+                                break;
+                            case IO_OPERATION::IoConnect:
+                            case IO_OPERATION::IoAccept:
+                                completeio(*overlapped, *this, StatusCode::SC_SUCCESS);
+                                break;
+                            default:
+                                break;
                             }
-                            sock.continue_send_async(*overlapped);
-                            break;
-                        case IO_OPERATION::IoConnect:
-                            continue_connect(bSuccess, *overlapped, *this,
-                                             SocketHandle(reinterpret_cast<decltype(SocketHandle::value)>(completionkey)));
-                            break;
-                        case IO_OPERATION::IoAccept:
-                            continue_accept(bSuccess, *overlapped, *this);
-                            break;
-                        default:
-                            break;
                         }
                     }
-
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;

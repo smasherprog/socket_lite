@@ -3,41 +3,46 @@
 
 namespace SL::NET {
 
-#if _WIN32
-template <class CONTEXTTYPE = Context, class SOCKETHANDLERTYPE>
-void complete_accept(StatusCode statuscode, AsyncPlatformSocket<CONTEXTTYPE> &sock, SocketHandle listensocket, const SOCKETHANDLERTYPE &callback)
+template <class SOCKETHANDLERTYPE>
+void complete_accept(StatusCode statuscode, SocketHandle sock, SocketHandle listensocket, const SOCKETHANDLERTYPE &callback, Context &ctx)
 {
     if (statuscode == StatusCode::SC_SUCCESS) {
-        if (::setsockopt(sock.Handle().value, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&listensocket, sizeof(listensocket)) == SOCKET_ERROR ||
-            CreateIoCompletionPort((HANDLE)sock.Handle().value, sock.getContext().getIOHandle(), NULL, NULL) == NULL) {
-            callback(StatusCode::SC_SUCCESS, std::move(sock));
+        auto lsock = listensocket.value;
+        if (::setsockopt(sock.value, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char *)&lsock, sizeof(lsock)) == SOCKET_ERROR ||
+            CreateIoCompletionPort((HANDLE)sock.value, ctx.getIOHandle(), sock.value, NULL) == NULL) {
+            callback(TranslateError(), AsyncPlatformSocket(ctx, sock));
         }
         else {
-            callback(TranslateError(), std::move(sock));
+            callback(StatusCode::SC_SUCCESS, AsyncPlatformSocket(ctx, sock));
         }
     }
     else {
-        callback(statuscode, std::move(sock));
+        callback(statuscode, AsyncPlatformSocket(ctx, sock));
     }
 }
-#endif
-template <class CONTEXTTYPE = Context> class AsyncPlatformAcceptor {
-    AsyncPlatformSocket<CONTEXTTYPE> AsyncPlatformSocket_;
-
+class AsyncPlatformAcceptor {
+    AsyncPlatformSocket AcceptorSocket;
+    AddressFamily AddressFamily_ = AddressFamily::IPANY;
+    Context &Context_;
 #if _WIN32
     char Buffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
     LPFN_ACCEPTEX AcceptEx_;
+
 #endif
 
   public:
-    AsyncPlatformAcceptor(AsyncPlatformSocket<CONTEXTTYPE> &&socket) : AsyncPlatformSocket_(std::forward<AsyncPlatformSocket<CONTEXTTYPE>>(socket))
+    AsyncPlatformAcceptor(AsyncPlatformSocket &&socket) : Context_(socket.getContext()), AcceptorSocket(std::forward<AsyncPlatformSocket>(socket))
     {
+        auto status = AcceptorSocket.getsockname([&](const SocketAddress &addr) { AddressFamily_ = addr.getFamily(); });
+        if (status != StatusCode::SC_SUCCESS) {
+            abort();
+        }
 #if _WIN32
         AcceptEx_ = nullptr;
         GUID acceptex_guid = WSAID_ACCEPTEX;
         DWORD bytes = 0;
         AcceptEx_ = nullptr;
-        WSAIoctl(AsyncPlatformSocket_.Handle().value, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
+        WSAIoctl(AcceptorSocket.Handle().value, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_,
                  sizeof(AcceptEx_), &bytes, NULL, NULL);
         assert(AcceptEx_ != nullptr);
 #endif
@@ -47,24 +52,31 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformAcceptor {
     template <class SOCKETHANDLERTYPE> void accept(const SOCKETHANDLERTYPE &callback)
     {
 #if _WIN32
+        SocketHandle sockethandle(INVALID_SOCKET);
+        if (AddressFamily_ == AddressFamily::IPV4) {
+            sockethandle.value = ::socket(AF_INET, SOCK_STREAM, 0);
+        }
+        else {
+            sockethandle.value = ::socket(AF_INET6, SOCK_STREAM, 0);
+        }
+        u_long iMode = 1;
+        ioctlsocket(sockethandle.value, FIONBIO, &iMode);
 
-        auto &context = Context_.getWriteContext(Handle.value);
-        AsyncPlatformSocket socket(Context_);
-        auto newsock = sock.Handle().Value;
-        auto &ctx = AsyncPlatformSocket_.getContext();
-        setup(context, ctx, IO_OPERATION::IoAccept, 0, nullptr,
-              [ sock(std::move(sock)), listensock(Handle.value), cb(std::move(callback)) ](StatusCode sc) {
-                  complete_accept(sc, sock, listensock, cb);
+        auto listensock(AcceptorSocket.Handle());
+        auto &context = Context_.getWriteContext(listensock);
+        setup(context, Context_, IO_OPERATION::IoAccept, 0, nullptr,
+              [ sockethandle, listensock, cb(std::move(callback)), &ctx = Context_ ](StatusCode sc) {
+                  complete_accept(sc, sockethandle, listensock, cb, ctx);
               });
 
         DWORD recvbytes = 0;
-        auto nRet = AcceptEx_(Handle.value, newsock, (LPVOID)(Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &recvbytes,
-                              (LPOVERLAPPED) & (context->Overlapped));
+        auto nRet = AcceptEx_(listensock.value, sockethandle.value, (LPVOID)(Buffer), 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
+                              &recvbytes, (LPOVERLAPPED) & (context.Overlapped));
         if (nRet == TRUE) {
-            completeio(context, ctx, StatusCode::SC_SUCCESS);
+            completeio(context, Context_, StatusCode::SC_SUCCESS);
         }
         else if (auto err = WSAGetLastError(); !(nRet == FALSE && err == ERROR_IO_PENDING)) {
-            completeio(context, ctx, TranslateError(&err));
+            completeio(context, Context_, TranslateError(&err));
         }
 
 #else
@@ -80,19 +92,6 @@ template <class CONTEXTTYPE = Context> class AsyncPlatformAcceptor {
         }
 #endif
     }
-};
-template <class CONTEXTTYPE> void continue_accept(bool success, RW_Context &context, CONTEXTTYPE &iodata)
-{
-#if _WIN32
-    if (success) {
-        completeio(context, iodata, StatusCode::SC_SUCCESS);
-    }
-    else {
-        completeio(context, iodata, TranslateError());
-    }
-#else
-
-#endif
-}
-typedef SL::NET::AsyncPlatformAcceptor<> AsyncAcceptor;
+}; 
+typedef SL::NET::AsyncPlatformAcceptor AsyncAcceptor;
 } // namespace SL::NET
