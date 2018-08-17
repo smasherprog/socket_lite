@@ -126,7 +126,7 @@ enum IO_OPERATION : unsigned int { IoRead, IoWrite, IoConnect, IoAccept };
 
 class SocketAddress {
     ::sockaddr_storage Storage;
-    int Length = 0;
+    int Length;
 
   public:
     SocketAddress() noexcept : Length(0), Storage({}) {}
@@ -136,11 +136,11 @@ class SocketAddress {
         addr.Length = 0;
     }
     SocketAddress(const SocketAddress &addr) noexcept : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
-    SocketAddress(::sockaddr *buffer, socklen_t len)
+    SocketAddress(::sockaddr *buffer, socklen_t len) : Length(static_cast<int>(len))
     {
         assert(len < sizeof(Storage));
         memcpy(&Storage, buffer, len);
-        Length = static_cast<int>(len);
+
     }
     SocketAddress(::sockaddr_storage *buffer, socklen_t len) noexcept
     {

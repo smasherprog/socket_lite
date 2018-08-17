@@ -3,9 +3,11 @@
 #include "Internal.h"
 #include "PlatformSocket.h"
 
-namespace SL::NET {
+namespace SL::NET
+{
 
-class AsyncPlatformSocket : public PlatformSocket {
+class AsyncPlatformSocket : public PlatformSocket
+{
     friend class AsyncPlatformAcceptor;
 #if _WIN32
     static INTERNAL::ConnectExCreator ConnectExCreator_;
@@ -13,34 +15,45 @@ class AsyncPlatformSocket : public PlatformSocket {
 
     Context &Context_;
 
-  public:
-    AsyncPlatformSocket(Context &c) noexcept : Context_(c) {}
-    AsyncPlatformSocket(Context &c, SocketHandle h) noexcept : PlatformSocket(h), Context_(c) {}
-    AsyncPlatformSocket(AsyncPlatformSocket &&p) noexcept : AsyncPlatformSocket(p.Context_)
-    {
+public:
+AsyncPlatformSocket(Context &c) noexcept :
+    Context_(c) {}
+AsyncPlatformSocket(Context &c, SocketHandle h) noexcept :
+    PlatformSocket(h), Context_(c) {}
+AsyncPlatformSocket(AsyncPlatformSocket &&p) noexcept :
+    AsyncPlatformSocket(p.Context_) {
         Handle_.value = p.Handle_.value;
         p.Handle_.value = INVALID_SOCKET;
     }
 
     ~AsyncPlatformSocket() noexcept { Context_.DeregisterSocket(Handle_); }
     Context &getContext() noexcept { return Context_; }
-    const Context &getContext() const noexcept { return Context_; }
-    template <class SOCKETHANDLERTYPE> void send(unsigned char *buffer, int buffer_size, const SOCKETHANDLERTYPE &handler) noexcept
-    {
+    const Context &getContext() const noexcept {
+        return Context_;
+    }
+    template <class SOCKETHANDLERTYPE> void send(unsigned char *buffer, int buffer_size, const SOCKETHANDLERTYPE &handler) noexcept {
         static int counter = 0;
         auto count = INTERNAL::Send(Handle_, buffer, buffer_size);
         if (count == buffer_size) {
             if (counter++ < 8) {
                 handler(StatusCode::SC_SUCCESS);
-            }
-            else {
+            } else {
                 counter = 0;
                 auto &context = Context_.getWriteContext(Handle_);
                 INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
+#if _WIN32
+
                 PostQueuedCompletionStatus(Context_.getIOHandle(), count, Handle_.value, &(context.Overlapped));
+#else
+                epoll_event ev = {0};
+                ev.data.fd = Handle_.value;
+                ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+                if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
+                    INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
+                }
+#endif
             }
-        }
-        else if (count > 0) {
+        } else if (count > 0) {
             auto &context = Context_.getWriteContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size - count, buffer + count, handler);
 #if _WIN32
@@ -53,10 +66,14 @@ class AsyncPlatformSocket : public PlatformSocket {
                 INTERNAL::completeio(context, Context_.PendingIO, TranslateError(&lasterr));
             }
 #else
-            Context_.PostDeferredWriteIO(Handle);
+            epoll_event ev = {0};
+            ev.data.fd = Handle_.value;
+            ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
+                INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
+            }
 #endif
-        }
-        else if (INTERNAL::wouldBlock()) {
+        } else if (INTERNAL::wouldBlock()) {
             auto &context = Context_.getWriteContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
 #if _WIN32
@@ -70,34 +87,40 @@ class AsyncPlatformSocket : public PlatformSocket {
             }
 #else
             epoll_event ev = {0};
-            ev.data.fd = handle.value;
+            ev.data.fd = Handle_.value;
             ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
+            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
                 INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
             }
 #endif
-        }
-        else {
+        } else {
             handler(TranslateError());
         }
     }
 
-    template <class SOCKETHANDLERTYPE> void recv(unsigned char *buffer, int buffer_size, const SOCKETHANDLERTYPE &handler) noexcept
-    {
+    template <class SOCKETHANDLERTYPE> void recv(unsigned char *buffer, int buffer_size, const SOCKETHANDLERTYPE &handler) noexcept {
         static int counter = 0;
         auto count = INTERNAL::Recv(Handle_, buffer, buffer_size);
         if (count == buffer_size) {
             if (counter++ < 8) {
                 handler(StatusCode::SC_SUCCESS);
-            }
-            else {
+            } else {
                 counter = 0;
                 auto &context = Context_.getReadContext(Handle_);
                 INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size, buffer, handler);
+#if _WIN32
+
                 PostQueuedCompletionStatus(Context_.getIOHandle(), count, Handle_.value, &(context.Overlapped));
+#else
+                epoll_event ev = {0};
+                ev.data.fd = Handle_.value;
+                ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+                if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
+                    INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
+                }
+#endif
             }
-        }
-        else if (count > 0) { 
+        } else if (count > 0) {
             auto &context = Context_.getReadContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size - count, buffer + count, handler);
 #if _WIN32
@@ -110,10 +133,14 @@ class AsyncPlatformSocket : public PlatformSocket {
                 INTERNAL::completeio(context, Context_.PendingIO, TranslateError(&lasterr));
             }
 #else
-            Context_.PostDeferredReadIO(Handle.value);
+            epoll_event ev = {0};
+            ev.data.fd = Handle_.value;
+            ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
+                INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
+            }
 #endif
-        }
-        else if (INTERNAL::wouldBlock()) {
+        } else if (INTERNAL::wouldBlock()) {
             auto &context = Context_.getReadContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size, buffer, handler);
 #if _WIN32
@@ -127,19 +154,17 @@ class AsyncPlatformSocket : public PlatformSocket {
             }
 #else
             epoll_event ev = {0};
-            ev.data.fd = handle.value;
+            ev.data.fd = Handle_.value;
             ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-            if (epoll_ctl(IOCPHandle, EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-                INTERNAL::completeio(rwcontext, Context_.PendingIO, TranslateError());
+            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
+                INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
             }
 #endif
-        }
-        else {
+        } else {
             handler(TranslateError());
         }
     }
-    static std::tuple<StatusCode, AsyncPlatformSocket> Create(const AddressFamily &family, Context &context)
-    {
+    static std::tuple<StatusCode, AsyncPlatformSocket> Create(const AddressFamily &family, Context &context) {
         int typ = SOCK_STREAM;
         AsyncPlatformSocket handle(context);
         auto errcode = StatusCode::SC_SUCCESS;
@@ -148,31 +173,29 @@ class AsyncPlatformSocket : public PlatformSocket {
 #endif
         if (family == AddressFamily::IPV4) {
             handle.Handle_.value = ::socket(AF_INET, typ, 0);
-        }
-        else {
+        } else {
             handle.Handle_.value = ::socket(AF_INET6, typ, 0);
         }
         if (handle.Handle_.value == INVALID_SOCKET) {
             return std::tuple(TranslateError(), std::move(handle));
         }
 #if _WIN32
-        [[maybe_unused]] auto e = handle.setsockopt(BLOCKINGTag{}, Blocking_Options::NON_BLOCKING);
+        [[maybe_unused]] auto e = handle.setsockopt(BLOCKINGTag {}, Blocking_Options::NON_BLOCKING);
         if (CreateIoCompletionPort((HANDLE)handle.Handle_.value, context.getIOHandle(), handle.Handle_.value, NULL) == NULL) {
             return std::tuple(TranslateError(), std::move(handle));
         }
 #else
         epoll_event ev = {0};
-        ev.data.fd = hhandle;
+        ev.data.fd = handle.Handle_.value;
         ev.events = EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-        if (epoll_ctl(context.getIOHandle(), EPOLL_CTL_ADD, hhandle, &ev) == -1) {
-            return std::tuple(TranslateError(), handle);
+        if (epoll_ctl(context.getIOHandle(), EPOLL_CTL_ADD, handle.Handle_.value, &ev) == -1) {
+            return std::tuple(TranslateError(), std::move(handle));
         }
 #endif
         return std::tuple(errcode, std::move(handle));
     }
 
-    template <class SOCKETHANDLERTYPE> static void connect(AsyncPlatformSocket &socket, SocketAddress &address, const SOCKETHANDLERTYPE &handler)
-    {
+    template <class SOCKETHANDLERTYPE> static void connect(AsyncPlatformSocket &socket, SocketAddress &address, const SOCKETHANDLERTYPE &handler) {
         socket.close();
 #if _WIN32
         socket.Handle_.value = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -184,8 +207,7 @@ class AsyncPlatformSocket : public PlatformSocket {
             if (::bind(socket.Handle_.value, (::sockaddr *)&bindaddr, sizeof(bindaddr)) == SOCKET_ERROR) {
                 return handler(TranslateError());
             }
-        }
-        else {
+        } else {
             sockaddr_in6 bindaddr = {0};
             bindaddr.sin6_family = AF_INET6;
             bindaddr.sin6_addr = in6addr_any;
@@ -202,56 +224,56 @@ class AsyncPlatformSocket : public PlatformSocket {
 
         auto &context = socket.Context_.getWriteContext(socket.Handle_);
         INTERNAL::setup(context, socket.Context_.PendingIO, IO_OPERATION::IoConnect, 0, nullptr,
-                        [handler(std::move(handler)), sockhandle = socket.Handle_.value](StatusCode sc) {
-                            if (sc == StatusCode::SC_SUCCESS) {
-                                if (::setsockopt(sockhandle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
-                                    handler(sc);
-                                }
-                                else {
-                                    handler(TranslateError());
-                                }
-                            }
-                            else {
-                                handler(sc);
-                            }
-                        });
+        [handler(std::move(handler)), sockhandle = socket.Handle_.value](StatusCode sc) {
+            if (sc == StatusCode::SC_SUCCESS) {
+                if (::setsockopt(sockhandle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
+                    handler(sc);
+                } else {
+                    handler(TranslateError());
+                }
+            } else {
+                handler(sc);
+            }
+        });
         DWORD sendbytes(0);
         auto connectres = ConnectExCreator_.ConnectEx_(socket.Handle_.value, address.getSocketAddr(), address.getSocketAddrLen(), 0, 0, &sendbytes,
-                                                       (LPOVERLAPPED)&context.Overlapped);
+                          (LPOVERLAPPED)&context.Overlapped);
         if (connectres == TRUE) {
             // connection completed immediatly!
             if (::setsockopt(socket.Handle_.value, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, 0, 0) != SOCKET_ERROR) {
                 INTERNAL::completeio(context, socket.Context_.PendingIO, StatusCode::SC_SUCCESS);
-            }
-            else {
+            } else {
                 INTERNAL::completeio(context, socket.Context_.PendingIO, TranslateError());
             }
-        }
-        else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
+        } else if (auto err = WSAGetLastError(); !(connectres == FALSE && err == ERROR_IO_PENDING)) {
             INTERNAL::completeio(context, socket.Context_.PendingIO, TranslateError());
         }
 
 #else
-        auto ret = ::connect(handle, (::sockaddr *)SocketAddr(address), SocketAddrLen(address));
+        socket.Handle_.value = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        auto ret = ::connect(socket.Handle_.value,  address.getSocketAddr(), address.getSocketAddrLen());
         if (ret == -1) { // will complete some time later
             auto err = errno;
             if (err != EINPROGRESS) { // error with the socket
                 return handler(TranslateError(&err));
-            }
-            else {
-                auto &context = socket.Context_.getWriteContext(handle);
-                context.setCompletionHandler(handler);
-                context.setEvent(IO_OPERATION::IoConnect);
+            } else {
+                auto &context = socket.Context_.getWriteContext(socket.Handle_);
+                INTERNAL::setup(context, socket.Context_.PendingIO, IO_OPERATION::IoConnect, 0, nullptr, handler);
                 epoll_event ev = {0};
-                ev.data.fd = handle;
+                ev.data.fd = socket.Handle_.value;
                 ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-                if (epoll_ctl(socket.Context_.getIOHandle(), EPOLL_CTL_MOD, handle, &ev) == -1) {
+                if (epoll_ctl(socket.Context_.getIOHandle(), EPOLL_CTL_MOD, socket.Handle_.value, &ev) == -1) {
                     return INTERNAL::completeio(context, socket.Context_.PendingIO, TranslateError());
                 }
             }
-        }
-        else { // connection completed
-            return std::tuple(StatusCode::SC_SUCCESS, std::move(sock));
+        } else { // connection completed
+            epoll_event ev = {0};
+            ev.data.fd = socket.Handle_.value;
+            ev.events = EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            if (epoll_ctl(socket.Context_.getIOHandle(), EPOLL_CTL_ADD, socket.Handle_.value, &ev) == -1) {
+                 return handler(TranslateError());
+            }
+            return handler(StatusCode::SC_SUCCESS);
         }
 #endif
     }

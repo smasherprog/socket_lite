@@ -1,82 +1,27 @@
 #pragma once
 #include "defs.h"
 
-namespace SL::NET {
-
-std::tuple<StatusCode, int> inline Send(SocketHandle handle, unsigned char *buf, int len)
+namespace SL::NET
 {
-#if _WIN32
-    auto count = ::send(handle.value, (char *)buf, static_cast<int>(len), 0);
-    if (count < 0) { // possible error or continue
-        if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-            return std::tuple(TranslateError(&er), 0);
-        }
-        else {
-            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-        }
-    }
-    else {
-        return std::tuple(StatusCode::SC_SUCCESS, count);
-    }
-#else
-    auto count = ::send(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
-    if (count < 0) { // possible error or continue
-        if (errno != EAGAIN && errno != EINTR) {
-            return std::tuple(TranslateError(), 0);
-        }
-        else {
-            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-        }
-    }
-    else {
-        return std::tuple(StatusCode::SC_SUCCESS, count);
-    }
-#endif
-}
 
-std::tuple<StatusCode, int> inline Recv(SocketHandle handle, unsigned char *buf, int len)
+
+class PlatformSocket
 {
-#if _WIN32
-    auto count = ::recv(handle.value, (char *)buf, static_cast<int>(len), 0);
-    if (count <= 0) { // possible error or continue
-        if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-            return std::tuple(TranslateError(&er), 0);
-        }
-        else {
-            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-        }
-    }
-    else {
-        return std::tuple(StatusCode::SC_SUCCESS, count);
-    }
-#else
-    auto count = ::recv(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
-    if (count <= 0) { // possible error or continue
-        if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-            return std::tuple(TranslateError(), 0);
-        }
-        else {
-            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-        }
-    }
-    else {
-        return std::tuple(StatusCode::SC_SUCCESS, count);
-    }
-#endif
-}
-
-class PlatformSocket {
-  protected:
+protected:
     SocketHandle Handle_;
 
-  public:
-    PlatformSocket() noexcept : Handle_(INVALID_SOCKET) {}
-    PlatformSocket(SocketHandle h) noexcept : Handle_(h) {}
+public:
+PlatformSocket() noexcept :
+    Handle_(INVALID_SOCKET) {}
+PlatformSocket(SocketHandle h) noexcept :
+    Handle_(h) {}
     ~PlatformSocket() noexcept { close(); }
-    PlatformSocket(PlatformSocket &&p) noexcept : Handle_(std::move(p.Handle_)) { p.Handle_.value = INVALID_SOCKET; }
+PlatformSocket(PlatformSocket &&p) noexcept :
+    Handle_(std::move(p.Handle_)) {
+        p.Handle_.value = INVALID_SOCKET;
+    }
 
-    static std::tuple<StatusCode, PlatformSocket> Create(const AddressFamily &family)
-    {
+    static std::tuple<StatusCode, PlatformSocket> Create(const AddressFamily &family) {
         int typ = SOCK_STREAM;
         PlatformSocket handle(INVALID_SOCKET);
         auto errcode = StatusCode::SC_SUCCESS;
@@ -85,8 +30,7 @@ class PlatformSocket {
 #endif
         if (family == AddressFamily::IPV4) {
             handle.Handle_.value = socket(AF_INET, typ, 0);
-        }
-        else {
+        } else {
             handle.Handle_.value = socket(AF_INET6, typ, 0);
         }
         if (handle.Handle_.value == INVALID_SOCKET) {
@@ -94,17 +38,19 @@ class PlatformSocket {
         }
         return std::tuple(errcode, std::move(handle));
     }
-    PlatformSocket &operator=(PlatformSocket &&p) noexcept
-    {
+    PlatformSocket &operator=(PlatformSocket &&p) noexcept {
         close();
         Handle_.value = p.Handle_.value;
         p.Handle_.value = INVALID_SOCKET;
         return *this;
     }
-    [[nodiscard]] SocketHandle Handle() const noexcept { return Handle_; }
-    operator bool() const noexcept { return Handle_.value != INVALID_SOCKET; }
-    void close()
-    {
+    [[nodiscard]] SocketHandle Handle() const noexcept {
+        return Handle_;
+    }
+    operator bool() const noexcept {
+        return Handle_.value != INVALID_SOCKET;
+    }
+    void close() {
         auto t = Handle_.value;
         Handle_.value = INVALID_SOCKET;
         if (t != INVALID_SOCKET) {
@@ -116,8 +62,7 @@ class PlatformSocket {
 #endif
         }
     }
-    void shutdown(ShutDownOptions o)
-    {
+    void shutdown(ShutDownOptions o) {
         auto t = Handle_.value;
         if (t != INVALID_SOCKET) {
             switch (o) {
@@ -154,25 +99,70 @@ class PlatformSocket {
         }
     }
 
-    std::tuple<StatusCode, int> send(unsigned char *buf, int len) { return SL::NET::Send(Handle_.value, buf, len); }
-    std::tuple<StatusCode, int> recv(unsigned char *buf, int len) { return SL::NET::Recv(Handle_.value, buf, len); }
+    std::tuple<StatusCode, int> send(unsigned char *buf, int len) {
+#if _WIN32
+        auto count = ::send(Handle_.value, (char *)buf, static_cast<int>(len), 0);
+        if (count < 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+                return std::tuple(TranslateError(&er), 0);
+            } else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        } else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#else
+        auto count = ::send(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
+        if (count < 0) { // possible error or continue
+            if (errno != EAGAIN && errno != EINTR) {
+                return std::tuple(TranslateError(), 0);
+            } else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        } else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#endif
+    }
+    std::tuple<StatusCode, int> recv(unsigned char *buf, int len) {
+#if _WIN32
+        auto count = ::recv(Handle_.value, (char *)buf, static_cast<int>(len), 0);
+        if (count <= 0) { // possible error or continue
+            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+                return std::tuple(TranslateError(&er), 0);
+            } else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        } else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#else
+        auto count = ::recv(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
+        if (count <= 0) { // possible error or continue
+            if ((errno != EAGAIN && errno != EINTR) || count == 0) {
+                return std::tuple(TranslateError(), 0);
+            } else {
+                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+            }
+        } else {
+            return std::tuple(StatusCode::SC_SUCCESS, count);
+        }
+#endif
+    }
 
-    StatusCode bind(const SocketAddress &addr)
-    {
+    StatusCode bind(const SocketAddress &addr) {
         if (::bind(Handle_.value, addr.getSocketAddr(), addr.getSocketAddrLen()) == SOCKET_ERROR) {
             return TranslateError();
         }
         return StatusCode::SC_SUCCESS;
     }
-    StatusCode listen(int backlog)
-    {
+    StatusCode listen(int backlog) {
         if (::listen(Handle_.value, backlog) == SOCKET_ERROR) {
             return TranslateError();
         }
         return StatusCode::SC_SUCCESS;
     }
-    template <class CALLBACKTYPE> StatusCode getpeername(const CALLBACKTYPE &cb) const
-    {
+    template <class CALLBACKTYPE> StatusCode getpeername(const CALLBACKTYPE &cb) const {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
         if (::getpeername(Handle_.value, (::sockaddr *)&addr, &len) == 0) {
@@ -181,8 +171,7 @@ class PlatformSocket {
         }
         return TranslateError();
     }
-    template <class CALLBACKTYPE> StatusCode getsockname(const CALLBACKTYPE &cb) const
-    {
+    template <class CALLBACKTYPE> StatusCode getsockname(const CALLBACKTYPE &cb) const {
         sockaddr_storage addr = {0};
         socklen_t len = sizeof(addr);
         if (::getsockname(Handle_.value, (::sockaddr *)&addr, &len) == 0) {
@@ -192,8 +181,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(DEBUGTag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(DEBUGTag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_DEBUG, (char *)&value, &valuelen) == 0) {
@@ -203,8 +191,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(ACCEPTCONNTag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(ACCEPTCONNTag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_ACCEPTCONN, (char *)&value, &valuelen) == 0) {
@@ -214,8 +201,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(BROADCASTTag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(BROADCASTTag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_BROADCAST, (char *)&value, &valuelen) == 0) {
@@ -225,8 +211,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(REUSEADDRTag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(REUSEADDRTag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_REUSEADDR, (char *)&value, &valuelen) == 0) {
@@ -236,8 +221,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(KEEPALIVETag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(KEEPALIVETag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, &valuelen) == 0) {
@@ -247,19 +231,17 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(LINGERTag, const std::function<void(const LingerOption &)> &callback) const
-    {
+    StatusCode getsockopt(LINGERTag, const std::function<void(const LingerOption &)> &callback) const {
         linger value;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_LINGER, (char *)&value, &valuelen) == 0) {
-            callback(LingerOption{value.l_onoff == 0 ? LingerOptions::LINGER_OFF : LingerOptions::LINGER_ON, std::chrono::seconds(value.l_linger)});
+            callback(LingerOption {value.l_onoff == 0 ? LingerOptions::LINGER_OFF : LingerOptions::LINGER_ON, std::chrono::seconds(value.l_linger)});
             return StatusCode::SC_SUCCESS;
         }
         return TranslateError();
     }
 
-    StatusCode getsockopt(OOBINLINETag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(OOBINLINETag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_OOBINLINE, (char *)&value, &valuelen) == 0) {
@@ -269,8 +251,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(SNDBUFTag, const std::function<void(const int &)> &callback) const
-    {
+    StatusCode getsockopt(SNDBUFTag, const std::function<void(const int &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_SNDBUF, (char *)&value, &valuelen) == 0) {
@@ -280,8 +261,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(RCVBUFTag, const std::function<void(const int &)> &callback) const
-    {
+    StatusCode getsockopt(RCVBUFTag, const std::function<void(const int &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_RCVBUF, (char *)&value, &valuelen) == 0) {
@@ -291,8 +271,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(SNDTIMEOTag, const std::function<void(const std::chrono::seconds &)> &callback) const
-    {
+    StatusCode getsockopt(SNDTIMEOTag, const std::function<void(const std::chrono::seconds &)> &callback) const {
 #ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
@@ -311,8 +290,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(RCVTIMEOTag, const std::function<void(const std::chrono::seconds &)> &callback) const
-    {
+    StatusCode getsockopt(RCVTIMEOTag, const std::function<void(const std::chrono::seconds &)> &callback) const {
 #ifdef _WIN32
         DWORD value = 0;
         int valuelen = sizeof(value);
@@ -331,8 +309,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(ERRORTag, const std::function<void(const int &)> &callback) const
-    {
+    StatusCode getsockopt(ERRORTag, const std::function<void(const int &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, SOL_SOCKET, SO_ERROR, (char *)&value, &valuelen) == 0) {
@@ -342,8 +319,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode getsockopt(NODELAYTag, const std::function<void(const SockOptStatus &)> &callback) const
-    {
+    StatusCode getsockopt(NODELAYTag, const std::function<void(const SockOptStatus &)> &callback) const {
         int value = 0;
         SOCKLEN_T valuelen = sizeof(value);
         if (::getsockopt(Handle_.value, IPPROTO_TCP, TCP_NODELAY, (char *)&value, &valuelen) == 0) {
@@ -353,12 +329,10 @@ class PlatformSocket {
         return TranslateError();
     }
 #ifdef _WIN32
-    StatusCode getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &) const
-    {
+    StatusCode getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &) const {
         return StatusCode::SC_NOTSUPPORTED;
 #else
-    StatusCode getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &callback) const
-    {
+    StatusCode getsockopt(BLOCKINGTag, const std::function<void(const Blocking_Options &)> &callback) const {
         long arg = 0;
         if ((arg = fcntl(Handle_.value, F_GETFL, NULL)) < 0) {
             return TranslateError();
@@ -367,8 +341,7 @@ class PlatformSocket {
         return StatusCode::SC_SUCCESS;
 #endif
     }
-    StatusCode setsockopt(DEBUGTag, SockOptStatus b)
-    {
+    StatusCode setsockopt(DEBUGTag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_DEBUG, (char *)&value, valuelen) == 0) {
@@ -377,8 +350,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(BROADCASTTag, SockOptStatus b)
-    {
+    StatusCode setsockopt(BROADCASTTag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0) {
@@ -387,8 +359,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(REUSEADDRTag, SockOptStatus b)
-    {
+    StatusCode setsockopt(REUSEADDRTag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0) {
@@ -397,8 +368,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(KEEPALIVETag, SockOptStatus b)
-    {
+    StatusCode setsockopt(KEEPALIVETag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_KEEPALIVE, (char *)&value, valuelen) == 0) {
@@ -407,8 +377,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(LINGERTag, LingerOption o)
-    {
+    StatusCode setsockopt(LINGERTag, LingerOption o) {
         linger value;
         value.l_onoff = o.l_onoff == LingerOptions::LINGER_OFF ? 0 : 1;
         value.l_linger = static_cast<unsigned short>(o.l_linger.count());
@@ -419,8 +388,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(OOBINLINETag, SockOptStatus b)
-    {
+    StatusCode setsockopt(OOBINLINETag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_OOBINLINE, (char *)&value, valuelen) == 0) {
@@ -429,8 +397,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(SNDBUFTag, int b)
-    {
+    StatusCode setsockopt(SNDBUFTag, int b) {
         int value = b;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_SNDBUF, (char *)&value, valuelen) == 0) {
@@ -439,8 +406,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(RCVBUFTag, int b)
-    {
+    StatusCode setsockopt(RCVBUFTag, int b) {
         int value = b;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_RCVBUF, (char *)&value, valuelen) == 0) {
@@ -449,8 +415,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(SNDTIMEOTag, std::chrono::seconds sec)
-    {
+    StatusCode setsockopt(SNDTIMEOTag, std::chrono::seconds sec) {
 #ifdef _WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
         int valuelen = sizeof(value);
@@ -460,14 +425,13 @@ class PlatformSocket {
         tv.tv_sec = static_cast<long>(sec.count());
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_SNDTIMEO, (timeval *)&tv, sizeof(tv)) == 0
 #endif
-        ) {
+           ) {
             return StatusCode::SC_SUCCESS;
         }
         return TranslateError();
     }
 
-    StatusCode setsockopt(RCVTIMEOTag, std::chrono::seconds sec)
-    {
+    StatusCode setsockopt(RCVTIMEOTag, std::chrono::seconds sec) {
 
 #ifdef WIN32
         DWORD value = static_cast<DWORD>(sec.count() * 1000); // convert to miliseconds for windows
@@ -478,14 +442,13 @@ class PlatformSocket {
         tv.tv_sec = static_cast<long>(sec.count());
         if (::setsockopt(Handle_.value, SOL_SOCKET, SO_RCVTIMEO, (timeval *)&tv, sizeof(tv)) == 0
 #endif
-        ) {
+           ) {
             return StatusCode::SC_SUCCESS;
         }
         return TranslateError();
     }
 
-    StatusCode setsockopt(NODELAYTag, SockOptStatus b)
-    {
+    StatusCode setsockopt(NODELAYTag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
         if (::setsockopt(Handle_.value, IPPROTO_TCP, TCP_NODELAY, (char *)&value, valuelen) == 0) {
@@ -494,8 +457,7 @@ class PlatformSocket {
         return TranslateError();
     }
 
-    StatusCode setsockopt(BLOCKINGTag, Blocking_Options b)
-    {
+    StatusCode setsockopt(BLOCKINGTag, Blocking_Options b) {
 
 #ifdef WIN32
         u_long iMode = b == Blocking_Options::BLOCKING ? 0 : 1;
@@ -512,8 +474,7 @@ class PlatformSocket {
 #endif
     }
 
-    static std::tuple<StatusCode, PlatformSocket> connect(SocketAddress &address)
-    {
+    static std::tuple<StatusCode, PlatformSocket> connect(SocketAddress &address) {
         auto [statuscode, sock] = Create(address.getFamily());
         if (statuscode != StatusCode::SC_SUCCESS) {
             return std::tuple(statuscode, std::move(sock));
@@ -524,8 +485,7 @@ class PlatformSocket {
         }
         return std::tuple(TranslateError(), std::move(sock));
     }
-    std::tuple<StatusCode, PlatformSocket> accept()
-    {
+    std::tuple<StatusCode, PlatformSocket> accept() {
         auto handle = ::accept(Handle_.value, NULL, NULL);
         if (handle != INVALID_SOCKET) {
             return std::tuple(StatusCode::SC_SUCCESS, PlatformSocket(handle));
@@ -535,7 +495,7 @@ class PlatformSocket {
 };
 
 [[nodiscard]] inline std::vector<SocketAddress> getaddrinfo(const char *nodename, PortNumber pServiceName,
-                                                            AddressFamily family = AddressFamily::IPANY)
+        AddressFamily family = AddressFamily::IPANY)
 {
     ::addrinfo hints = {0};
     ::addrinfo *result(nullptr);
