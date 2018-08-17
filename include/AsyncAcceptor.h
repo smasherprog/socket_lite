@@ -16,6 +16,7 @@ template <class SOCKETHANDLERTYPE> class AsyncAcceptor {
     AsyncAcceptor(AsyncPlatformSocket &&socket, SOCKETHANDLERTYPE &&callback) noexcept
         : Context_(socket.getContext()), AcceptorSocket(std::forward<AsyncPlatformSocket>(socket)),
           Handler(std::forward<SOCKETHANDLERTYPE>(callback)), Runner([&]() {
+              [[maybe_unused]] auto setblocking = AcceptorSocket.setsockopt(BLOCKINGTag{}, SL::NET::Blocking_Options::BLOCKING);
               while (Keepgoing) {
 #if _WIN32
 
