@@ -19,9 +19,10 @@ class asioserver {
 
     void do_accept()
     {
+        //std::cout << "start do_accept" << std::endl;
         acceptor_.accept([&](SL::NET::StatusCode sc, SL::NET::AsyncPlatformSocket s) {
             if (keepgoing) {
-              //  std::cout << "Connected" << std::endl;
+                //std::cout << "done do_accept" << std::endl;
                 do_accept();
             }
         });
@@ -32,9 +33,11 @@ class asioserver {
 std::vector<SL::NET::SocketAddress> endpoints;
 void connect(SL::NET::Context &io_context)
 {
+    //std::cout << "start connect" << std::endl;
     auto socket(std::make_shared<SL::NET::AsyncSocket>(io_context));
     SL::NET::AsyncSocket::connect(*socket, endpoints.back(), [socket, &io_context](SL::NET::StatusCode) {
         connections += 1.0;
+        //std::cout << "done connect" << std::endl;
         if (keepgoing) {
             connect(io_context);
         }

@@ -14,7 +14,7 @@ SL::NET::AsyncSocket listengetaddrinfo(const char *nodename, SL::NET::PortNumber
 {
     auto addrs = SL::NET::getaddrinfo(nodename, port, family);
     for (auto &a : addrs) {
-        auto[statuscode, socket] = SL::NET::AsyncSocket::Create(a.getFamily(), context);
+        auto [statuscode, socket] = SL::NET::AsyncSocket::Create(a.getFamily(), context);
         if (statuscode == SL::NET::StatusCode::SC_SUCCESS && socket.bind(a) == SL::NET::StatusCode::SC_SUCCESS) {
             if (socket.listen(INT_MAX) == SL::NET::StatusCode::SC_SUCCESS) {
                 [[maybe_unused]] auto reter = socket.setsockopt(SL::NET::REUSEADDRTag{}, SL::NET::SockOptStatus::ENABLED);
@@ -65,7 +65,7 @@ class asioserver {
 
     void do_accept()
     {
-        acceptor_.accept([&](auto , auto socket) {
+        acceptor_.accept([&](auto, auto socket) {
             if (keepgoing) {
                 auto s = std::make_shared<session>(std::move(socket));
                 s->do_read();
@@ -75,7 +75,7 @@ class asioserver {
         });
     }
 
-     SL::NET::AsyncAcceptor acceptor_;
+    SL::NET::AsyncAcceptor acceptor_;
 };
 class asioclient {
   public:

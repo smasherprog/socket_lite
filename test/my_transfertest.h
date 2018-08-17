@@ -18,7 +18,6 @@ bool keepgoing = true;
 class session : public std::enable_shared_from_this<session> {
   public:
     session(SL::NET::AsyncSocket socket) : socket_(std::move(socket)) {}
-
     void do_read()
     {
         auto self(shared_from_this());
@@ -41,9 +40,9 @@ class session : public std::enable_shared_from_this<session> {
     SL::NET::AsyncSocket socket_;
 };
 
-template <class CONTEXTYPE> class asioclient {
+class asioclient {
   public:
-    asioclient(CONTEXTYPE &io_context, const std::vector<SL::NET::SocketAddress> &endpoints) : Addresses(endpoints)
+    asioclient(SL::NET::Context &io_context, const std::vector<SL::NET::SocketAddress> &endpoints) : Addresses(endpoints)
     {
         socket_ = std::make_shared<session>(io_context);
     }
@@ -57,7 +56,6 @@ template <class CONTEXTYPE> class asioclient {
         });
     }
     std::vector<SL::NET::SocketAddress> Addresses;
-    void close() { socket_->socket_.close(); }
     std::shared_ptr<session> socket_;
 };
 
@@ -66,7 +64,6 @@ class asioserver {
     asioserver(SL::NET::Context &io_context, short port)
         : acceptor_(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(port), SL::NET::AddressFamily::IPV4, io_context))
     {
-        do_accept();
     }
 
     void do_accept()
@@ -85,11 +82,13 @@ void mytransfertest()
 {
     std::cout << "Starting My MB per Second Test" << std::endl;
     auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
+    keepgoing = true;
     writeechos = 0.0;
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
-    auto listencallback([](auto socket) { std::make_shared<session>(std::move(socket))->do_read(); });
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
+    asioserver s(iocontext, porttouse);
+    s.do_accept();
 
     iocontext.start();
     asioclient c(iocontext, SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse)));

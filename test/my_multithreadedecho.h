@@ -24,7 +24,7 @@ void myechotest(int buffersize = 128)
 
     myechomodels::asioserver s(iocontext, porttouse);
     s.do_accept();
-
+  
     iocontext.start();
     myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
     myechomodels::asioclient c1(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));

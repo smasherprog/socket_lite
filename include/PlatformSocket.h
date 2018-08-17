@@ -3,15 +3,77 @@
 
 namespace SL::NET {
 
+std::tuple<StatusCode, int> inline Send(SocketHandle handle, unsigned char *buf, int len)
+{
+#if _WIN32
+    auto count = ::send(handle.value, (char *)buf, static_cast<int>(len), 0);
+    if (count < 0) { // possible error or continue
+        if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+            return std::tuple(TranslateError(&er), 0);
+        }
+        else {
+            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+        }
+    }
+    else {
+        return std::tuple(StatusCode::SC_SUCCESS, count);
+    }
+#else
+    auto count = ::send(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
+    if (count < 0) { // possible error or continue
+        if (errno != EAGAIN && errno != EINTR) {
+            return std::tuple(TranslateError(), 0);
+        }
+        else {
+            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+        }
+    }
+    else {
+        return std::tuple(StatusCode::SC_SUCCESS, count);
+    }
+#endif
+}
+
+std::tuple<StatusCode, int> inline Recv(SocketHandle handle, unsigned char *buf, int len)
+{
+#if _WIN32
+    auto count = ::recv(handle.value, (char *)buf, static_cast<int>(len), 0);
+    if (count <= 0) { // possible error or continue
+        if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
+            return std::tuple(TranslateError(&er), 0);
+        }
+        else {
+            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+        }
+    }
+    else {
+        return std::tuple(StatusCode::SC_SUCCESS, count);
+    }
+#else
+    auto count = ::recv(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
+    if (count <= 0) { // possible error or continue
+        if ((errno != EAGAIN && errno != EINTR) || count == 0) {
+            return std::tuple(TranslateError(), 0);
+        }
+        else {
+            return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
+        }
+    }
+    else {
+        return std::tuple(StatusCode::SC_SUCCESS, count);
+    }
+#endif
+}
+
 class PlatformSocket {
   protected:
     SocketHandle Handle_;
 
   public:
-    PlatformSocket() : Handle_(INVALID_SOCKET) {}
-    PlatformSocket(SocketHandle h) : Handle_(h) {}
-    ~PlatformSocket() { close(); }
-    PlatformSocket(PlatformSocket &&p) : Handle_(std::move(p.Handle_)) { p.Handle_.value = INVALID_SOCKET; }
+    PlatformSocket() noexcept : Handle_(INVALID_SOCKET) {}
+    PlatformSocket(SocketHandle h) noexcept : Handle_(h) {}
+    ~PlatformSocket() noexcept { close(); }
+    PlatformSocket(PlatformSocket &&p) noexcept : Handle_(std::move(p.Handle_)) { p.Handle_.value = INVALID_SOCKET; }
 
     static std::tuple<StatusCode, PlatformSocket> Create(const AddressFamily &family)
     {
@@ -32,15 +94,15 @@ class PlatformSocket {
         }
         return std::tuple(errcode, std::move(handle));
     }
-    PlatformSocket &operator=(PlatformSocket &&p)
+    PlatformSocket &operator=(PlatformSocket &&p) noexcept
     {
         close();
         Handle_.value = p.Handle_.value;
         p.Handle_.value = INVALID_SOCKET;
         return *this;
     }
-    [[nodiscard]] SocketHandle Handle() const { return Handle_; }
-    operator bool() const { return Handle_.value != INVALID_SOCKET; }
+    [[nodiscard]] SocketHandle Handle() const noexcept { return Handle_; }
+    operator bool() const noexcept { return Handle_.value != INVALID_SOCKET; }
     void close()
     {
         auto t = Handle_.value;
@@ -92,67 +154,8 @@ class PlatformSocket {
         }
     }
 
-    std::tuple<StatusCode, int> send(unsigned char *buf, int len)
-    {
-#if _WIN32
-        auto count = ::send(Handle_.value, (char *)buf, static_cast<int>(len), 0);
-        if (count < 0) { // possible error or continue
-            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                return std::tuple(TranslateError(&er), 0);
-            }
-            else {
-                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-            }
-        }
-        else {
-            return std::tuple(StatusCode::SC_SUCCESS, count);
-        }
-#else
-        auto count = ::send(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
-        if (count < 0) { // possible error or continue
-            if (errno != EAGAIN && errno != EINTR) {
-                return std::tuple(TranslateError(), 0);
-            }
-            else {
-                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-            }
-        }
-        else {
-            return std::tuple(StatusCode::SC_SUCCESS, count);
-        }
-#endif
-    }
-
-    std::tuple<StatusCode, int> recv(unsigned char *buf, int len)
-    {
-#if _WIN32
-        auto count = ::recv(Handle_.value, (char *)buf, static_cast<int>(len), 0);
-        if (count <= 0) { // possible error or continue
-            if (auto er = WSAGetLastError(); er != WSAEWOULDBLOCK) {
-                return std::tuple(TranslateError(&er), 0);
-            }
-            else {
-                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-            }
-        }
-        else {
-            return std::tuple(StatusCode::SC_SUCCESS, count);
-        }
-#else
-        auto count = ::recv(Handle_.value, buf, static_cast<int>(len), MSG_NOSIGNAL);
-        if (count <= 0) { // possible error or continue
-            if ((errno != EAGAIN && errno != EINTR) || count == 0) {
-                return std::tuple(TranslateError(), 0);
-            }
-            else {
-                return std::tuple(StatusCode::SC_EWOULDBLOCK, 0);
-            }
-        }
-        else {
-            return std::tuple(StatusCode::SC_SUCCESS, count);
-        }
-#endif
-    }
+    std::tuple<StatusCode, int> send(unsigned char *buf, int len) { return SL::NET::Send(Handle_.value, buf, len); }
+    std::tuple<StatusCode, int> recv(unsigned char *buf, int len) { return SL::NET::Recv(Handle_.value, buf, len); }
 
     StatusCode bind(const SocketAddress &addr)
     {
@@ -511,7 +514,7 @@ class PlatformSocket {
 
     static std::tuple<StatusCode, PlatformSocket> connect(SocketAddress &address)
     {
-        auto[statuscode, sock] = Create(address.getFamily());
+        auto [statuscode, sock] = Create(address.getFamily());
         if (statuscode != StatusCode::SC_SUCCESS) {
             return std::tuple(statuscode, std::move(sock));
         }

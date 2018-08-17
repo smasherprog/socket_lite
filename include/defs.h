@@ -92,8 +92,10 @@ struct BLOCKINGTag {
 typedef Explicit<unsigned int, ThreadCountTag> ThreadCount;
 typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
 enum class Blocking_Options { BLOCKING, NON_BLOCKING };
-enum class[[nodiscard]] StatusCode{SC_EAGAIN,   SC_EWOULDBLOCK, SC_EBADF,     SC_ECONNRESET, SC_EINTR,        SC_EINVAL,    SC_ENOTCONN,
-                                   SC_ENOTSOCK, SC_EOPNOTSUPP,  SC_ETIMEDOUT, SC_CLOSED,     SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0};
+enum class [[nodiscard]] StatusCode {
+    SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_CLOSED,
+        SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0
+};
 enum class LingerOptions { LINGER_OFF, LINGER_ON };
 enum class SockOptStatus { ENABLED, DISABLED };
 enum AddressFamily : unsigned short { IPV4 = AF_INET, IPV6 = AF_INET6, IPANY = AF_UNSPEC };
@@ -124,45 +126,45 @@ enum IO_OPERATION : unsigned int { IoRead, IoWrite, IoConnect, IoAccept };
 
 class SocketAddress {
     ::sockaddr_storage Storage;
-    int Length;
+    int Length = 0;
 
   public:
-    SocketAddress() : Length(0), Storage({}) {}
-    SocketAddress(SocketAddress &&addr) : Length(addr.Length)
+    SocketAddress() noexcept : Length(0), Storage({}) {}
+    SocketAddress(SocketAddress &&addr) noexcept : Length(addr.Length)
     {
         memcpy(&Storage, &addr.Storage, addr.Length);
         addr.Length = 0;
     }
-    SocketAddress(const SocketAddress &addr) : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
+    SocketAddress(const SocketAddress &addr) noexcept : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
     SocketAddress(::sockaddr *buffer, socklen_t len)
     {
         assert(len < sizeof(Storage));
         memcpy(&Storage, buffer, len);
         Length = static_cast<int>(len);
     }
-    SocketAddress(::sockaddr_storage *buffer, socklen_t len)
+    SocketAddress(::sockaddr_storage *buffer, socklen_t len) noexcept
     {
         assert(len < sizeof(Storage));
         memcpy(&Storage, buffer, len);
         Length = static_cast<int>(len);
     }
 
-    const sockaddr *getSocketAddr() const { return reinterpret_cast<const ::sockaddr *>(&Storage); }
-    int getSocketAddrLen() const { return Length; }
-    std::string getHost() const
+    const sockaddr *getSocketAddr() const noexcept { return reinterpret_cast<const ::sockaddr *>(&Storage); }
+    int getSocketAddrLen() const noexcept { return Length; }
+    std::string getHost() const noexcept
     {
         char str[INET_ADDRSTRLEN] = {};
         auto sockin = reinterpret_cast<const ::sockaddr_in *>(&Storage);
         inet_ntop(Storage.ss_family, &(sockin->sin_addr), str, INET_ADDRSTRLEN);
         return std::string(str);
     }
-    unsigned short getPort() const
+    unsigned short getPort() const noexcept
     {
         // both ipv6 and ipv4 structs have their port in the same place!
         auto sockin = reinterpret_cast<const sockaddr_in *>(&Storage);
         return ntohs(sockin->sin_port);
     }
-    AddressFamily getFamily() const { return static_cast<AddressFamily>(Storage.ss_family); }
+    AddressFamily getFamily() const noexcept { return static_cast<AddressFamily>(Storage.ss_family); }
 };
 
 typedef std::function<void(StatusCode)> SocketHandler;
@@ -170,17 +172,16 @@ typedef std::function<void(StatusCode)> SocketHandler;
 class RW_Context {
   public:
 #if _WIN32
-    WSAOVERLAPPED Overlapped;
+    WSAOVERLAPPED Overlapped = {};
 #endif
-  private:
-    SocketHandler completionhandler;
+    private : SocketHandler completionhandler;
     std::atomic<int> completioncounter;
-    int remaining_bytes;
+    int remaining_bytes = 0;
 
   public:
     unsigned char *buffer = nullptr;
-    RW_Context() { clear(); }
-    RW_Context(const RW_Context &) { clear(); }
+    RW_Context() noexcept { clear(); }
+    RW_Context(const RW_Context &) noexcept { clear(); }
     template <class T> void setCompletionHandler(const T &c)
     {
 #if _WIN32
@@ -188,9 +189,10 @@ class RW_Context {
         Overlapped.Offset = Overlapped.OffsetHigh = 0;
         Overlapped.Pointer = Overlapped.hEvent = 0;
 #endif
-        completioncounter = 1;
+        completioncounter.store(1, std::memory_order_relaxed);
         completionhandler = std::move(c);
     }
+    bool hasCompletionHandler() const { return completionhandler.operator bool(); }
     SocketHandler getCompletionHandler()
     {
         if (completioncounter.fetch_sub(1, std::memory_order_relaxed) == 1) {
@@ -199,17 +201,16 @@ class RW_Context {
         SocketHandler h;
         return h;
     }
-    void setRemainingBytes(int remainingbytes)
+    constexpr void setRemainingBytes(int remainingbytes)
     {
         auto p = (remainingbytes & ~0xC0000000);
         auto p1 = (remaining_bytes & 0xC0000000);
 
         remaining_bytes = p | p1;
     }
-    int getRemainingBytes() const { return remaining_bytes & ~0xC0000000; }
-    void setEvent(IO_OPERATION op) { remaining_bytes = getRemainingBytes() | (op << 30); }
-    IO_OPERATION getEvent() const { return static_cast<IO_OPERATION>((remaining_bytes >> 30) & 0x00000003); }
-
+    constexpr int getRemainingBytes() const { return remaining_bytes & ~0xC0000000; }
+    constexpr void setEvent(IO_OPERATION op) { remaining_bytes = getRemainingBytes() | (op << 30); }
+    constexpr IO_OPERATION getEvent() const { return static_cast<IO_OPERATION>((remaining_bytes >> 30) & 0x00000003); }
     void clear()
     {
 #if _WIN32
@@ -249,21 +250,4 @@ static StatusCode TranslateError(int *errcode = nullptr)
     };
 }
 
-template <class SOCKETHANDLERTYPE, class CONTEXTTYPE>
-void setup(RW_Context &context, CONTEXTTYPE &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer, const SOCKETHANDLERTYPE &handler)
-{
-    context.buffer = buffer;
-    context.setRemainingBytes(buffer_size);
-    context.setCompletionHandler(handler);
-    context.setEvent(op);
-    iodata.IncrementPendingIO();
-}
-
-template <class CONTEXTTYPE> void completeio(RW_Context &context, CONTEXTTYPE &iodata, StatusCode code)
-{
-    if (auto h(context.getCompletionHandler()); h) {
-        h(code);
-        iodata.DecrementPendingIO();
-    }
-}
 } // namespace SL::NET

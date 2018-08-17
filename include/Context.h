@@ -1,21 +1,17 @@
 #pragma once
-#include "AsyncPlatformSocket.h"
-#include "defs.h"
+#include "Internal.h"
+#include "PlatformSocket.h"
 #include "spinlock.h"
 #include <mutex>
 
 namespace SL::NET {
 
 class Context {
-    friend class AsyncPlatformAcceptor;
-    friend class AsyncPlatformSocket;
-    template <class SOCKETHANDLERTYPE, class CONTEXTTYPE>
-    friend void setup(RW_Context &context, CONTEXTTYPE &iodata, IO_OPERATION op, int buffer_size, unsigned char *buffer,
-                      const SOCKETHANDLERTYPE &handler);
-    template <class CONTEXTTYPE> friend void completeio(RW_Context &context, CONTEXTTYPE &iodata, StatusCode code);
-    template <class SOCKETHANDLERTYPE>
-    friend void complete_accept(StatusCode statuscode, SocketHandle sock, SocketHandle listensocket, const SOCKETHANDLERTYPE &callback, Context &ctx);
 
+    friend class AsyncPlatformSocket;
+    friend class AsyncPlatformAcceptor;
+
+  protected:
     const ThreadCount ThreadCount_;
     std::vector<std::thread> Threads;
     std::vector<RW_Context> ReadContexts, WriteContexts;
@@ -24,10 +20,108 @@ class Context {
     std::vector<SocketHandle> ReadSockets, WriteSockets;
     spinlock ReadSocketLock, WriteSocketLock;
 
+    void continue_recv_async(SocketHandle handle, RW_Context &rwcontext)
+    {
+        if (rwcontext.getRemainingBytes() <= 0) {
+            return INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
+        }
+        auto count = INTERNAL::Recv(handle, rwcontext.buffer, rwcontext.getRemainingBytes());
+        if (count == rwcontext.getRemainingBytes()) {
+            INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
+        }
+        else if (count > 0) {
+            rwcontext.setRemainingBytes(rwcontext.getRemainingBytes() - count);
+            rwcontext.buffer += count;
+#if _WIN32
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)rwcontext.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(rwcontext.getRemainingBytes());
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            DWORD nRet = WSARecv(handle.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(rwcontext.Overlapped), NULL);
+            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
+                INTERNAL::completeio(rwcontext, PendingIO, TranslateError(&lasterr));
+            }
+#else
+            PostDeferredReadIO(Handle);
+#endif
+        }
+        else if (INTERNAL::wouldBlock()) {
+#if _WIN32
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)rwcontext.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(rwcontext.getRemainingBytes());
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            DWORD nRet = WSARecv(handle.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(rwcontext.Overlapped), NULL);
+            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
+                INTERNAL::completeio(rwcontext, PendingIO, TranslateError(&lasterr));
+            }
+#else
+            epoll_event ev = {0};
+            ev.data.fd = handle.value;
+            ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            if (epoll_ctl(IOCPHandle, EPOLL_CTL_MOD, handle.value, &ev) == -1) {
+                INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
+            }
+#endif
+        }
+        else {
+            INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
+        }
+    }
+
+    void continue_send_async(SocketHandle handle, RW_Context &rwcontext)
+    {
+        if (rwcontext.getRemainingBytes() <= 0) {
+            return INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
+        }
+        auto count = INTERNAL::Send(handle, rwcontext.buffer, rwcontext.getRemainingBytes());
+        if (count == rwcontext.getRemainingBytes()) {
+            INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
+        }
+        else if (count > 0) {
+            rwcontext.setRemainingBytes(rwcontext.getRemainingBytes() - count);
+            rwcontext.buffer += count;
+#if _WIN32
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)rwcontext.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(rwcontext.getRemainingBytes());
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            DWORD nRet = WSASend(handle.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(rwcontext.Overlapped), NULL);
+            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
+                INTERNAL::completeio(rwcontext, PendingIO, TranslateError(&lasterr));
+            }
+#else
+            PostDeferredWriteIO(Handle_);
+#endif
+        }
+        else if (INTERNAL::wouldBlock()) {
+#if _WIN32
+            WSABUF wsabuf;
+            wsabuf.buf = (char *)rwcontext.buffer;
+            wsabuf.len = static_cast<decltype(wsabuf.len)>(rwcontext.getRemainingBytes());
+            DWORD dwSendNumBytes(0), dwFlags(0);
+            DWORD nRet = WSASend(handle.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(rwcontext.Overlapped), NULL);
+            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
+                INTERNAL::completeio(rwcontext, PendingIO, TranslateError(&lasterr));
+            }
+#else
+            epoll_event ev = {0};
+            ev.data.fd = Handle_.value;
+            ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
+            if (epoll_ctl(context.getIOHandle(), EPOLL_CTL_MOD, handle.value, &ev) == -1) {
+                INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
+            }
+#endif
+        }
+        else {
+            INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
+        }
+    }
+
 #if _WIN32
     HANDLE IOCPHandle;
     WSADATA wsaData;
-    LPFN_CONNECTEX ConnectEx_;
+
     void wakeup() { wakeup(IOCPHandle); }
     static void wakeup(const HANDLE h)
     {
@@ -52,7 +146,6 @@ class Context {
         }
         PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
     }
-    void HandlePendingIO(std::vector<SocketHandle> &) {}
 #else
     int EventWakeFd;
     int EventFd;
@@ -80,9 +173,10 @@ class Context {
         }
         eventfd_write(EventFd, 1);
     }
+#endif
+
     void HandlePendingIO(std::vector<SocketHandle> &socketbuffer)
     {
-
         if (!ReadSockets.empty()) {
             {
                 std::lock_guard<spinlock> lock(ReadSocketLock);
@@ -94,7 +188,7 @@ class Context {
             for (auto a : socketbuffer) {
                 SocketHandle handle(a);
                 auto &rctx = getReadContext(handle);
-                continue_io(true, rctx, *this, handle);
+                continue_recv_async(handle, rctx);
             }
             socketbuffer.clear();
         }
@@ -110,17 +204,16 @@ class Context {
             for (auto a : socketbuffer) {
                 SocketHandle handle(a);
                 auto &rctx = getWriteContext(handle);
-                continue_io(true, rctx, *this, handle);
+                continue_send_async(handle, rctx);
             }
             socketbuffer.clear();
         }
     }
-#endif
+
   public:
     Context(ThreadCount t) : ThreadCount_(t)
     {
         KeepGoing_ = true;
-
         PendingIO = 0;
         Threads.reserve(ThreadCount_.value * 2);
         ReadContexts.resize(std::numeric_limits<unsigned short>::max());
@@ -130,18 +223,11 @@ class Context {
 
 #if _WIN32
         IOCPHandle = nullptr;
-        ConnectEx_ = nullptr;
         if (WSAStartup(0x202, &wsaData) != 0) {
             abort();
         }
         IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, ThreadCount_.value);
         assert(IOCPHandle != NULL);
-        auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-        GUID guid = WSAID_CONNECTEX;
-        DWORD bytes = 0;
-        ConnectEx_ = nullptr;
-        WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
-        assert(ConnectEx_ != nullptr);
 #else
         IOCPHandle = 0;
         EventWakeFd = EventFd = 0;
@@ -186,44 +272,34 @@ class Context {
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
                                                               (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
                                     KeepGoing_;
+
                     if (overlapped != nullptr) {
-                        if (!bSuccess) {
-                            completeio(*overlapped, *this, TranslateError());
-                        }
-                        else {
+                        if (bSuccess) {
                             switch (auto eventyype = overlapped->getEvent()) {
                             case IO_OPERATION::IoRead:
                                 overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
                                 overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
-                                if (numberofbytestransfered == 0 && bSuccess) {
-                                    bSuccess = WSAGetLastError() == WSA_IO_PENDING;
-                                } 
-                                if (overlapped->getRemainingBytes() <= 0) {
-                                    completeio(*overlapped, *this, StatusCode::SC_SUCCESS);
-                                }
-                                sock.continue_recv_async(bSuccess, *overlapped);
-
+                                continue_recv_async(reinterpret_cast<decltype(SocketHandle::value)>(completionkey), *overlapped);
                                 break;
                             case IO_OPERATION::IoWrite:
                                 overlapped->setRemainingBytes(overlapped->getRemainingBytes() - numberofbytestransfered);
                                 overlapped->buffer += numberofbytestransfered; // advance the start of the buffer
-                                if (numberofbytestransfered == 0 && bSuccess) {
-                                    bSuccess = WSAGetLastError() == WSA_IO_PENDING;
-                                }
-                                if (overlapped->getRemainingBytes() <= 0) {
-                                    completeio(*overlapped, *this, StatusCode::SC_SUCCESS);
-                                }
-                                sock.continue_send_async(bSuccess, *overlapped);
+                                continue_send_async(reinterpret_cast<decltype(SocketHandle::value)>(completionkey), *overlapped);
+
                                 break;
                             case IO_OPERATION::IoConnect:
                             case IO_OPERATION::IoAccept:
-                                completeio(*overlapped, *this, StatusCode::SC_SUCCESS);
+                                INTERNAL::completeio(*overlapped, PendingIO, StatusCode::SC_SUCCESS);
                                 break;
                             default:
                                 break;
                             }
                         }
+                        else {
+                            INTERNAL::completeio(*overlapped, PendingIO, TranslateError());
+                        }
                     }
+                    HandlePendingIO(socketbuffer);
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
@@ -290,16 +366,16 @@ class Context {
         while (getPendingIO() > 0) {
 
             for (auto &rcts : ReadContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED);
+                INTERNAL::completeio(rcts, PendingIO, StatusCode::SC_CLOSED);
             }
             for (auto &rcts : WriteContexts) {
-                completeio(rcts, *this, StatusCode::SC_CLOSED);
+                INTERNAL::completeio(rcts, PendingIO, StatusCode::SC_CLOSED);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            wakeup();
         }
 #endif
 
-        wakeup();
         for (auto &t : Threads) {
             if (t.joinable()) {
                 t.join();
@@ -331,7 +407,6 @@ class Context {
     }
 
   protected:
-    unsigned int getThreadCount() const { return ThreadCount_.value; }
     int IncrementPendingIO() { return PendingIO.fetch_add(1, std::memory_order_acquire) + 1; }
     int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
     int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
@@ -352,10 +427,10 @@ class Context {
     {
         auto index = socket.value;
         if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
-            completeio(WriteContexts[index], *this, StatusCode::SC_CLOSED);
-            completeio(ReadContexts[index], *this, StatusCode::SC_CLOSED);
+            INTERNAL::completeio(WriteContexts[index], PendingIO, StatusCode::SC_CLOSED);
+            INTERNAL::completeio(ReadContexts[index], PendingIO, StatusCode::SC_CLOSED);
         }
     }
-};
+}; // namespace SL::NET
 
 } // namespace SL::NET

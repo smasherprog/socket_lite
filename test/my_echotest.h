@@ -14,6 +14,7 @@ namespace myechotest {
 void myechotest(int buffersize = 128)
 {
     std::cout << "Starting My Echo Test with buffer size of " << buffersize << " bytes" << std::endl;
+    myechomodels::keepgoing = true;
     myechomodels::writeechos = 0;
     myechomodels::writeecho.resize(buffersize);
     myechomodels::readecho.resize(buffersize);
@@ -22,8 +23,8 @@ void myechotest(int buffersize = 128)
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
     myechomodels::asioserver s(iocontext, porttouse);
     s.do_accept();
-
     iocontext.start();
+
     myechomodels::asioclient c(iocontext, "127.0.0.1", SL::NET::PortNumber(porttouse));
     c.do_connect();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
