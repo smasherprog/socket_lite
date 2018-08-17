@@ -59,25 +59,6 @@ class asioclient {
     std::shared_ptr<session> socket_;
 };
 
-class asioserver {
-  public:
-    asioserver(SL::NET::Context &io_context, short port)
-        : acceptor_(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(port), SL::NET::AddressFamily::IPV4, io_context))
-    {
-    }
-
-    void do_accept()
-    {
-        acceptor_.accept([&](auto ec, auto socket) {
-            if (ec == SL::NET::StatusCode::SC_SUCCESS) {
-                std::make_shared<session>(std::move(socket))->do_read();
-            }
-        });
-    }
-
-    SL::NET::AsyncAcceptor acceptor_;
-};
-
 void mytransfertest()
 {
     std::cout << "Starting My MB per Second Test" << std::endl;
@@ -87,15 +68,17 @@ void mytransfertest()
     writebuffer.resize(1024 * 1024 * 8);
     readbuffer.resize(1024 * 1024 * 8);
     SL::NET::Context iocontext(SL::NET::ThreadCount(1));
-    asioserver s(iocontext, porttouse);
-    s.do_accept();
+    SL::NET::AsyncAcceptor s(myechomodels::listengetaddrinfo(nullptr, SL::NET::PortNumber(porttouse), SL::NET::AddressFamily::IPV4, iocontext),
+                             [](auto socket) {
+                                 if (keepgoing) {
+                                     std::make_shared<session>(std::move(socket))->do_read();
+                                 }
+                             });
 
-    iocontext.start();
     asioclient c(iocontext, SL::NET::getaddrinfo("127.0.0.1", SL::NET::PortNumber(porttouse)));
     c.do_connect();
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    keepgoing = false;
-    iocontext.stop();
+    keepgoing = false; 
     std::cout << "My MB per Second " << (writeechos / 10) * 8 << std::endl;
 }
 

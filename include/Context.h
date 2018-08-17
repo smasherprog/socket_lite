@@ -4,16 +4,14 @@
 #include "spinlock.h"
 #include <mutex>
 
-namespace SL::NET
-{
+namespace SL::NET {
 
-class Context
-{
+class Context {
 
     friend class AsyncPlatformSocket;
-    friend class AsyncPlatformAcceptor;
+    template <class T> friend class AsyncAcceptor;
 
-protected:
+  protected:
     const ThreadCount ThreadCount_;
     std::vector<std::thread> Threads;
     std::vector<RW_Context> ReadContexts, WriteContexts;
@@ -22,14 +20,16 @@ protected:
     std::vector<SocketHandle> ReadSockets, WriteSockets;
     spinlock ReadSocketLock, WriteSocketLock;
 
-    void continue_recv_async(SocketHandle handle, RW_Context &rwcontext) {
+    void continue_recv_async(SocketHandle handle, RW_Context &rwcontext)
+    {
         if (rwcontext.getRemainingBytes() <= 0) {
             return INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
         }
         auto count = INTERNAL::Recv(handle, rwcontext.buffer, rwcontext.getRemainingBytes());
         if (count == rwcontext.getRemainingBytes()) {
             INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
-        } else if (count > 0) {
+        }
+        else if (count > 0) {
             rwcontext.setRemainingBytes(rwcontext.getRemainingBytes() - count);
             rwcontext.buffer += count;
 #if _WIN32
@@ -49,7 +49,8 @@ protected:
                 INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
             }
 #endif
-        } else if (INTERNAL::wouldBlock()) {
+        }
+        else if (INTERNAL::wouldBlock()) {
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)rwcontext.buffer;
@@ -67,19 +68,22 @@ protected:
                 INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
             }
 #endif
-        } else {
+        }
+        else {
             INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
         }
     }
 
-    void continue_send_async(SocketHandle handle, RW_Context &rwcontext) {
+    void continue_send_async(SocketHandle handle, RW_Context &rwcontext)
+    {
         if (rwcontext.getRemainingBytes() <= 0) {
             return INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
         }
         auto count = INTERNAL::Send(handle, rwcontext.buffer, rwcontext.getRemainingBytes());
         if (count == rwcontext.getRemainingBytes()) {
             INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
-        } else if (count > 0) {
+        }
+        else if (count > 0) {
             rwcontext.setRemainingBytes(rwcontext.getRemainingBytes() - count);
             rwcontext.buffer += count;
 #if _WIN32
@@ -99,7 +103,8 @@ protected:
                 INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
             }
 #endif
-        } else if (INTERNAL::wouldBlock()) {
+        }
+        else if (INTERNAL::wouldBlock()) {
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)rwcontext.buffer;
@@ -117,7 +122,8 @@ protected:
                 INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
             }
 #endif
-        } else {
+        }
+        else {
             INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
         }
     }
@@ -126,33 +132,29 @@ protected:
     HANDLE IOCPHandle;
     WSADATA wsaData;
 
-    void wakeup() {
-        wakeup(IOCPHandle);
-    }
-    static void wakeup(const HANDLE h) {
+    void wakeup() { wakeup(IOCPHandle); }
+    static void wakeup(const HANDLE h)
+    {
         if (h != NULL) {
             PostQueuedCompletionStatus(h, 0, (DWORD)NULL, NULL);
         }
     }
-    HANDLE getIOHandle() const {
-        return IOCPHandle;
-    }
+    HANDLE getIOHandle() const { return IOCPHandle; }
 #else
     int EventWakeFd;
     int IOCPHandle;
-    int getIOHandle() const {
-        return IOCPHandle;
-    }
-    void wakeup() {
+    int getIOHandle() const { return IOCPHandle; }
+    void wakeup()
+    {
         if (EventWakeFd > 0) {
             eventfd_write(EventWakeFd, 1);
         }
     }
 #endif
 
-
-public:
-    Context(ThreadCount t) : ThreadCount_(t) {
+  public:
+    Context(ThreadCount t) : ThreadCount_(t)
+    {
         KeepGoing_ = true;
         PendingIO = 0;
         Threads.reserve(ThreadCount_.value * 2);
@@ -168,30 +170,7 @@ public:
         }
         IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, ThreadCount_.value);
         assert(IOCPHandle != NULL);
-#else
-        IOCPHandle = 0;
-        EventWakeFd  = 0;
-        std::signal(SIGPIPE, SIG_IGN);
-        IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
-        EventWakeFd = eventfd(0, EFD_NONBLOCK);
-        if (IOCPHandle == -1 || EventWakeFd == -1) {
-            abort();
-        }
-        epoll_event ev = {0};
-        ev.events = EPOLLIN | EPOLLET;
-        ev.data.fd = EventWakeFd;
-        if (epoll_ctl(IOCPHandle, EPOLL_CTL_ADD, EventWakeFd, &ev) == 1) {
-            abort();
-        }
 
-#endif
-    }
-    ~Context() {
-        stop();
-    }
-    void start() {
-        assert(KeepGoing_);
-#if _WIN32
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
             Threads.emplace_back(std::thread([&] {
                 std::vector<SocketHandle> socketbuffer;
@@ -201,8 +180,8 @@ public:
                     void *completionkey = nullptr;
 
                     auto bSuccess = GetQueuedCompletionStatus(IOCPHandle, &numberofbytestransfered, (PDWORD_PTR)&completionkey,
-                    (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
-                    KeepGoing_;
+                                                              (LPOVERLAPPED *)&overlapped, INFINITE) == TRUE &&
+                                    KeepGoing_;
 
                     if (overlapped != nullptr) {
                         if (bSuccess) {
@@ -225,7 +204,8 @@ public:
                             default:
                                 break;
                             }
-                        } else {
+                        }
+                        else {
                             INTERNAL::completeio(*overlapped, PendingIO, TranslateError());
                         }
                     }
@@ -237,6 +217,20 @@ public:
             }));
         }
 #else
+        IOCPHandle = 0;
+        EventWakeFd = 0;
+        std::signal(SIGPIPE, SIG_IGN);
+        IOCPHandle = epoll_create1(EPOLL_CLOEXEC);
+        EventWakeFd = eventfd(0, EFD_NONBLOCK);
+        if (IOCPHandle == -1 || EventWakeFd == -1) {
+            abort();
+        }
+        epoll_event ev = {0};
+        ev.events = EPOLLIN | EPOLLET;
+        ev.data.fd = EventWakeFd;
+        if (epoll_ctl(IOCPHandle, EPOLL_CTL_ADD, EventWakeFd, &ev) == 1) {
+            abort();
+        }
 
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
             Threads.emplace_back(std::thread([&] {
@@ -252,22 +246,25 @@ public:
                             auto handle = reinterpret_cast<decltype(SocketHandle::value)>(epollevents[i].data.fd);
                             if (epollevents[i].events & EPOLLIN) {
                                 auto &ctx = getReadContext(handle);
-                                if(socketclosed) {
+                                if (socketclosed) {
                                     INTERNAL::completeio(ctx, PendingIO, TranslateError());
-                                } else {
+                                }
+                                else {
                                     continue_recv_async(handle, ctx);
                                 }
-                            } else {
+                            }
+                            else {
                                 auto &ctx = getWriteContext(handle);
                                 if (ctx.getEvent() == IO_OPERATION::IoConnect) {
                                     INTERNAL::completeio(ctx, PendingIO, StatusCode::SC_SUCCESS);
-                                } else if (ctx.getEvent() == IO_OPERATION::IoWrite) {
+                                }
+                                else if (ctx.getEvent() == IO_OPERATION::IoWrite) {
                                     continue_send_async(handle, ctx);
                                 }
                             }
                         }
                     }
-                    //HandlePendingIO(socketbuffer);
+                    // HandlePendingIO(socketbuffer);
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
@@ -277,7 +274,9 @@ public:
         }
 #endif
     }
-    void stop() {
+    ~Context()
+    {
+
         KeepGoing_ = false;
         while (getPendingIO() > 0) {
 
@@ -318,28 +317,25 @@ public:
 #endif
     }
 
-protected:
-    int IncrementPendingIO() {
-        return PendingIO.fetch_add(1, std::memory_order_acquire) + 1;
-    }
-    int DecrementPendingIO() {
-        return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1;
-    }
-    int getPendingIO() const {
-        return PendingIO.load(std::memory_order_relaxed);
-    }
+  protected:
+    int IncrementPendingIO() { return PendingIO.fetch_add(1, std::memory_order_acquire) + 1; }
+    int DecrementPendingIO() { return PendingIO.fetch_sub(1, std::memory_order_acquire) - 1; }
+    int getPendingIO() const { return PendingIO.load(std::memory_order_relaxed); }
 
-    RW_Context &getWriteContext(const SocketHandle &socket) {
+    RW_Context &getWriteContext(const SocketHandle &socket)
+    {
         auto index = socket.value;
         assert(index >= 0 && index < static_cast<decltype(index)>(WriteContexts.size()));
         return WriteContexts[index];
     }
-    RW_Context &getReadContext(const SocketHandle &socket) {
+    RW_Context &getReadContext(const SocketHandle &socket)
+    {
         auto index = socket.value;
         assert(index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size()));
         return ReadContexts[index];
     }
-    void DeregisterSocket(const SocketHandle &socket) {
+    void DeregisterSocket(const SocketHandle &socket)
+    {
         auto index = socket.value;
         if (index >= 0 && index < static_cast<decltype(index)>(ReadContexts.size())) {
             INTERNAL::completeio(WriteContexts[index], PendingIO, StatusCode::SC_CLOSED);
