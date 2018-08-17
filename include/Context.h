@@ -22,35 +22,17 @@ class Context {
 
     void continue_recv_async(SocketHandle handle, RW_Context &rwcontext)
     {
-        if (rwcontext.getRemainingBytes() <= 0) {
+        if (rwcontext.getRemainingBytes() == 0) {
             return INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
         }
         auto count = INTERNAL::Recv(handle, rwcontext.buffer, rwcontext.getRemainingBytes());
         if (count == rwcontext.getRemainingBytes()) {
             INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
         }
-        else if (count > 0) {
+        else if (count >= 0 || INTERNAL::wouldBlock()) {
+            count = count < 0 ? 0 : count; // clamp to [0, Infini)
             rwcontext.setRemainingBytes(rwcontext.getRemainingBytes() - count);
             rwcontext.buffer += count;
-#if _WIN32
-            WSABUF wsabuf;
-            wsabuf.buf = (char *)rwcontext.buffer;
-            wsabuf.len = static_cast<decltype(wsabuf.len)>(rwcontext.getRemainingBytes());
-            DWORD dwSendNumBytes(0), dwFlags(0);
-            DWORD nRet = WSARecv(handle.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(rwcontext.Overlapped), NULL);
-            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                INTERNAL::completeio(rwcontext, PendingIO, TranslateError(&lasterr));
-            }
-#else
-            epoll_event ev = {0};
-            ev.data.fd = handle.value;
-            ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-            if (epoll_ctl(IOCPHandle, EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-                INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
-            }
-#endif
-        }
-        else if (INTERNAL::wouldBlock()) {
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)rwcontext.buffer;
@@ -76,35 +58,17 @@ class Context {
 
     void continue_send_async(SocketHandle handle, RW_Context &rwcontext)
     {
-        if (rwcontext.getRemainingBytes() <= 0) {
+        if (rwcontext.getRemainingBytes() == 0) {
             return INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
         }
         auto count = INTERNAL::Send(handle, rwcontext.buffer, rwcontext.getRemainingBytes());
         if (count == rwcontext.getRemainingBytes()) {
             INTERNAL::completeio(rwcontext, PendingIO, StatusCode::SC_SUCCESS);
         }
-        else if (count > 0) {
+        else if (count > 0 || INTERNAL::wouldBlock()) {
+            count = count < 0 ? 0 : count; // clamp to [0, Infini)
             rwcontext.setRemainingBytes(rwcontext.getRemainingBytes() - count);
             rwcontext.buffer += count;
-#if _WIN32
-            WSABUF wsabuf;
-            wsabuf.buf = (char *)rwcontext.buffer;
-            wsabuf.len = static_cast<decltype(wsabuf.len)>(rwcontext.getRemainingBytes());
-            DWORD dwSendNumBytes(0), dwFlags(0);
-            DWORD nRet = WSASend(handle.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(rwcontext.Overlapped), NULL);
-            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                INTERNAL::completeio(rwcontext, PendingIO, TranslateError(&lasterr));
-            }
-#else
-            epoll_event ev = {0};
-            ev.data.fd = handle.value;
-            ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-            if (epoll_ctl(IOCPHandle, EPOLL_CTL_MOD, handle.value, &ev) == -1) {
-                INTERNAL::completeio(rwcontext, PendingIO, TranslateError());
-            }
-#endif
-        }
-        else if (INTERNAL::wouldBlock()) {
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)rwcontext.buffer;

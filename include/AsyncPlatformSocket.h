@@ -50,30 +50,10 @@ class AsyncPlatformSocket : public PlatformSocket {
 #endif
             }
         }
-        else if (count > 0) {
+        else if (count > 0 || INTERNAL::wouldBlock()) {
+            count = count < 0 ? 0 : count;//clamp to [0, Infini)
             auto &context = Context_.getWriteContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size - count, buffer + count, handler);
-#if _WIN32
-            WSABUF wsabuf;
-            wsabuf.buf = (char *)context.buffer;
-            wsabuf.len = static_cast<decltype(wsabuf.len)>(context.getRemainingBytes());
-            DWORD dwSendNumBytes(0), dwFlags(0);
-            DWORD nRet = WSASend(Handle_.value, &wsabuf, 1, &dwSendNumBytes, dwFlags, &(context.Overlapped), NULL);
-            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                INTERNAL::completeio(context, Context_.PendingIO, TranslateError(&lasterr));
-            }
-#else
-            epoll_event ev = {0};
-            ev.data.fd = Handle_.value;
-            ev.events = EPOLLOUT | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
-                INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
-            }
-#endif
-        }
-        else if (INTERNAL::wouldBlock()) {
-            auto &context = Context_.getWriteContext(Handle_);
-            INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)context.buffer;
@@ -122,7 +102,8 @@ class AsyncPlatformSocket : public PlatformSocket {
 #endif
             }
         }
-        else if (count > 0) {
+        else if (count >= 0 || INTERNAL::wouldBlock()) {
+            count = count < 0 ? 0 : count; // clamp to [0, Infini)
             auto &context = Context_.getReadContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size - count, buffer + count, handler);
 #if _WIN32
@@ -142,28 +123,7 @@ class AsyncPlatformSocket : public PlatformSocket {
                 INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
             }
 #endif
-        }
-        else if (INTERNAL::wouldBlock()) {
-            auto &context = Context_.getReadContext(Handle_);
-            INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size, buffer, handler);
-#if _WIN32
-            WSABUF wsabuf;
-            wsabuf.buf = (char *)context.buffer;
-            wsabuf.len = static_cast<decltype(wsabuf.len)>(context.getRemainingBytes());
-            DWORD dwSendNumBytes(0), dwFlags(0);
-            DWORD nRet = WSARecv(Handle_.value, &wsabuf, 1, &dwSendNumBytes, &dwFlags, &(context.Overlapped), NULL);
-            if (auto lasterr = WSAGetLastError(); nRet == SOCKET_ERROR && (WSA_IO_PENDING != lasterr)) {
-                INTERNAL::completeio(context, Context_.PendingIO, TranslateError(&lasterr));
-            }
-#else
-            epoll_event ev = {0};
-            ev.data.fd = Handle_.value;
-            ev.events = EPOLLIN | EPOLLONESHOT | EPOLLRDHUP | EPOLLHUP;
-            if (epoll_ctl(Context_.getIOHandle(), EPOLL_CTL_MOD, Handle_.value, &ev) == -1) {
-                INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
-            }
-#endif
-        }
+        } 
         else {
             handler(TranslateError());
         }
