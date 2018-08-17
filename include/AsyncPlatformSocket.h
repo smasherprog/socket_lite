@@ -29,9 +29,6 @@ class AsyncPlatformSocket : public PlatformSocket {
     {
         static int counter = 0;
         auto count = INTERNAL::Send(Handle_, buffer, buffer_size);
-
-        //auto winsend = 
-
         if (count == buffer_size) {
             if (counter++ < 8) {
                 handler(StatusCode::SC_SUCCESS);
@@ -40,14 +37,12 @@ class AsyncPlatformSocket : public PlatformSocket {
                 counter = 0;
                 auto &context = Context_.getWriteContext(Handle_);
                 INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
-                Context_.PostDeferredWriteIO(Handle_); 
+                PostQueuedCompletionStatus(Context_.getIOHandle(), count, Handle_.value, &(context.Overlapped));
             }
         }
         else if (count > 0) {
             auto &context = Context_.getWriteContext(Handle_);
-            INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
-            context.setRemainingBytes(context.getRemainingBytes() - count);
-            context.buffer += count;
+            INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size - count, buffer + count, handler);
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)context.buffer;
@@ -99,14 +94,12 @@ class AsyncPlatformSocket : public PlatformSocket {
                 counter = 0;
                 auto &context = Context_.getReadContext(Handle_);
                 INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size, buffer, handler);
-                Context_.PostDeferredReadIO(Handle_);
+                PostQueuedCompletionStatus(Context_.getIOHandle(), count, Handle_.value, &(context.Overlapped));
             }
         }
         else if (count > 0) { 
             auto &context = Context_.getReadContext(Handle_);
-            INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size, buffer, handler);
-            context.setRemainingBytes(context.getRemainingBytes() - count);
-            context.buffer += count;
+            INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoRead, buffer_size - count, buffer + count, handler);
 #if _WIN32
             WSABUF wsabuf;
             wsabuf.buf = (char *)context.buffer;
@@ -117,7 +110,7 @@ class AsyncPlatformSocket : public PlatformSocket {
                 INTERNAL::completeio(context, Context_.PendingIO, TranslateError(&lasterr));
             }
 #else
-            PostDeferredReadIO(Handle.value);
+            Context_.PostDeferredReadIO(Handle.value);
 #endif
         }
         else if (INTERNAL::wouldBlock()) {

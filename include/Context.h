@@ -130,22 +130,6 @@ class Context {
         }
     }
     HANDLE getIOHandle() const { return IOCPHandle; }
-    void PostDeferredReadIO(SocketHandle fd)
-    {
-        {
-            std::lock_guard<spinlock> lock(ReadSocketLock);
-            ReadSockets.push_back(fd);
-        }
-        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
-    }
-    void PostDeferredWriteIO(SocketHandle fd)
-    {
-        {
-            std::lock_guard<spinlock> lock(WriteSocketLock);
-            WriteSockets.push_back(fd);
-        }
-        PostQueuedCompletionStatus(IOCPHandle, 0, (DWORD)NULL, NULL);
-    }
 #else
     int EventWakeFd;
     int EventFd;
@@ -173,7 +157,6 @@ class Context {
         }
         eventfd_write(EventFd, 1);
     }
-#endif
 
     void HandlePendingIO(std::vector<SocketHandle> &socketbuffer)
     {
@@ -209,6 +192,8 @@ class Context {
             socketbuffer.clear();
         }
     }
+#endif
+
 
   public:
     Context(ThreadCount t) : ThreadCount_(t)
@@ -299,7 +284,6 @@ class Context {
                             INTERNAL::completeio(*overlapped, PendingIO, TranslateError());
                         }
                     }
-                    HandlePendingIO(socketbuffer);
                     if (getPendingIO() <= 0 && !KeepGoing_) {
                         wakeup();
                         return;
@@ -377,6 +361,7 @@ class Context {
 #endif
 
         for (auto &t : Threads) {
+            wakeup();
             if (t.joinable()) {
                 t.join();
             }
