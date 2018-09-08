@@ -32,7 +32,6 @@ class session : public std::enable_shared_from_this<session> {
 
   public:
     session(SL::NET::AsyncSocket socket) : socket_(std::move(socket)) {}
-    ~session() { close(); }
     void do_read()
     {
         auto self(shared_from_this());
@@ -53,8 +52,7 @@ class session : public std::enable_shared_from_this<session> {
             }
         });
     }
-    SL::NET::AsyncSocket socket_;
-    void close() { socket_.close(); }
+    SL::NET::AsyncSocket socket_; 
 };
 
 class asioclient {
@@ -65,7 +63,6 @@ class asioclient {
     {
         addrs = SL::NET::getaddrinfo(nodename, port);
     }
-    void close() { socket_->close(); }
     void do_connect()
     {
         SL::NET::AsyncSocket::connect(socket_->socket_, addrs.back(), [&](SL::NET::StatusCode connectstatus) {

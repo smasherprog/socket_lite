@@ -38,7 +38,6 @@ class AsyncPlatformSocket : public PlatformSocket {
                 auto &context = Context_.getWriteContext(Handle_);
                 INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size, buffer, handler);
 #if _WIN32
-
                 PostQueuedCompletionStatus(Context_.getIOHandle(), count, Handle_.value, &(context.Overlapped));
 #else
                 epoll_event ev = {0};
@@ -51,7 +50,7 @@ class AsyncPlatformSocket : public PlatformSocket {
             }
         }
         else if (count > 0 || INTERNAL::wouldBlock()) {
-            count = count < 0 ? 0 : count;//clamp to [0, Infini)
+            count = count < 0 ? 0 : count; // clamp to [0, Infini)
             auto &context = Context_.getWriteContext(Handle_);
             INTERNAL::setup(context, Context_.PendingIO, IO_OPERATION::IoWrite, buffer_size - count, buffer + count, handler);
 #if _WIN32
@@ -123,7 +122,7 @@ class AsyncPlatformSocket : public PlatformSocket {
                 INTERNAL::completeio(context, Context_.PendingIO, TranslateError());
             }
 #endif
-        } 
+        }
         else {
             handler(TranslateError());
         }

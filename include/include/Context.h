@@ -17,8 +17,6 @@ class Context {
     std::vector<RW_Context> ReadContexts, WriteContexts;
     bool KeepGoing_;
     std::atomic<int> PendingIO;
-    std::vector<SocketHandle> ReadSockets, WriteSockets;
-    spinlock ReadSocketLock, WriteSocketLock;
 
     void continue_recv_async(SocketHandle handle, RW_Context &rwcontext)
     {
