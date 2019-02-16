@@ -93,12 +93,12 @@ typedef Explicit<unsigned int, ThreadCountTag> ThreadCount;
 typedef Explicit<unsigned short, PorNumbertTag> PortNumber;
 enum class Blocking_Options { BLOCKING, NON_BLOCKING };
 enum class [[nodiscard]] StatusCode {
-    SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_CLOSED,
-        SC_NOTSUPPORTED, SC_PENDINGIO, SC_SUCCESS = 0
+   SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT,
+        SC_NOTSUPPORTED, SC_PENDINGIO, 
 };
 enum class LingerOptions { LINGER_OFF, LINGER_ON };
 enum class SockOptStatus { ENABLED, DISABLED };
-enum AddressFamily : unsigned short { IPV4 = AF_INET, IPV6 = AF_INET6, IPANY = AF_UNSPEC };
+enum AddressFamily : int { IPV4 = AF_INET, IPV6 = AF_INET6, IPANY = AF_UNSPEC };
 enum class SocketStatus { CLOSED, CONNECTING, OPEN };
 enum class ShutDownOptions { SHUTDOWN_READ, SHUTDOWN_WRITE, SHUTDOWN_BOTH };
 struct LingerOption {

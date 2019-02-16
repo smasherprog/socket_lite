@@ -362,7 +362,7 @@ PlatformSocket(PlatformSocket &&p) noexcept :
     StatusCode setsockopt(REUSEADDRTag, SockOptStatus b) {
         int value = b == SockOptStatus::ENABLED ? 1 : 0;
         int valuelen = sizeof(value);
-        if (::setsockopt(Handle_.value, SOL_SOCKET, SO_BROADCAST, (char *)&value, valuelen) == 0) {
+        if (::setsockopt(Handle_.value, SOL_SOCKET, SO_REUSEADDR, (char *)&value, valuelen) == 0) {
             return StatusCode::SC_SUCCESS;
         }
         return TranslateError();
