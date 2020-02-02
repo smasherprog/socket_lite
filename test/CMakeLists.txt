@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(socket_lite_test)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -7,18 +7,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
  include_directories(
 	./
 	../include
+	../src
 )
 add_executable(${PROJECT_NAME} 
-	../include/Socket_Lite.h   
-	../include/include/defs.h 
-	../include/include/Context.h 
-	../include/include/spinlock.h 
-	../include/include/PlatformSocket.h 
-	../include/include/AsyncAcceptor.h 
-	../include/include/AsyncPlatformSocket.h 
-	../include/include/AwaitablePlatformSocket.h
-	../include/include/AwaitableContext.h
-	../include/include/Internal.h
+	../Socket_Lite.h   
+	../include/win_defs.h 
+	../include/defs.h 
+	../include/Context.h 
+	../include/spinlock.h 
+	../include/PlatformSocket.h 
+	../include/AsyncAcceptor.h 
+	../include/AsyncPlatformSocket.h 
+	../include/AwaitablePlatformSocket.h
+	../include/AwaitableContext.h
+	../include/Internal.h
 	main.cpp 
 	asio_echotest.h 
 	asio_connectiontest.h  

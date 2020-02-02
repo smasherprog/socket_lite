@@ -120,10 +120,6 @@ class Context {
         KeepGoing_ = true;
         PendingIO = 0;
         Threads.reserve(ThreadCount_.value * 2);
-        ReadContexts.resize(std::numeric_limits<unsigned short>::max());
-        WriteContexts.resize(std::numeric_limits<unsigned short>::max());
-        ReadContexts.shrink_to_fit();
-        WriteContexts.shrink_to_fit();
 
 #if _WIN32
         IOCPHandle = nullptr;
@@ -134,8 +130,7 @@ class Context {
         assert(IOCPHandle != NULL);
 
         for (decltype(ThreadCount::value) i = 0; i < ThreadCount_.value; i++) {
-            Threads.emplace_back(std::thread([&] {
-                std::vector<SocketHandle> socketbuffer;
+            Threads.emplace_back(std::thread([&] { 
                 for (;;) {
                     DWORD numberofbytestransfered = 0;
                     RW_Context *overlapped = nullptr;
