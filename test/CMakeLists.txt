@@ -1,41 +1,40 @@
 cmake_minimum_required(VERSION 3.14)
 project(socket_lite_test)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
- include_directories(
+  include_directories(
 	./
 	../include
-	../src
 )
-add_executable(${PROJECT_NAME} 
-	../Socket_Lite.h   
-	../include/win_defs.h 
-	../include/defs.h 
-	../include/Context.h 
-	../include/spinlock.h 
-	../include/PlatformSocket.h 
-	../include/AsyncAcceptor.h 
-	../include/AsyncPlatformSocket.h 
-	../include/AwaitablePlatformSocket.h
-	../include/AwaitableContext.h
-	../include/Internal.h
-	main.cpp 
-	asio_echotest.h 
-	asio_connectiontest.h  
-	my_echotest.h 
-	asio_echomodels.h 
-	asio_transfertest.h 
-	my_connectiontest.h 
-	my_awaitconnectiontest.h
-	my_awaitechotest.h
-	my_awaittransfertest.h
-	my_transfertest.h 
-	my_multithreadedecho.h 
-	my_echomodels.h 
-	asio_multithreadedechotest.h 
-	cpumem_monitor.h
+add_executable(${PROJECT_NAME}  
+	../include/ip_address.h
+	../include/ip_endpoint.h
+	../include/ipv4_address.h
+	../include/ipv4_endpoint.h
+	../include/ipv6_address.h
+	../include/ipv6_endpoint.h
+	../include/socket.h 
+	../include/io_service.h
+	../include/utils.h 
+
+	../include/socket_accept_operation.h
+	../include/socket_connect_operation.h
+	../include/socket_disconnect_operation.h
+	../include/socket_recv_from_operation.h
+	../include/socket_recv_operation.h
+	../include/socket_send_operation.h
+	../include/socket_send_to_operation.h
+
+	../Socket_Lite.h
+	../src/ipv4_address.cpp
+	../src/ipv4_endpoint.cpp
+	../src/ipv6_address.cpp
+	../src/ipv6_endpoint.cpp
+	../src/socket.cpp
+	../src/io_service.cpp
+	main.cpp
 ) 
 find_package(Threads REQUIRED)
 if(WIN32) 

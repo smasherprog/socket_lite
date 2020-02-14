@@ -1,10 +1,9 @@
 #pragma once
 
-#include "include/AsyncAcceptor.h"
-#include "include/AsyncPlatformSocket.h" 
-#include "include/AwaitableContext.h"
-#include "include/AwaitablePlatformSocket.h"
-#include "include/Context.h"
-#include "include/PlatformSocket.h"
-#include "include/defs.h"
-#include "include/Internal.h"
+#include "include/ip_address.h"
+#include "include/ip_endpoint.h" 
+#include "include/ipv4_address.h"
+#include "include/ipv4_endpoint.h"
+#include "include/ipv6_address.h"
+#include "include/ipv6_endpoint.h"
+#include "include/socket.h" 

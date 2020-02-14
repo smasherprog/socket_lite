@@ -2,23 +2,15 @@
 #define WINVER 0x0601
 #define _WIN32_WINNT 0x0601
 
-#include "asio_connectiontest.h"
-#include "my_awaitconnectiontest.h"
-#include "my_awaitechotest.h"
-#include "my_awaittransfertest.h"
-#include "asio_echotest.h"
-#include "asio_multithreadedechotest.h"
-#include "asio_transfertest.h"
-#include "cpumem_monitor.h"
-#include "my_connectiontest.h"
-#include "my_echotest.h"
-#include "my_multithreadedecho.h"
-#include "my_transfertest.h"
+#include "cpumem_monitor.h" 
 #include <chrono>
 #include <iomanip>
 #include <iostream>
-#include <thread>
+#include <thread> 
 using namespace std::chrono_literals;
+
+
+ 
 
 int main()
 {
@@ -38,61 +30,9 @@ int main()
 			counts += 1.0f;
 			std::this_thread::sleep_for(200ms);
 		}
-	});
+		});
 
 
-	myawaitconnectiontest::myconnectiontest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	myconnectiontest::myconnectiontest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	asioconnectiontest::connectiontest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-
-	myawaitechotest::myechotest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	asiotest::asioechotest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	myechotest::myechotest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-
-	myawaitechotest::myechotest(1024 * 10); // 10k
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	asiotest::asioechotest(1024 * 10); // 10k
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	myechotest::myechotest(1024 * 10); // 10k
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	 
-	myawaittransfertest::mytransfertest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	mytransfertest::mytransfertest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	asiotransfertest::asiotransfertest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-
-	asio_multithreadedechotest::asioechotest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	mymultithreadedechotest::myechotest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	asio_multithreadedechotest::asioechotest(1024 * 10); // 10k
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	mymultithreadedechotest::myechotest(1024 * 10); // 10k
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
 
 
 	startwatching = false;
