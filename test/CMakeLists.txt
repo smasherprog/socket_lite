@@ -34,6 +34,9 @@ add_executable(${PROJECT_NAME}
 	../src/ipv6_endpoint.cpp
 	../src/socket.cpp
 	../src/io_service.cpp
+
+	../src/socket_accept_operation.cpp
+	../src/socket_connect_operation.cpp
 	main.cpp
 ) 
 find_package(Threads REQUIRED)
