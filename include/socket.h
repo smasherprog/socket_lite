@@ -1,8 +1,6 @@
 #ifndef SL_NETWORK_SOCKET
 #define SL_NETWORK_SOCKET
 
-#include "ip_endpoint.h"
-
 #include "socket_accept_operation.h"
 #include "socket_connect_operation.h"
 #include "socket_disconnect_operation.h"
@@ -12,144 +10,88 @@
 #include "socket_send_to_operation.h"
 
 namespace SL::Network {
-class io_service;
+	class io_service;
 
-class socket {
-  public:
-    /// Create a socket that can be used to communicate using TCP/IPv4 protocol.
-    ///
-    /// \param ioSvc
-    /// The I/O service the socket will use for dispatching I/O completion events.
-    ///
-    /// \return
-    /// The newly created socket.
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be created for some reason.
-    static socket create_tcpv4(io_service &ioSvc);
+	class socket {
+	public:
+		static socket create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4);
 
-    /// Create a socket that can be used to communicate using TCP/IPv6 protocol.
-    ///
-    /// \param ioSvc
-    /// The I/O service the socket will use for dispatching I/O completion events.
-    ///
-    /// \return
-    /// The newly created socket.
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be created for some reason.
-    static socket create_tcpv6(io_service &ioSvc);
+		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)) {}
+		~socket()
+		{
+			if (shandle != INVALID_SOCKET) {
+				::closesocket(shandle);
+			}
+		}
 
-    /// Create a socket that can be used to communicate using UDP/IPv4 protocol.
-    ///
-    /// \param ioSvc
-    /// The I/O service the socket will use for dispatching I/O completion events.
-    ///
-    /// \return
-    /// The newly created socket.
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be created for some reason.
-    static socket create_udpv4(io_service &ioSvc);
+		socket& operator=(socket&& other) noexcept
+		{
+			auto handle = std::exchange(other.shandle, INVALID_SOCKET);
+			if (shandle != INVALID_SOCKET) {
+				::closesocket(shandle);
+			}
 
-    /// Create a socket that can be used to communicate using UDP/IPv6 protocol.
-    ///
-    /// \param ioSvc
-    /// The I/O service the socket will use for dispatching I/O completion events.
-    ///
-    /// \return
-    /// The newly created socket.
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be created for some reason.
-    static socket create_udpv6(io_service &ioSvc);
+			shandle = handle;
+			return *this;
+		}
 
-    socket(socket &&other) noexcept;
+		[[nodiscard]] auto local_endpoint() const
+		{
+			sockaddr_storage addr = { 0 };
+			socklen_t len = sizeof(addr);
+			if (::getsockname(shandle, (::sockaddr*) & addr, &len) == 0) {
+				std::tuple(StatusCode::SC_SUCCESS, SocketAddress(&addr, len));
+			}
+			return std::tuple(TranslateError(), SocketAddress());
+		}
 
-    /// Closes the socket, releasing any associated resources.
-    ///
-    /// If the socket still has an open connection then the connection will be
-    /// reset. The destructor will not block waiting for queueud data to be sent.
-    /// If you need to ensure that queued data is delivered then you must call
-    /// disconnect() and wait until the disconnect operation completes.
-    ~socket();
+		[[nodiscard]] auto remote_endpoint() const
+		{
+			sockaddr_storage addr = { 0 };
+			socklen_t len = sizeof(addr);
+			if (::getpeername(shandle, (::sockaddr*) & addr, &len) == 0) {
+				std::tuple(StatusCode::SC_SUCCESS, SocketAddress(&addr, len));
+			}
+			return std::tuple(TranslateError(), SocketAddress());
+		}
 
-    socket &operator=(socket &&other) noexcept;
+		auto bind(const SocketAddress& localEndPoint)
+		{
+			if (::bind(shandle, localEndPoint.getSocketAddr(), localEndPoint.getSocketAddrLen()) == SOCKET_ERROR) {
+				return TranslateError();
+			}
+			return StatusCode::SC_SUCCESS;
+		}
 
-    /// Get the address and port of the local end-point.
-    ///
-    /// If the socket is not bound then this will be the unspecified end-point
-    /// of the socket's associated address-family.
-    ip_endpoint local_endpoint() const;
+		auto listen(std::uint32_t backlog)
+		{
+			if (backlog > SOMAXCONN) {
+				backlog = SOMAXCONN;
+			}
 
-    /// Get the address and port of the remote end-point.
-    ///
-    /// If the socket is not in the connected state then this will be the unspecified
-    /// end-point of the socket's associated address-family.
-    ip_endpoint remote_endpoint() const;
+			if (::listen(shandle, (int)backlog) != 0) {
+				return TranslateError();
+			}
+			return StatusCode::SC_SUCCESS;
+		}
+		auto listen() { return listen(SOMAXCONN); }
 
-    /// Bind the local end of this socket to the specified local end-point.
-    ///
-    /// \param localEndPoint
-    /// The end-point to bind to.
-    /// This can be either an unspecified address (in which case it binds to all available
-    /// interfaces) and/or an unspecified port (in which case a random port is allocated).
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be bound for some reason.
-    void bind(const ip_endpoint &localEndPoint);
+		[[nodiscard]] auto connect(const SocketAddress& remoteEndPoint) noexcept { return socket_connect_operation<socket>(*this, remoteEndPoint); }
+		[[nodiscard]] auto accept(socket& acceptingSocket) noexcept { return socket_accept_operation<socket>(*this, acceptingSocket); }
+		[[nodiscard]] auto disconnect() noexcept { return socket_disconnect_operation<socket>(*this); }
+		[[nodiscard]] auto send(std::byte* buffer, std::size_t size) noexcept { return socket_send_operation<socket>(*this, buffer, size); }
+		[[nodiscard]] auto recv(std::byte* buffer, std::size_t size) noexcept { return socket_recv_operation<socket>(*this, buffer, size); }
+		[[nodiscard]] auto recv_from(std::byte* buffer, std::size_t size) noexcept { return socket_recv_from_operation<socket>(*this, buffer, size); }
+		[[nodiscard]] auto send_to(const SocketAddress& destination, std::byte* buffer, std::size_t size) noexcept { return socket_send_to_operation<socket>(*this, destination, buffer, size); }
 
-    /// Put the socket into a passive listening state that will start acknowledging
-    /// and queueing up new connections ready to be accepted by a call to 'accept()'.
-    ///
-    /// The backlog of connections ready to be accepted will be set to some default
-    /// suitable large value, depending on the network provider. If you need more
-    /// control over the size of the queue then use the overload of listen()
-    /// that accepts a 'backlog' parameter.
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be placed into a listening mode.
-    void listen();
+		SOCKET native_handle() const { return shandle; }
 
-    /// Put the socket into a passive listening state that will start acknowledging
-    /// and queueing up new connections ready to be accepted by a call to 'accept()'.
-    ///
-    /// \param backlog
-    /// The maximum number of pending connections to allow in the queue of ready-to-accept
-    /// connections.
-    ///
-    /// \throws std::system_error
-    /// If the socket could not be placed into a listening mode.
-    void listen(std::uint32_t backlog);
-
-    /// Connect the socket to the specified remote end-point.
-    ///
-    /// The socket must be in a bound but unconnected state prior to this call.
-    ///
-    /// \param remoteEndPoint
-    /// The IP address and port-number to connect to.
-    ///
-    /// \return
-    /// An awaitable object that must be co_await'ed to perform the async connect
-    /// operation. The result of the co_await expression is type void.
-    [[nodiscard]] socket_connect_operation connect(const ip_endpoint &remoteEndPoint) noexcept;
-    [[nodiscard]] socket_accept_operation accept(socket &acceptingSocket) noexcept;
-    [[nodiscard]] socket_disconnect_operation disconnect() noexcept;
-    [[nodiscard]] socket_send_operation send(const void *buffer, std::size_t size) noexcept;
-    [[nodiscard]] socket_recv_operation recv(void *buffer, std::size_t size) noexcept;
-    [[nodiscard]] socket_recv_from_operation recv_from(void *buffer, std::size_t size) noexcept;
-    [[nodiscard]] socket_send_to_operation send_to(const ip_endpoint &destination, const void *buffer, std::size_t size) noexcept;
-
-    bool skip_completion_on_success() noexcept { return m_skipCompletionOnSuccess; }
-    win32::socket_t native_handle() const { return m_handle; }
-
-  private:
+	private:
 #if _WIN32
-    explicit socket(win32::socket_t handle) noexcept;
-    win32::socket_t m_handle;
-    bool m_skipCompletionOnSuccess;
+		explicit socket(SOCKET handle) noexcept : shandle(handle) {}
+		SOCKET shandle;
 #endif
-};
+	};
 } // namespace SL::Network
 
 #endif

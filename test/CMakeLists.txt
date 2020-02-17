@@ -9,12 +9,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 	../include
 )
 add_executable(${PROJECT_NAME}  
-	../include/ip_address.h
-	../include/ip_endpoint.h
-	../include/ipv4_address.h
-	../include/ipv4_endpoint.h
-	../include/ipv6_address.h
-	../include/ipv6_endpoint.h
 	../include/socket.h 
 	../include/io_service.h
 	../include/utils.h 
@@ -28,15 +22,8 @@ add_executable(${PROJECT_NAME}
 	../include/socket_send_to_operation.h
 
 	../Socket_Lite.h
-	../src/ipv4_address.cpp
-	../src/ipv4_endpoint.cpp
-	../src/ipv6_address.cpp
-	../src/ipv6_endpoint.cpp
 	../src/socket.cpp
 	../src/io_service.cpp
-
-	../src/socket_accept_operation.cpp
-	../src/socket_connect_operation.cpp
 	main.cpp
 ) 
 find_package(Threads REQUIRED)

@@ -1,34 +1,40 @@
-///////////////////////////////////////////////////////////////////////////////
-// Copyright (c) Lewis Baker
-// Licenced under MIT license. See LICENSE.txt for details.
-///////////////////////////////////////////////////////////////////////////////
 #ifndef SL_NETWORK_SOCKET_CONNECT_OP
 #define SL_NETWORK_SOCKET_CONNECT_OP
 
-#include "ip_endpoint.h"
 #include "utils.h"
-
-#if _WIN32
 
 namespace SL::Network {
 
-class socket;
-class socket_connect_operation : public win32::overlapped_operation<socket_connect_operation> {
-  public:
-    socket_connect_operation(socket &socket, const ip_endpoint &remoteEndPoint) noexcept : m_socket(socket), m_remoteEndPoint(remoteEndPoint) {}
+	template<class SOCKETTYPE> class socket_connect_operation : public overlapped_operation {
+	public:
+		socket_connect_operation(SOCKETTYPE& socket, const SocketAddress& remoteEndPoint) noexcept : socket(socket), remoteEndPoint(remoteEndPoint) {}
+		auto await_suspend(std::experimental::coroutine_handle<> coro) { awaitingCoroutine = coro; }
+		auto await_ready() noexcept
+		{
+			static win32::ConnectExCreator Connector;
+			DWORD bytesSent = 0;
+			if (Connector.ConnectEx_(socket.native_handle(), remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), nullptr, 0, &bytesSent, getOverlappedStruct()) == FALSE) {
+				errorCode = TranslateError();
+				return errorCode != StatusCode::SC_PENDINGIO;
+			}
 
-  private:
-    friend class win32::overlapped_operation<socket_connect_operation>;
+			return true;
+		}
+		auto await_resume() {
+			if (errorCode != StatusCode::SC_SUCCESS) {
+				return errorCode;
+			}
 
-    bool try_start();
-    decltype(auto) get_result();
+			if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+				errorCode = TranslateError();
+			}
+			return errorCode;
+		}
 
-  private:
-    socket &m_socket;
-    ip_endpoint m_remoteEndPoint;
-};
-} // namespace SL::Network
-
+	private:
+		SOCKETTYPE& socket;
+		const SocketAddress& remoteEndPoint;
+	};
+}
 #endif
 
-#endif

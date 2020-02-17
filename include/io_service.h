@@ -16,15 +16,13 @@ namespace SL::Network {
 		io_service& operator=(io_service&& other) = delete;
 		io_service& operator=(const io_service& other) = delete;
 		void run();
-		void stop();
-#if _WIN32
-		void* getHandle() const { return IOCPHandle.handle; }
+		void stop(); 
+		void* getHandle() const { return IOCPHandle.handle(); }
 
 	private:
-		win32::safe_handle IOCPHandle;
-#else
+		safe_handle IOCPHandle;
+#ifndef _WIN32 
 		int EventWakeFd;
-		int IOCPHandle;
 #endif
 		bool KeepGoing;
 	};
