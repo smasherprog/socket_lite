@@ -8,7 +8,7 @@ namespace SL::Network {
 	class io_service {
 	public:
 
-		io_service(std::uint32_t concurrencyHint);
+		io_service(std::uint32_t concurrencyHint = std::thread::hardware_concurrency());
 		~io_service();
 
 		io_service(io_service&& other) = delete;
@@ -16,7 +16,7 @@ namespace SL::Network {
 		io_service& operator=(io_service&& other) = delete;
 		io_service& operator=(const io_service& other) = delete;
 		void run();
-		void stop(); 
+		void stop();
 		void* getHandle() const { return IOCPHandle.handle(); }
 
 	private:

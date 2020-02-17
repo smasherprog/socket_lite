@@ -41,7 +41,7 @@ namespace SL::Network {
 		}
 	}
 
-	io_service::io_service(std::uint32_t concurrencyHint = std::thread::hardware_concurrency()) : KeepGoing(true)
+	io_service::io_service(std::uint32_t concurrencyHint) : KeepGoing(true)
 	{
 #if _WIN32
 		WSADATA winsockData;
