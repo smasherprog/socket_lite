@@ -3,14 +3,12 @@
 #define _WIN32_WINNT 0x0601
 
 #include "cpumem_monitor.h" 
+#include "my_awaitconnectiontest.h"
 #include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <thread> 
 using namespace std::chrono_literals;
-
-
- 
 
 int main()
 {
@@ -33,6 +31,9 @@ int main()
 		});
 
 
+	myawaitconnectiontest::myconnectiontest();
+	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	counts = totalusage = 0;
 
 
 	startwatching = false;

@@ -1,12 +1,4 @@
-///////////////////////////////////////////////////////////////////////////////
-// Copyright (c) Lewis Baker
-// Licenced under MIT license. See LICENSE.txt for details.
-///////////////////////////////////////////////////////////////////////////////
-
 #include "io_service.h"
-#include "utils.h"
-#include <experimental/coroutine>
-#include <thread>
 
 #if _WIN32
 
@@ -34,13 +26,6 @@ namespace SL::Network {
 		}
 	}
 
-	void wakeup(const safe_handle& h)
-	{
-		if (h) {
-			PostQueuedCompletionStatus(h.handle(), 0, (DWORD)NULL, NULL);
-		}
-	}
-
 	io_service::io_service(std::uint32_t concurrencyHint) : KeepGoing(true)
 	{
 #if _WIN32
@@ -52,11 +37,13 @@ namespace SL::Network {
 		if (!IOCPHandle) {
 			THROWEXCEPTION
 		}
+		PendingOps = 0;
 #endif
 	}
 
 	io_service::~io_service()
 	{
+		stop();
 #if _WIN32
 		WSACleanup();
 #endif
@@ -64,7 +51,7 @@ namespace SL::Network {
 	void io_service::stop()
 	{
 		KeepGoing = false;
-		wakeup(IOCPHandle);
+		PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL); 
 	}
 
 	void io_service::run()
@@ -75,21 +62,21 @@ namespace SL::Network {
 			LPOVERLAPPED overlapped = nullptr;
 			BOOL ok = ::GetQueuedCompletionStatus(IOCPHandle.handle(), &numberOfBytesTransferred, &completionKey, &overlapped, INFINITE);
 			if (overlapped != nullptr) {
-				DWORD errorCode = ok ? ERROR_SUCCESS : ::GetLastError();
-				auto state = reinterpret_cast<overlapped_operation*>(overlapped);
-				on_operation_completed(*state, errorCode, numberOfBytesTransferred);
-			}
-			else if (ok) {
-				if (!KeepGoing) {
-					wakeup(IOCPHandle);
-					return;
+				if (ok) {
+					DWORD errorCode = ok ? ERROR_SUCCESS : ::GetLastError();
+					auto state = reinterpret_cast<overlapped_operation*>(overlapped);
+					on_operation_completed(*state, errorCode, numberOfBytesTransferred);
+				}
+				else {
+					auto errorcode = ::GetLastError();
+					if (errorcode != WAIT_TIMEOUT) {
+						THROWEXCEPTIONWCODE(errorcode);
+					}
 				}
 			}
-			else {
-				auto errorcode = ::GetLastError();
-				if (errorcode != WAIT_TIMEOUT) {
-					THROWEXCEPTIONWCODE(errorcode);
-				}
+			if (!KeepGoing && PendingOps == 0) { 
+				PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
+				return;
 			}
 		}
 	}

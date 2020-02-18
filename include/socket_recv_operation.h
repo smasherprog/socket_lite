@@ -18,10 +18,7 @@ namespace SL::Network {
 		{
 			DWORD numberOfBytesReceived = 0;
 			DWORD flags = 0;
-			if (::WSARecv(m_socket.native_handle(), &buffer, 1, &numberOfBytesSent, &flags, getOverlappedStruct(), nullptr) == 0) {
-				return StatusCode::SC_SUCCESS;
-			}
-			else {
+			if (::WSARecv(socket.native_handle(), &buffer, 1, &numberOfBytesReceived, &flags, getOverlappedStruct(), nullptr) != 0) {
 				errorCode = TranslateError();
 				return errorCode != StatusCode::SC_PENDINGIO;
 			}

@@ -14,7 +14,7 @@ namespace SL::Network {
 
 	class socket {
 	public:
-		static socket create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4);
+		static std::tuple<StatusCode, socket>  create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4);
 
 		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)) {}
 		~socket()
@@ -89,6 +89,7 @@ namespace SL::Network {
 	private:
 #if _WIN32
 		explicit socket(SOCKET handle) noexcept : shandle(handle) {}
+		explicit socket() noexcept : shandle(INVALID_SOCKET) {}
 		SOCKET shandle;
 #endif
 	};

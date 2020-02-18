@@ -7,10 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
   include_directories(
 	./
 	../include
+	../
 )
 add_executable(${PROJECT_NAME}  
 	../include/socket.h 
-	../include/io_service.h
+	../include/io_service.h 
+	../include/io_thread_service.h 
 	../include/utils.h 
 
 	../include/socket_accept_operation.h
@@ -23,7 +25,10 @@ add_executable(${PROJECT_NAME}
 
 	../Socket_Lite.h
 	../src/socket.cpp
-	../src/io_service.cpp
+	../src/io_service.cpp  
+	
+	../test/my_echomodels.h
+	../test/my_awaitconnectiontest.h
 	main.cpp
 ) 
 find_package(Threads REQUIRED)

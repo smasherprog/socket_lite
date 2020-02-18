@@ -18,6 +18,7 @@
 #include <system_error>
 #include <vector>
 #include <compare>
+#include <variant>
 
 #if _WIN32 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -60,7 +61,49 @@ typedef socklen_t SOCKLEN_T;
 
 namespace SL::Network {
 
-	enum AddressFamily :int { IPV4 = AF_INET, IPV6 = AF_INET6, IPANY = AF_UNSPEC };
+	template <typename T = void>
+	struct [[nodiscard]] task{
+	  struct promise_type {
+		std::variant<std::monostate, T, std::exception_ptr> result;
+		std::experimental::coroutine_handle<> waiter; // who waits on this coroutine
+
+		auto get_return_object() { return task{*this}; }
+		void return_value(T value) { result.template std::emplace<1>(std::move(value)); }
+		void unhandled_exception() { result.template std::emplace<2>(std::current_exception()); }
+		std::experimental::suspend_always initial_suspend() { return {}; }
+		auto final_suspend() {
+		  struct final_awaiter {
+			bool await_ready() { return false; }
+			void await_resume() {}
+			auto await_suspend(std::experimental::coroutine_handle<promise_type> me) {
+			  return me.promise().waiter;
+			}
+		  };
+		  return final_awaiter{};
+		}
+	  };
+
+	  task(task&& rhs) : h(rhs.h) { rhs.h = nullptr; }
+	  ~task() { if (h) h.destroy(); }
+	  explicit task(promise_type& p) : h(std::experimental::coroutine_handle<promise_type>::from_promise(p)) {}
+
+	  bool await_ready() { return false; }
+	  T await_resume() {
+		auto& result = h.promise().result;
+		if (result.index() == 1) return std::get<1>(result);
+		std::rethrow_exception(std::get<2>(result));
+	  }
+	  void await_suspend(std::experimental::coroutine_handle<> waiter) {
+		h.promise().waiter = waiter;
+		h.resume();
+	  }
+
+
+	private:
+		std::experimental::coroutine_handle<promise_type> h;
+	};
+
+	enum AddressFamily :int { IPV4 = AF_INET, IPV6 = AF_INET6 };
 	enum SocketType :int { TCP = SOCK_STREAM, UDP = SOCK_DGRAM };
 	class SocketAddress {
 		::sockaddr_storage Storage;
@@ -105,7 +148,7 @@ namespace SL::Network {
 		[[nodiscard]] AddressFamily getFamily() const noexcept { return static_cast<AddressFamily>(Storage.ss_family); }
 	};
 
-	[[nodiscard]] inline std::vector<SocketAddress> getaddrinfo(const char* address, unsigned short port, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPANY)
+	[[nodiscard]] inline std::vector<SocketAddress> getaddrinfo(const char* address, unsigned short port, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4)
 	{
 		::addrinfo hints = { 0 };
 		::addrinfo* result(nullptr);

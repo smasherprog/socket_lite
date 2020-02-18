@@ -17,10 +17,7 @@ namespace SL::Network {
 		auto await_ready() noexcept
 		{
 			DWORD numberOfBytesSent = 0;
-			if (::WSASend(m_socket.native_handle(), &buffer, 1, &numberOfBytesSent, 0, getOverlappedStruct(), nullptr) == 0) {
-				return StatusCode::SC_SUCCESS;
-			}
-			else {
+			if (::WSASend(socket.native_handle(), &buffer, 1, &numberOfBytesSent, 0, getOverlappedStruct(), nullptr) != 0) {
 				errorCode = TranslateError();
 				return errorCode != StatusCode::SC_PENDINGIO;
 			}
