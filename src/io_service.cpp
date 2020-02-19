@@ -3,21 +3,6 @@
 #if _WIN32
 
 namespace SL::Network {
-
-	std::string win32::GetErrorMessage(unsigned long errorMessageID)
-	{
-		if (errorMessageID == 0)
-			return std::string(); // No error message has been recorded
-
-		LPSTR messageBuffer = nullptr;
-		size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, errorMessageID,
-			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
-		std::string message(messageBuffer, size);
-		// Free the buffer.
-		LocalFree(messageBuffer);
-		return message;
-	}
-	unsigned long win32::GetLastError() { return ::GetLastError(); }
 	void safe_handle::close() noexcept
 	{
 		if (shandle != nullptr && shandle != INVALID_HANDLE_VALUE) {
@@ -25,7 +10,6 @@ namespace SL::Network {
 			shandle = nullptr;
 		}
 	}
-
 	io_service::io_service(std::uint32_t concurrencyHint) : KeepGoing(true)
 	{
 #if _WIN32
@@ -74,7 +58,7 @@ namespace SL::Network {
 					}
 				}
 			}
-			if (!KeepGoing && PendingOps == 0) { 
+			if (!KeepGoing && PendingOps.load(std::memory_order::memory_order_relaxed) == 0) { 
 				PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
 				return;
 			}

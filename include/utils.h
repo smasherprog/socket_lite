@@ -59,50 +59,71 @@ typedef socklen_t SOCKLEN_T;
 #endif
 
 
+namespace SL::Network::win32 {
+	inline std::string GetErrorMessage(unsigned long errorMessageID)
+	{
+		if (errorMessageID == 0)
+			return std::string(); // No error message has been recorded
+
+		LPSTR messageBuffer = nullptr;
+		size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, errorMessageID,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+		std::string message(messageBuffer, size);
+		// Free the buffer.
+		LocalFree(messageBuffer);
+		return message;
+	}
+};
+
+#if _WIN32
+#define THROWEXCEPTION auto ercode = ::WSAGetLastError(); throw std::system_error(ercode, std::system_category(), SL::Network::win32::GetErrorMessage(ercode));
+#define THROWEXCEPTIONWCODE(e) throw std::system_error(e, std::system_category(), SL::Network::win32::GetErrorMessage(e));
+#endif
+
 namespace SL::Network {
 
-	template <typename T = void>
-	struct [[nodiscard]] task{
-	  struct promise_type {
-		std::variant<std::monostate, T, std::exception_ptr> result;
-		std::experimental::coroutine_handle<> waiter; // who waits on this coroutine
+	enum class [[nodiscard]] StatusCode{ SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_NOTSUPPORTED, SC_PENDINGIO };
 
-		auto get_return_object() { return task{*this}; }
-		void return_value(T value) { result.template std::emplace<1>(std::move(value)); }
-		void unhandled_exception() { result.template std::emplace<2>(std::current_exception()); }
-		std::experimental::suspend_always initial_suspend() { return {}; }
-		auto final_suspend() {
-		  struct final_awaiter {
-			bool await_ready() { return false; }
-			void await_resume() {}
-			auto await_suspend(std::experimental::coroutine_handle<promise_type> me) {
-			  return me.promise().waiter;
-			}
-		  };
-		  return final_awaiter{};
-		}
-	  };
+#if _WIN32
 
-	  task(task&& rhs) : h(rhs.h) { rhs.h = nullptr; }
-	  ~task() { if (h) h.destroy(); }
-	  explicit task(promise_type& p) : h(std::experimental::coroutine_handle<promise_type>::from_promise(p)) {}
+	inline StatusCode TranslateError(int errcode)
+	{
+		auto err = win32::GetErrorMessage(errcode);
+		printf(err.c_str());
+		switch (errcode) {
+		case ERROR_SUCCESS:
+			return StatusCode::SC_SUCCESS;
+		case WSAECONNRESET:
+			return StatusCode::SC_ECONNRESET;
+		case WSAETIMEDOUT:
+		case WSAECONNABORTED:
+			return StatusCode::SC_ETIMEDOUT;
+		case WSAEWOULDBLOCK:
+			return StatusCode::SC_EWOULDBLOCK;
+		case ERROR_IO_PENDING:
+			return StatusCode::SC_PENDINGIO;
+		default:
+			return StatusCode::SC_CLOSED;
+		};
+	}
 
-	  bool await_ready() { return false; }
-	  T await_resume() {
-		auto& result = h.promise().result;
-		if (result.index() == 1) return std::get<1>(result);
-		std::rethrow_exception(std::get<2>(result));
-	  }
-	  void await_suspend(std::experimental::coroutine_handle<> waiter) {
-		h.promise().waiter = waiter;
-		h.resume();
-	  }
+	inline StatusCode TranslateError() {
+		return TranslateError(::WSAGetLastError());
+	}
 
+#else
 
-	private:
-		std::experimental::coroutine_handle<promise_type> h;
-	};
-
+	inline StatusCode TranslateError(int errcode)
+	{
+		switch (errorcode) {
+		default:
+			return StatusCode::SC_CLOSED;
+		};
+	}
+	inline StatusCode TranslateError() {
+		return TranslateError(errno);
+	}
+#endif
 	enum AddressFamily :int { IPV4 = AF_INET, IPV6 = AF_INET6 };
 	enum SocketType :int { TCP = SOCK_STREAM, UDP = SOCK_DGRAM };
 	class SocketAddress {
@@ -239,50 +260,35 @@ namespace SL::Network {
 				closesocket(temphandle);
 			}
 		};
+		auto inline CreateSocket(const AddressFamily family)
+		{
+			int typ = SOCK_STREAM;
+			auto handle = ::socket(family, typ, 0);
+			if (handle == INVALID_SOCKET) {
+				return std::tuple(TranslateError(), handle);
+			}
+			u_long iMode = 1;
+			ioctlsocket(handle, FIONBIO, &iMode);
+			return std::tuple(StatusCode::SC_SUCCESS, handle);
+		}
 
-		std::string GetErrorMessage(DWORD errorMessageID);
-		DWORD GetLastError();
+		auto inline win32Bind(AddressFamily family, SOCKET socket) {
+			if (family == AddressFamily::IPV4) {
+				sockaddr_in bindaddr = { 0 };
+				bindaddr.sin_family = AF_INET;
+				bindaddr.sin_addr.s_addr = INADDR_ANY;
+				bindaddr.sin_port = 0;
+				return ::bind(socket, (::sockaddr*) & bindaddr, sizeof(bindaddr));
+			}
+			else {
+				sockaddr_in6 bindaddr = { 0 };
+				bindaddr.sin6_family = AF_INET6;
+				bindaddr.sin6_addr = in6addr_any;
+				bindaddr.sin6_port = 0;
+				return ::bind(socket, (::sockaddr*) & bindaddr, sizeof(bindaddr));
+			}
+		}
 	} // namespace win32
-
-	enum class [[nodiscard]] StatusCode{
-   SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT,
-		SC_NOTSUPPORTED, SC_PENDINGIO,
-	};
-#if _WIN32
-
-	static StatusCode TranslateError(DWORD errcode)
-	{
-		switch (errcode) {
-		case WSAECONNRESET:
-			return StatusCode::SC_ECONNRESET;
-		case WSAETIMEDOUT:
-		case WSAECONNABORTED:
-			return StatusCode::SC_ETIMEDOUT;
-		case WSAEWOULDBLOCK:
-			return StatusCode::SC_EWOULDBLOCK;
-		case ERROR_IO_PENDING:
-			return StatusCode::SC_PENDINGIO;
-		default:
-			return StatusCode::SC_CLOSED;
-		};
-	}
-	static StatusCode TranslateError() {
-		return TranslateError(WSAGetLastError());
-	}
-
-#else
-
-	static StatusCode TranslateError(int errcode)
-	{
-		switch (errorcode) {
-		default:
-			return StatusCode::SC_CLOSED;
-		};
-	}
-	static StatusCode TranslateError() {
-		return TranslateError(errno);
-	}
-#endif
 
 	struct overlapped_operation : public WSAOVERLAPPED {
 	public:
@@ -292,7 +298,7 @@ namespace SL::Network {
 		std::experimental::coroutine_handle<> awaitingCoroutine;
 	};
 
-	static void on_operation_completed(overlapped_operation& ioState, DWORD errorCode, DWORD numberOfBytesTransferred) noexcept
+	inline void on_operation_completed(overlapped_operation& ioState, DWORD errorCode, DWORD numberOfBytesTransferred) noexcept
 	{
 		ioState.errorCode = TranslateError(errorCode);
 		ioState.numberOfBytesTransferred = numberOfBytesTransferred;
@@ -301,10 +307,4 @@ namespace SL::Network {
 
 #endif
 } // namespace SL::Network
-#if _WIN32
-#define THROWEXCEPTION                                                                                                                               \
-    auto errorcode = SL::Network::win32::GetLastError();                                                                                             \
-    throw std::system_error(errorcode, std::system_category(), SL::Network::win32::GetErrorMessage(errorcode));
-#endif
-#define THROWEXCEPTIONWCODE(e) throw std::system_error(e, std::system_category(), SL::Network::win32::GetErrorMessage(e));
 #endif

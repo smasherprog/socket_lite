@@ -8,17 +8,20 @@ namespace SL::Network {
 	template<class SOCKETTYPE> class socket_send_to_operation : public overlapped_operation {
 	public:
 
-		socket_send_to_operation(SOCKETTYPE& socket, const SocketAddress& remoteEndPoint, std::byte* b, std::size_t byteCount) noexcept : socket(socket), remoteEndPoint(remoteEndPoint) {
+		socket_send_to_operation(SOCKETTYPE& socket, const SocketAddress& remoteEndPoint, std::byte* b, std::size_t byteCount) noexcept : socket(socket), remoteEndPoint(remoteEndPoint), overlapped_operation({ 0 }) {
 			buffer.len = static_cast<decltype(buffer.len)>(byteCount);
 			buffer.buf = reinterpret_cast<decltype(buffer.buf)>(b);
+			socket.get_ioservice().incOp();
 		}
-
+		~socket_send_to_operation() {
+			socket.get_ioservice().decOp();
+		}
 		auto await_suspend(std::experimental::coroutine_handle<> coro) { awaitingCoroutine = coro; }
 		auto await_ready() noexcept
 		{
 			DWORD numberOfBytesReceived = 0;
 			DWORD flags = 0;
-			auto socklen = remoteEndPoint.getSocketAddrLen();
+			auto socklen = remoteEndPoint.getSocketAddrLen(); 
 			if (::WSASendTo(m_socket.native_handle(), &buffer, 1, &numberOfBytesSent, &flags, remoteEndPoint.getSocketAddr(), socklen, getOverlappedStruct(), nullptr) == 0) {
 				return StatusCode::SC_SUCCESS;
 			}
@@ -30,7 +33,7 @@ namespace SL::Network {
 			return true;
 		}
 
-		auto await_resume() {
+		auto await_resume() { 
 			return std::tuple(errorCode, numberOfBytesTransferred);
 		}
 
@@ -38,6 +41,7 @@ namespace SL::Network {
 		SOCKETTYPE& socket;
 		WSABUF buffer;
 		const SocketAddress& remoteEndPoint;
+
 	};
 }
 #endif

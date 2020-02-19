@@ -24,11 +24,11 @@ add_executable(${PROJECT_NAME}
 	../include/socket_send_to_operation.h
 
 	../Socket_Lite.h
-	../src/socket.cpp
 	../src/io_service.cpp  
 	
 	../test/my_echomodels.h
-	../test/my_awaitconnectiontest.h
+	../test/my_awaitconnectiontest.h 
+	../test/my_multithreadedecho.h 
 	main.cpp
 ) 
 find_package(Threads REQUIRED)

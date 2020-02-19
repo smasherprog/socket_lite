@@ -14,25 +14,36 @@ namespace SL::Network {
 
 	class socket {
 	public:
-		static std::tuple<StatusCode, socket>  create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4);
+		static std::tuple<StatusCode, socket>  create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4) {
+			auto protocol = sockettype == SocketType::TCP ? IPPROTO_TCP : IPPROTO_UDP;
 
-		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)) {}
-		~socket()
-		{
-			if (shandle != INVALID_SOCKET) {
-				::closesocket(shandle);
+			auto socketHandle = ::socket(family, sockettype, protocol);
+			if (socketHandle == INVALID_SOCKET) {
+				return std::tuple(TranslateError(), socket(ioSvc));
 			}
+
+			if (sockettype == SocketType::TCP) {
+				// Turn off linger so that the destructor doesn't block while closing
+				// the socket or silently continue to flush remaining data in the
+				// background after ::closesocket() is called, which could fail and
+				// we'd never know about it.
+				// We expect clients to call Disconnect() or use CloseSend() to cleanly
+				// shut-down connections instead.
+				BOOL value = TRUE;
+				if (::setsockopt(socketHandle, SOL_SOCKET, SO_DONTLINGER, reinterpret_cast<const char*>(&value), sizeof(value)) == SOCKET_ERROR) {
+					closesocket(socketHandle);
+					return std::tuple(TranslateError(), socket(ioSvc));
+				}
+			}
+			u_long iMode = 1;
+			ioctlsocket(socketHandle, FIONBIO, &iMode);
+			return std::tuple(StatusCode::SC_SUCCESS, socket(socketHandle, ioSvc));
 		}
 
-		socket& operator=(socket&& other) noexcept
+		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)), ioservice(other.ioservice) {}
+		~socket()
 		{
-			auto handle = std::exchange(other.shandle, INVALID_SOCKET);
-			if (shandle != INVALID_SOCKET) {
-				::closesocket(shandle);
-			}
-
-			shandle = handle;
-			return *this;
+			close();
 		}
 
 		[[nodiscard]] auto local_endpoint() const
@@ -75,7 +86,12 @@ namespace SL::Network {
 			return StatusCode::SC_SUCCESS;
 		}
 		auto listen() { return listen(SOMAXCONN); }
-
+		void close() {
+			if (shandle != INVALID_SOCKET) {
+				::closesocket(shandle);
+			}
+			shandle = INVALID_SOCKET;
+		}
 		[[nodiscard]] auto connect(const SocketAddress& remoteEndPoint) noexcept { return socket_connect_operation<socket>(*this, remoteEndPoint); }
 		[[nodiscard]] auto accept(socket& acceptingSocket) noexcept { return socket_accept_operation<socket>(*this, acceptingSocket); }
 		[[nodiscard]] auto disconnect() noexcept { return socket_disconnect_operation<socket>(*this); }
@@ -85,12 +101,14 @@ namespace SL::Network {
 		[[nodiscard]] auto send_to(const SocketAddress& destination, std::byte* buffer, std::size_t size) noexcept { return socket_send_to_operation<socket>(*this, destination, buffer, size); }
 
 		SOCKET native_handle() const { return shandle; }
+		io_service& get_ioservice() const { return ioservice; }
 
 	private:
 #if _WIN32
-		explicit socket(SOCKET handle) noexcept : shandle(handle) {}
-		explicit socket() noexcept : shandle(INVALID_SOCKET) {}
+		explicit socket(SOCKET handle, io_service& ioSvc) noexcept : shandle(handle), ioservice(ioSvc) {}
+		explicit socket(io_service& ioSvc) noexcept : shandle(INVALID_SOCKET), ioservice(ioSvc) {}
 		SOCKET shandle;
+		io_service& ioservice;
 #endif
 	};
 } // namespace SL::Network

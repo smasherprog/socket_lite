@@ -19,6 +19,8 @@ namespace SL::Network {
 		void stop();
 
 		void* getHandle() const { return IOCPHandle.handle(); }
+		size_t incOp() { return PendingOps.fetch_add(1, std::memory_order::memory_order_relaxed); }
+		size_t decOp() { return PendingOps.fetch_sub(1, std::memory_order::memory_order_relaxed); }
 
 	private:
 		std::atomic<size_t> PendingOps;

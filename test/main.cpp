@@ -1,9 +1,13 @@
 
 #define WINVER 0x0601
 #define _WIN32_WINNT 0x0601
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
 
 #include "cpumem_monitor.h" 
 #include "my_awaitconnectiontest.h"
+#include "my_multithreadedecho.h"
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -12,6 +16,7 @@ using namespace std::chrono_literals;
 
 int main()
 {
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	std::cout << "Starting Network Benchmarks\n";
 	std::cout << std::fixed;
 	std::cout << std::setprecision(2);
@@ -31,10 +36,16 @@ int main()
 		});
 
 
-	myawaitconnectiontest::myconnectiontest();
+	//myawaitconnectiontest::myconnectiontest();
+	//std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	//counts = totalusage = 0;
+
+	mymultithreadedechotest::myechotest();
 	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
 	counts = totalusage = 0;
-
+	mymultithreadedechotest::myechotest(1024 * 10); // 10k
+	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	counts = totalusage = 0;
 
 	startwatching = false;
 	t.join();
