@@ -13,11 +13,11 @@ namespace SL::Network {
 #if _WIN32
 		WSADATA winsockData;
 		if (WSAStartup(MAKEWORD(2, 2), &winsockData) == SOCKET_ERROR) {
-			THROWEXCEPTION
+			assert(false);
 		}
 		IOCPHandle = safe_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrencyHint));
 		if (!IOCPHandle) {
-			THROWEXCEPTION
+			assert(false);
 		}
 		win32::SetupWindowsEvents();
 #endif

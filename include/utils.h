@@ -14,8 +14,7 @@
 #include <stdint.h>
 #include <string>
 #include <thread> 
-#include <experimental/coroutine> 
-#include <system_error>
+#include <experimental/coroutine>  
 #include <vector>
 #include <compare>
 #include <variant>
@@ -74,11 +73,6 @@ namespace SL::Network::win32 {
 		return message;
 	}
 };
-
-#if _WIN32
-#define THROWEXCEPTION auto ercode = ::WSAGetLastError(); throw std::system_error(ercode, std::system_category(), SL::Network::win32::GetErrorMessage(ercode));
-#define THROWEXCEPTIONWCODE(e) throw std::system_error(e, std::system_category(), SL::Network::win32::GetErrorMessage(e));
-#endif
 
 namespace SL::Network {
 
@@ -179,7 +173,7 @@ namespace SL::Network {
 		::addrinfo* result(nullptr);
 		memset(&hints, 0, sizeof(addrinfo));
 		hints.ai_family = family;
-		hints.ai_socktype = sockettype; /* We want a TCP socket */
+		hints.ai_socktype = sockettype; 
 		hints.ai_protocol = sockettype == SocketType::TCP ? IPPROTO_TCP : IPPROTO_UDP;
 		hints.ai_flags = AI_PASSIVE; /* All interfaces */
 		std::vector<SocketAddress> addrs;
@@ -257,18 +251,6 @@ namespace SL::Network {
 				assert(ConnectEx_ != nullptr);
 				closesocket(temphandle);
 			}
-		}
-
-		auto inline CreateSocket(const AddressFamily family)
-		{
-			int typ = SOCK_STREAM;
-			auto handle = ::socket(family, typ, 0);
-			if (handle == INVALID_SOCKET) {
-				return std::tuple(TranslateError(), handle);
-			}
-			u_long iMode = 1;
-			ioctlsocket(handle, FIONBIO, &iMode);
-			return std::tuple(StatusCode::SC_SUCCESS, handle);
 		}
 
 		auto inline win32Bind(AddressFamily family, SOCKET socket) {
