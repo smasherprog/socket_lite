@@ -95,6 +95,7 @@ namespace SL::Network {
 		auto listen() { return listen(SOMAXCONN); }
 		void close() {
 			if (shandle != INVALID_SOCKET) {
+				::CancelIoEx((HANDLE)shandle, NULL);
 				::closesocket(shandle);
 				shandle = INVALID_SOCKET;
 			}

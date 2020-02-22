@@ -1,10 +1,11 @@
 
 #define WINVER 0x0601
 #define _WIN32_WINNT 0x0601
+#if DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
-
+#endif
 #include "cpumem_monitor.h" 
 #include "my_awaitconnectiontest.h"
 #include "my_multithreadedecho.h"
@@ -16,7 +17,9 @@ using namespace std::chrono_literals;
 
 int main()
 {
+#if DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
 	std::cout << "Starting Network Benchmarks\n";
 	std::cout << std::fixed;
 	std::cout << std::setprecision(2);

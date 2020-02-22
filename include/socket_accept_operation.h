@@ -9,7 +9,7 @@ namespace SL::Network {
 		socket_accept_operation(SOCKETTYPE& listeningSocket, SOCKETTYPE& acceptingSocket) noexcept : listeningSocket(listeningSocket), acceptingSocket(acceptingSocket) {
 			listeningSocket.get_ioservice().incOp();
 		}	
-		socket_accept_operation(socket_accept_operation&& other) noexcept : listeningSocket(other.listeningSocket), acceptingSocket(other.acceptingSocket), addressBuffer(other.addressBuffer){}
+		socket_accept_operation(socket_accept_operation&& other) noexcept : listeningSocket(other.listeningSocket), acceptingSocket(other.acceptingSocket){}
 		~socket_accept_operation() {
 			listeningSocket.get_ioservice().decOp();
 		}
