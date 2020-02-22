@@ -82,14 +82,16 @@ namespace SL::Network::win32 {
 
 namespace SL::Network {
 
-	enum class [[nodiscard]] StatusCode{ SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_NOTSUPPORTED, SC_PENDINGIO };
+	enum class [[nodiscard]] StatusCode{ SC_UNSET, SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_NOTSUPPORTED, SC_PENDINGIO1, SC_PENDINGIO2 };
 
 #if _WIN32
 
 	inline StatusCode TranslateError(int errcode)
 	{
-		auto err = win32::GetErrorMessage(errcode);
-		printf(err.c_str());
+		if (errcode != 0 && errcode != ERROR_IO_PENDING) {
+			auto err = win32::GetErrorMessage(errcode);
+			printf(err.c_str());
+		}
 		switch (errcode) {
 		case ERROR_SUCCESS:
 			return StatusCode::SC_SUCCESS;
@@ -101,7 +103,7 @@ namespace SL::Network {
 		case WSAEWOULDBLOCK:
 			return StatusCode::SC_EWOULDBLOCK;
 		case ERROR_IO_PENDING:
-			return StatusCode::SC_PENDINGIO;
+			return StatusCode::SC_PENDINGIO1;
 		default:
 			return StatusCode::SC_CLOSED;
 		};
@@ -207,7 +209,13 @@ namespace SL::Network {
 		constexpr void* handle() const { return shandle; }
 		constexpr operator bool() const noexcept { return shandle != nullptr; }
 		/// Calls CloseHandle() and sets the handle to NULL.
-		void close() noexcept;
+		void close() noexcept
+		{
+			if (shandle != nullptr && shandle != INVALID_HANDLE_VALUE) {
+				::CloseHandle(shandle);
+				shandle = nullptr;
+			}
+		}
 
 		void swap(safe_handle& other) noexcept { std::swap(shandle, other.shandle); }
 		constexpr std::weak_ordering operator<=>(safe_handle const& rhs) const = default;
@@ -290,19 +298,55 @@ namespace SL::Network {
 		}
 	} // namespace win32
 
-	struct overlapped_operation : public WSAOVERLAPPED {
+	class overlapped_operation : public WSAOVERLAPPED {
+	private:
+		std::atomic<StatusCode> errorCode;
 	public:
+		overlapped_operation() : WSAOVERLAPPED({ 0 }) {
+			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
+			numberOfBytesTransferred = 0;
+			awaitingCoroutine = nullptr;
+		}
+		auto await_suspend(std::experimental::coroutine_handle<> coro)
+		{
+			awaitingCoroutine = coro;
+			auto originalvalue = trysetstatus(StatusCode::SC_PENDINGIO2, StatusCode::SC_PENDINGIO1);
+			if (originalvalue == StatusCode::SC_PENDINGIO1) {///successfully change from pending01 to pending02
+				return true;
+			}
+			//otherwise, the ioservice changed the status to some other value and the corouting should resume here and will not be resumved in the ioservice
+			return false;
+		}
+		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
+			auto originalexpected = expected;
+			while (!errorCode.compare_exchange_weak(expected, code) && expected == originalexpected);
+			return expected;
+		}
+		void setstatus(StatusCode code) {
+			errorCode.store(code, std::memory_order::memory_order_relaxed);
+		}
+		StatusCode getstatus() {
+			return errorCode.load(std::memory_order::memory_order_relaxed);
+		}
+		StatusCode exchangestatus(StatusCode code) {
+			return errorCode.exchange(code, std::memory_order::memory_order_relaxed);
+		}
+
 		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); }
-		StatusCode errorCode;
-		DWORD numberOfBytesTransferred;
+
+		size_t numberOfBytesTransferred;
 		std::experimental::coroutine_handle<> awaitingCoroutine;
 	};
 
-	inline void on_operation_completed(overlapped_operation& ioState, DWORD errorCode, DWORD numberOfBytesTransferred) noexcept
+	inline void on_operation_completed(overlapped_operation& ioState, int errorCode, size_t numberOfBytesTransferred) noexcept
 	{
-		ioState.errorCode = TranslateError(errorCode);
+		auto e = TranslateError(errorCode); 
 		ioState.numberOfBytesTransferred = numberOfBytesTransferred;
-		ioState.awaitingCoroutine.resume();
+		auto originalvalue = ioState.exchangestatus(e);
+		if (originalvalue == StatusCode::SC_PENDINGIO2) {
+			//safe to call the coroutine since the value was in a safe state
+			ioState.awaitingCoroutine.resume();
+		}
 	}
 
 #endif

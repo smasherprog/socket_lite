@@ -27,13 +27,13 @@ void myechotest(int buffersize = 128)
  
     myechomodels::awaitclient c("127.0.0.1", porttouse, context.getio_service());
     myechomodels::awaitclient c1("127.0.0.1", porttouse, context.getio_service());
-    myechomodels::awaitclient c2("127.0.0.1", porttouse, context.getio_service());
+    myechomodels::awaitclient c2("127.0.0.1", porttouse, context.getio_service()); 
     c.do_connect();
     c1.do_connect();
     c2.do_connect();
-
     std::this_thread::sleep_for(10s); // sleep for 10 seconds
-    myechomodels::keepgoing = false;
+    myechomodels::keepgoing = false; 
+    acceptsocket.value().close();
     t1.join();
     std::cout << "My 4 thread Echos per Second " << myechomodels::writeechos / 10 << std::endl;
 

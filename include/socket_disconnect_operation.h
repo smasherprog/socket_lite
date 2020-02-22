@@ -7,20 +7,21 @@ namespace SL::Network {
 	template<class SOCKETTYPE> class socket_disconnect_operation : public overlapped_operation {
 	public:
 
-		socket_disconnect_operation(SOCKETTYPE& socket) noexcept : socket(socket), overlapped_operation({ 0 }) {
+		socket_disconnect_operation(SOCKETTYPE& socket) noexcept : socket(socket) {
 			socket.get_ioservice().incOp();
 		}
+		socket_disconnect_operation(socket_disconnect_operation&& other) noexcept : socket(other.socket) {}
 		~socket_disconnect_operation() {
 			socket.get_ioservice().decOp();
 		}
-		auto await_suspend(std::experimental::coroutine_handle<> coro) { awaitingCoroutine = coro; }
+
 		auto await_ready() noexcept
 		{
 			static win32::DisconnectExCreator Disconnector;
 			DWORD bytesSent = 0;  
 			if (Disconnector.DisconnectEx_(socket.native_handle(), getOverlappedStruct(), 0, 0) == FALSE) {
 				errorCode = TranslateError();
-				return errorCode != StatusCode::SC_PENDINGIO;
+				return errorCode != StatusCode::SC_PENDINGIO1;
 			}
 
 			return true;

@@ -20,7 +20,7 @@ namespace myechomodels {
 	public:
 		SL::Network::socket listensocket;
 
-		asioserver(SL::Network::socket& lsocket) : listensocket(std::move(lsocket)) {}
+		asioserver(SL::Network::socket& lsocket) : listensocket(std::move(lsocket)) {} 
 		std::future<void> do_accept()
 		{
 			while (keepgoing) {
@@ -40,7 +40,7 @@ namespace myechomodels {
 		for (auto& a : addrs) {
 			auto [statuscode, socket] = SL::Network::socket::create(context, sockt, family);
 			if (statuscode == SL::Network::StatusCode::SC_SUCCESS && socket.bind(a) == SL::Network::StatusCode::SC_SUCCESS) {
-				if (socket.listen(INT_MAX) == SL::Network::StatusCode::SC_SUCCESS) {
+				if (socket.listen(500) == SL::Network::StatusCode::SC_SUCCESS) {
 					return std::move(socket);
 				}
 			}

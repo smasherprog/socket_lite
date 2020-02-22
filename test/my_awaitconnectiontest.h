@@ -17,11 +17,12 @@ namespace myawaitconnectiontest {
 		while (keepgoing) {
 			auto [statuscode, socket] = SL::Network::socket::create(context);
 			if (statuscode == SL::Network::StatusCode::SC_SUCCESS) {
-				co_await socket.connect(endpoints.back());
+				auto status  = co_await socket.connect(endpoints.back());
 				connections += 1.0;
 			}
 		}
 	}
+
 	std::future<void> accept(SL::Network::socket& acceptsocket, SL::Network::io_service& context)
 	{
 		while (keepgoing) {
@@ -33,7 +34,7 @@ namespace myawaitconnectiontest {
 	}
 	void myconnectiontest()
 	{
-		SL::Network::io_thread_service context(1);
+		SL::Network::io_thread_service context(4);
 		std::cout << "Starting My Await Connections per Second Test" << std::endl;
 		connections = 0.0;
 		auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
@@ -45,10 +46,10 @@ namespace myawaitconnectiontest {
 
 		std::this_thread::sleep_for(10s); // sleep for 10 seconds
 		keepgoing = false;
+		std::cout << "My Await Connections per Second " << connections / 10 << std::endl;
 		acceptsocket.value().close();
 		t1.join();
 		t2.join();
 
-		std::cout << "My Await Connections per Second " << connections / 10 << std::endl;
 	}
 } // namespace myconnectiontest

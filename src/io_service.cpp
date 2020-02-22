@@ -3,13 +3,6 @@
 #if _WIN32
 
 namespace SL::Network {
-	void safe_handle::close() noexcept
-	{
-		if (shandle != nullptr && shandle != INVALID_HANDLE_VALUE) {
-			::CloseHandle(shandle);
-			shandle = nullptr;
-		}
-	}
 	io_service::io_service(std::uint32_t concurrencyHint) : KeepGoing(true)
 	{
 #if _WIN32
@@ -27,7 +20,6 @@ namespace SL::Network {
 
 	io_service::~io_service()
 	{
-		stop();
 #if _WIN32
 		WSACleanup();
 #endif
@@ -35,7 +27,7 @@ namespace SL::Network {
 	void io_service::stop()
 	{
 		KeepGoing = false;
-		PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL); 
+		PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
 	}
 
 	void io_service::run()
@@ -44,21 +36,18 @@ namespace SL::Network {
 			DWORD numberOfBytesTransferred = 0;
 			ULONG_PTR completionKey = 0;
 			LPOVERLAPPED overlapped = nullptr;
-			BOOL ok = ::GetQueuedCompletionStatus(IOCPHandle.handle(), &numberOfBytesTransferred, &completionKey, &overlapped, INFINITE);
+			auto bSuccess = ::GetQueuedCompletionStatus(IOCPHandle.handle(), &numberOfBytesTransferred, &completionKey, &overlapped, INFINITE) == TRUE && KeepGoing;
 			if (overlapped != nullptr) {
-				if (ok) {
-					DWORD errorCode = ok ? ERROR_SUCCESS : ::GetLastError();
-					auto state = reinterpret_cast<overlapped_operation*>(overlapped);
-					on_operation_completed(*state, errorCode, numberOfBytesTransferred);
+				auto state = reinterpret_cast<overlapped_operation*>(overlapped);
+				if (bSuccess) {
+					on_operation_completed(*state, ERROR_SUCCESS, numberOfBytesTransferred);
 				}
 				else {
-					auto errorcode = ::GetLastError();
-					if (errorcode != WAIT_TIMEOUT) {
-						THROWEXCEPTIONWCODE(errorcode);
-					}
+					on_operation_completed(*state, ::WSAGetLastError(), numberOfBytesTransferred);
 				}
-			}
-			if (!KeepGoing && PendingOps.load(std::memory_order::memory_order_relaxed) == 0) { 
+				continue;
+			} 
+			if (!KeepGoing && PendingOps.load(std::memory_order::memory_order_relaxed) == 0) {
 				PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
 				return;
 			}

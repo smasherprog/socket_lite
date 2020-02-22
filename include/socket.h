@@ -8,13 +8,12 @@
 #include "socket_recv_operation.h"
 #include "socket_send_operation.h"
 #include "socket_send_to_operation.h"
+#include "io_service.h"
 
 namespace SL::Network {
-	class io_service;
-
 	class socket {
 	public:
-		static std::tuple<StatusCode, socket>  create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4) {
+		static auto create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4) {
 			auto protocol = sockettype == SocketType::TCP ? IPPROTO_TCP : IPPROTO_UDP;
 
 			auto socketHandle = ::socket(family, sockettype, protocol);
@@ -37,7 +36,7 @@ namespace SL::Network {
 			}
 			u_long iMode = 1;
 			ioctlsocket(socketHandle, FIONBIO, &iMode);
-			return std::tuple(StatusCode::SC_SUCCESS, socket(socketHandle, ioSvc));
+			return std::tuple(StatusCode::SC_SUCCESS, std::move(socket(socketHandle, ioSvc)));
 		}
 
 		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)), ioservice(other.ioservice) {}
@@ -83,14 +82,23 @@ namespace SL::Network {
 			if (::listen(shandle, (int)backlog) != 0) {
 				return TranslateError();
 			}
+			if (::CreateIoCompletionPort((HANDLE)shandle, ioservice.getHandle(), shandle, 0) == NULL) {
+				close();
+				return TranslateError();
+			}
+			if (SetFileCompletionNotificationModes((HANDLE)shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
+				close();
+				return TranslateError();
+			}
 			return StatusCode::SC_SUCCESS;
 		}
 		auto listen() { return listen(SOMAXCONN); }
 		void close() {
 			if (shandle != INVALID_SOCKET) {
+				CancelIoEx((HANDLE)shandle, NULL);
 				::closesocket(shandle);
+				shandle = INVALID_SOCKET;
 			}
-			shandle = INVALID_SOCKET;
 		}
 		[[nodiscard]] auto connect(const SocketAddress& remoteEndPoint) noexcept { return socket_connect_operation<socket>(*this, remoteEndPoint); }
 		[[nodiscard]] auto accept(socket& acceptingSocket) noexcept { return socket_accept_operation<socket>(*this, acceptingSocket); }
