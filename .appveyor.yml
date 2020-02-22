@@ -17,8 +17,8 @@ install:
 
 build_script:
   - cd C:\projects\socket-lite\build\
-  - if %platform%==x86 set generator=Visual Studio 15 2019
-  - if %platform%==x64 set generator=Visual Studio 15 2019 Win64
+  - if %platform%==x86 set generator=Visual Studio 16 2019
+  - if %platform%==x64 set generator=Visual Studio 16 2019 Win64
   - cmd: cmake -G"%generator%" ..\test 
   - cmd: cmake --build .  --config %configuration%
   - ctest -C %configuration% -V 
