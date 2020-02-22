@@ -17,6 +17,8 @@ install:
 
 build_script:
   - cd C:\projects\socket-lite\build\
-  - cmd: cmake -G"Visual Studio 16 2019" -A %platform% ..\test 
+  - if %platform%==x86 set plat=Win32
+  - if %platform%==x64 set plat=x64
+  - cmd: cmake -G"Visual Studio 16 2019" -A %plat% ..\test 
   - cmd: cmake --build .  --config %configuration%
   - ctest -C %configuration% -V 
