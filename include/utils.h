@@ -89,7 +89,7 @@ namespace SL::Network {
 	inline StatusCode TranslateError(int errcode)
 	{
 		if (errcode != 0 && errcode != ERROR_IO_PENDING) {
-#if DEBUG
+#if _DEBUG
 			auto err = win32::GetErrorMessage(errcode);
 			printf(err.c_str());
 #endif
@@ -226,11 +226,11 @@ namespace SL::Network {
 		void* shandle;
 	};
 	namespace win32 {
-		class DisconnectExCreator {
-		public:
-			LPFN_DISCONNECTEX DisconnectEx_ = nullptr;
-			DisconnectExCreator() noexcept
-			{
+		extern LPFN_DISCONNECTEX DisconnectEx_ ;
+		extern LPFN_CONNECTEX ConnectEx_;
+		extern LPFN_ACCEPTEX AcceptEx_; 
+		inline void SetupWindowsEvents() {
+			if (!DisconnectEx_) {
 				auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 				GUID disconnectex_guid = WSAID_DISCONNECTEX;
 				DWORD bytes = 0;
@@ -239,13 +239,7 @@ namespace SL::Network {
 				assert(DisconnectEx_ != nullptr);
 				closesocket(temphandle);
 			}
-		};
-
-		class AcceptExCreator {
-		public:
-			LPFN_ACCEPTEX AcceptEx_ = nullptr;
-			AcceptExCreator() noexcept
-			{
+			if (!AcceptEx_) { 
 				auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 				GUID acceptex_guid = WSAID_ACCEPTEX;
 				DWORD bytes = 0;
@@ -254,13 +248,7 @@ namespace SL::Network {
 				assert(AcceptEx_ != nullptr);
 				closesocket(temphandle);
 			}
-		};
-
-		class ConnectExCreator {
-		public:
-			LPFN_CONNECTEX ConnectEx_ = nullptr;
-			ConnectExCreator() noexcept
-			{
+			if (!ConnectEx_) {
 				auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 				GUID guid = WSAID_CONNECTEX;
 				DWORD bytes = 0;
@@ -269,7 +257,8 @@ namespace SL::Network {
 				assert(ConnectEx_ != nullptr);
 				closesocket(temphandle);
 			}
-		};
+		}
+
 		auto inline CreateSocket(const AddressFamily family)
 		{
 			int typ = SOCK_STREAM;
@@ -342,7 +331,7 @@ namespace SL::Network {
 
 	inline void on_operation_completed(overlapped_operation& ioState, int errorCode, size_t numberOfBytesTransferred) noexcept
 	{
-		auto e = TranslateError(errorCode); 
+		auto e = TranslateError(errorCode);
 		ioState.numberOfBytesTransferred = numberOfBytesTransferred;
 		auto originalvalue = ioState.exchangestatus(e);
 		if (originalvalue == StatusCode::SC_PENDINGIO2) {

@@ -1,8 +1,13 @@
 #include "io_service.h"
 
-#if _WIN32
-
 namespace SL::Network {
+#if _WIN32
+	namespace win32 {
+		LPFN_DISCONNECTEX DisconnectEx_ = nullptr;
+		LPFN_CONNECTEX ConnectEx_ = nullptr;
+		LPFN_ACCEPTEX AcceptEx_ = nullptr;
+	}
+#endif
 	io_service::io_service(std::uint32_t concurrencyHint) : KeepGoing(true)
 	{
 #if _WIN32
@@ -14,8 +19,9 @@ namespace SL::Network {
 		if (!IOCPHandle) {
 			THROWEXCEPTION
 		}
-		PendingOps = 0;
+		win32::SetupWindowsEvents();
 #endif
+		PendingOps = 0;
 	}
 
 	io_service::~io_service()
@@ -46,7 +52,7 @@ namespace SL::Network {
 					on_operation_completed(*state, ::WSAGetLastError(), numberOfBytesTransferred);
 				}
 				continue;
-			} 
+			}
 			if (!KeepGoing && PendingOps.load(std::memory_order::memory_order_relaxed) == 0) {
 				PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
 				return;
@@ -55,4 +61,3 @@ namespace SL::Network {
 	}
 } // namespace SL::Network
 
-#endif

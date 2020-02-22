@@ -16,8 +16,7 @@ namespace SL::Network {
 		}
 
 		auto await_ready() noexcept
-		{
-			static win32::ConnectExCreator Connector;
+		{ 
 			if (win32::win32Bind(remoteEndPoint.getFamily(), socket.native_handle()) == SOCKET_ERROR) {
 				socket.close();
 				setstatus(TranslateError());
@@ -36,7 +35,7 @@ namespace SL::Network {
 			}
 
 			DWORD transferedbytes = 0;
-			if (Connector.ConnectEx_(socket.native_handle(), remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), nullptr, 0, &transferedbytes, getOverlappedStruct()) == FALSE) {
+			if (win32::ConnectEx_(socket.native_handle(), remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, getOverlappedStruct()) == FALSE) {
 				auto e = TranslateError();
 				auto originalvalue = trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to the erro

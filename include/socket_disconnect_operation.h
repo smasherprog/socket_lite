@@ -16,10 +16,9 @@ namespace SL::Network {
 		}
 
 		auto await_ready() noexcept
-		{
-			static win32::DisconnectExCreator Disconnector;
+		{ 
 			DWORD bytesSent = 0;  
-			if (Disconnector.DisconnectEx_(socket.native_handle(), getOverlappedStruct(), 0, 0) == FALSE) {
+			if (win32::DisconnectEx_(socket.native_handle(), getOverlappedStruct(), 0, 0) == FALSE) {
 				errorCode = TranslateError();
 				return errorCode != StatusCode::SC_PENDINGIO1;
 			}

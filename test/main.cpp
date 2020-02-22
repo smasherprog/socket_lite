@@ -1,7 +1,7 @@
 
 #define WINVER 0x0601
 #define _WIN32_WINNT 0x0601
-#if DEBUG
+#if _DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
@@ -17,7 +17,7 @@ using namespace std::chrono_literals;
 
 int main()
 {
-#if DEBUG
+#if  _DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 	std::cout << "Starting Network Benchmarks\n";

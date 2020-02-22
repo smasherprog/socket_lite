@@ -16,7 +16,6 @@ namespace SL::Network {
 
 		auto await_ready() noexcept
 		{
-			static win32::AcceptExCreator Acceptor;
 			if (::CreateIoCompletionPort((HANDLE)acceptingSocket.native_handle(), acceptingSocket.get_ioservice().getHandle(), acceptingSocket.native_handle(), 0) == NULL) {
 				acceptingSocket.close();
 				setstatus(TranslateError());
@@ -29,7 +28,7 @@ namespace SL::Network {
 			}
 
 			DWORD transferedbytes = 0;
-			if (Acceptor.AcceptEx_(listeningSocket.native_handle(), acceptingSocket.native_handle(), addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, getOverlappedStruct()) == FALSE) {
+			if (win32::AcceptEx_(listeningSocket.native_handle(), acceptingSocket.native_handle(), addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, getOverlappedStruct()) == FALSE) {
 				auto e = TranslateError();
 				auto originalvalue = trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to the erro
