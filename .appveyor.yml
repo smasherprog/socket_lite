@@ -17,6 +17,6 @@ install:
 
 build_script:
   - cd C:\projects\socket-lite\build\
-  - cmd: cmake -G"set generator=Visual Studio 16 2019" -A %platform% ..\test 
+  - cmd: cmake -G"Visual Studio 16 2019" -A %platform% ..\test 
   - cmd: cmake --build .  --config %configuration%
   - ctest -C %configuration% -V 
