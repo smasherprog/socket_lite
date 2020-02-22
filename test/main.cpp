@@ -36,16 +36,16 @@ int main()
 		});
 
 
-	//myawaitconnectiontest::myconnectiontest();
+	myawaitconnectiontest::myconnectiontest();
+	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	counts = totalusage = 0;
+
+	//mymultithreadedechotest::myechotest();
 	//std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
 	//counts = totalusage = 0;
-
-	mymultithreadedechotest::myechotest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
-	mymultithreadedechotest::myechotest(1024 * 10); // 10k
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
+	//mymultithreadedechotest::myechotest(1024 * 10); // 10k
+	//std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	//counts = totalusage = 0;
 
 	startwatching = false;
 	t.join();
