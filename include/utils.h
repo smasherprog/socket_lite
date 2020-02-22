@@ -89,8 +89,10 @@ namespace SL::Network {
 	inline StatusCode TranslateError(int errcode)
 	{
 		if (errcode != 0 && errcode != ERROR_IO_PENDING) {
+#if DEBUG
 			auto err = win32::GetErrorMessage(errcode);
 			printf(err.c_str());
+#endif
 		}
 		switch (errcode) {
 		case ERROR_SUCCESS:
