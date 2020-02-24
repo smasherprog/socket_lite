@@ -99,19 +99,19 @@ namespace SL::Network {
 		template<class T>static void connect(io_service& context, const SocketAddress& remoteEndPoint, T&& cb) noexcept {
 			auto [statuscode, s] = SL::Network::socket::create(context, remoteEndPoint.getSocketType(), remoteEndPoint.getFamily());
 			if (statuscode != StatusCode::SC_SUCCESS) {
-				return cb(statuscode, s);
+				return cb(statuscode, std::move(s));
 			}
 			auto handle = s.shandle;
 			s.shandle = INVALID_SOCKET;
 			auto& ioservice = s.get_ioservice();
 			if (::CreateIoCompletionPort((HANDLE)handle, ioservice.getHandle(), handle, 0) == NULL) {
-				return cb(TranslateError(), s);
+				return cb(TranslateError(), std::move(s));
 			}
 			if (win32::win32Bind(remoteEndPoint.getFamily(), handle) == SOCKET_ERROR) {
-				return cb(TranslateError(), s);
+				return cb(TranslateError(), std::move(s));
 			}
 			if (SetFileCompletionNotificationModes((HANDLE)handle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
-				return cb(TranslateError(), s);
+				return cb(TranslateError(), std::move(s));
 			}
 			auto overlapped = new overlapped_operation([callback(std::move(cb)), handle = handle, &c(context)](StatusCode status, size_t) {
 				if (status == StatusCode::SC_SUCCESS) {
@@ -119,7 +119,7 @@ namespace SL::Network {
 						status = TranslateError();
 					}
 				}
-				callback(status, socket(handle, c));
+				callback(status, std::move(socket(handle, c)));
 			});
 
 			ioservice.getRefCounter().incOp();

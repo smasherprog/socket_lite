@@ -15,7 +15,7 @@ namespace myawaitconnectiontest {
 	void connect(SL::Network::io_service& context)
 	{
 		if (keepgoing) {
-			SL::Network::socket::connect(context, endpoints.back(), [&context](SL::Network::StatusCode, SL::Network::socket&) {
+			SL::Network::socket::connect(context, endpoints.back(), [&context](SL::Network::StatusCode, SL::Network::socket&&) {
 				connections += 1.0;
 				connect(context);
 				});
