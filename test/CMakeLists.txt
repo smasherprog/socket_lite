@@ -15,8 +15,7 @@ add_executable(${PROJECT_NAME}
 	../include/io_thread_service.h 
 	../include/utils.h 
 
-	../include/socket_accept_operation.h
-	../include/socket_connect_operation.h
+	../include/async_acceptor.h 
 	../include/socket_disconnect_operation.h
 	../include/socket_recv_from_operation.h
 	../include/socket_recv_operation.h

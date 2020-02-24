@@ -1,16 +1,12 @@
 #ifndef SL_NETWORK_SOCKET
 #define SL_NETWORK_SOCKET
 
-#include "socket_accept_operation.h"
-#include "socket_connect_operation.h"
-#include "socket_disconnect_operation.h"
-#include "socket_recv_from_operation.h"
-#include "socket_recv_operation.h"
-#include "socket_send_operation.h"
-#include "socket_send_to_operation.h"
+#include "utils.h"
 #include "io_service.h"
+#include <tuple>
 
 namespace SL::Network {
+	class io_service;
 	class socket {
 	public:
 		static auto create(io_service& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4) {
@@ -34,23 +30,21 @@ namespace SL::Network {
 					return std::tuple(TranslateError(), socket(ioSvc));
 				}
 			}
-			u_long iMode = 1;
-			ioctlsocket(socketHandle, FIONBIO, &iMode);
 			return std::tuple(StatusCode::SC_SUCCESS, std::move(socket(socketHandle, ioSvc)));
 		}
-
 		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)), ioservice(other.ioservice) {}
-		~socket()
-		{
+		~socket() {
 			close();
 		}
-
 		[[nodiscard]] auto local_endpoint() const
 		{
 			sockaddr_storage addr = { 0 };
 			socklen_t len = sizeof(addr);
 			if (::getsockname(shandle, (::sockaddr*) & addr, &len) == 0) {
-				std::tuple(StatusCode::SC_SUCCESS, SocketAddress(&addr, len));
+				int type;
+				int length = sizeof(int);
+				getsockopt(shandle, SOL_SOCKET, SO_TYPE, (char*)&type, &length);
+				std::tuple(StatusCode::SC_SUCCESS, SocketAddress(&addr, len, type == IPPROTO_TCP ? SocketType::TCP : SocketType::UDP));
 			}
 			return std::tuple(TranslateError(), SocketAddress());
 		}
@@ -60,7 +54,10 @@ namespace SL::Network {
 			sockaddr_storage addr = { 0 };
 			socklen_t len = sizeof(addr);
 			if (::getpeername(shandle, (::sockaddr*) & addr, &len) == 0) {
-				std::tuple(StatusCode::SC_SUCCESS, SocketAddress(&addr, len));
+				int type;
+				int length = sizeof(int);
+				getsockopt(shandle, SOL_SOCKET, SO_TYPE, (char*)&type, &length);
+				std::tuple(StatusCode::SC_SUCCESS, SocketAddress(&addr, len, type == IPPROTO_TCP ? SocketType::TCP : SocketType::UDP));
 			}
 			return std::tuple(TranslateError(), SocketAddress());
 		}
@@ -82,14 +79,6 @@ namespace SL::Network {
 			if (::listen(shandle, (int)backlog) != 0) {
 				return TranslateError();
 			}
-			if (::CreateIoCompletionPort((HANDLE)shandle, ioservice.getHandle(), shandle, 0) == NULL) {
-				close();
-				return TranslateError();
-			}
-			if (SetFileCompletionNotificationModes((HANDLE)shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
-				close();
-				return TranslateError();
-			}
 			return StatusCode::SC_SUCCESS;
 		}
 		auto listen() { return listen(SOMAXCONN); }
@@ -100,20 +89,73 @@ namespace SL::Network {
 				shandle = INVALID_SOCKET;
 			}
 		}
-		[[nodiscard]] auto connect(const SocketAddress& remoteEndPoint) noexcept { return socket_connect_operation<socket>(*this, remoteEndPoint); }
-		[[nodiscard]] auto accept(socket& acceptingSocket) noexcept { return socket_accept_operation<socket>(*this, acceptingSocket); }
+		auto onconnectsuccess() {
+			if (::setsockopt(shandle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+				return TranslateError();
+			}
+			return StatusCode::SC_SUCCESS;
+		}
+
+		template<class T>static void connect(io_service& context, const SocketAddress& remoteEndPoint, T&& cb) noexcept {
+			auto [statuscode, s] = SL::Network::socket::create(context, remoteEndPoint.getSocketType(), remoteEndPoint.getFamily());
+			if (statuscode != StatusCode::SC_SUCCESS) {
+				return cb(statuscode, s);
+			}
+			auto handle = s.shandle;
+			s.shandle = INVALID_SOCKET;
+			auto& ioservice = s.get_ioservice();
+			if (::CreateIoCompletionPort((HANDLE)handle, ioservice.getHandle(), handle, 0) == NULL) {
+				return cb(TranslateError(), s);
+			}
+			if (win32::win32Bind(remoteEndPoint.getFamily(), handle) == SOCKET_ERROR) {
+				return cb(TranslateError(), s);
+			}
+			if (SetFileCompletionNotificationModes((HANDLE)handle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
+				return cb(TranslateError(), s);
+			}
+			auto overlapped = new overlapped_operation([callback(std::move(cb)), handle = handle, &c(context)](StatusCode status, size_t) {
+				if (status == StatusCode::SC_SUCCESS) {
+					if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+						status = TranslateError();
+					}
+				}
+				callback(status, socket(handle, c));
+			});
+
+			ioservice.getRefCounter().incOp();
+			DWORD transferedbytes = 0;
+			if (win32::ConnectEx_(handle, remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
+				auto e = TranslateError();
+				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
+				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
+					if (e != StatusCode::SC_PENDINGIO) {
+						ioservice.getRefCounter().decOp();
+						overlapped->awaitingCoroutine(e, 0);
+						delete overlapped;
+					}
+				}
+				////otherwise, the op is pending and ioservice will handle this
+			}
+			else {
+				ioservice.getRefCounter().decOp();
+				overlapped->awaitingCoroutine(StatusCode::SC_SUCCESS, 0);
+				delete overlapped;
+			}
+		}
+
+		/*
 		[[nodiscard]] auto disconnect() noexcept { return socket_disconnect_operation<socket>(*this); }
 		[[nodiscard]] auto send(std::byte* buffer, std::size_t size) noexcept { return socket_send_operation<socket>(*this, buffer, size); }
 		[[nodiscard]] auto recv(std::byte* buffer, std::size_t size) noexcept { return socket_recv_operation<socket>(*this, buffer, size); }
 		[[nodiscard]] auto recv_from(std::byte* buffer, std::size_t size) noexcept { return socket_recv_from_operation<socket>(*this, buffer, size); }
-		[[nodiscard]] auto send_to(const SocketAddress& destination, std::byte* buffer, std::size_t size) noexcept { return socket_send_to_operation<socket>(*this, destination, buffer, size); }
+		[[nodiscard]] auto send_to(const SocketAddress& destination, std::byte* buffer, std::size_t size) noexcept { return socket_send_to_operation<socket>(*this, destination, buffer, size); }*/
 
 		SOCKET native_handle() const { return shandle; }
 		io_service& get_ioservice() const { return ioservice; }
 
+		explicit socket(SOCKET handle, io_service& ioSvc) noexcept : shandle(handle), ioservice(ioSvc) {}
 	private:
 #if _WIN32
-		explicit socket(SOCKET handle, io_service& ioSvc) noexcept : shandle(handle), ioservice(ioSvc) {}
 		explicit socket(io_service& ioSvc) noexcept : shandle(INVALID_SOCKET), ioservice(ioSvc) {}
 		SOCKET shandle;
 		io_service& ioservice;

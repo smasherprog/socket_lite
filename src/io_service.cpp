@@ -6,6 +6,7 @@ namespace SL::Network {
 		LPFN_DISCONNECTEX DisconnectEx_ = nullptr;
 		LPFN_CONNECTEX ConnectEx_ = nullptr;
 		LPFN_ACCEPTEX AcceptEx_ = nullptr;
+		std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2] = { 0 };
 	}
 #endif
 	io_service::io_service(std::uint32_t concurrencyHint) : KeepGoing(true)
@@ -20,8 +21,7 @@ namespace SL::Network {
 			assert(false);
 		}
 		win32::SetupWindowsEvents();
-#endif
-		PendingOps = 0;
+#endif 
 	}
 
 	io_service::~io_service()
@@ -45,15 +45,18 @@ namespace SL::Network {
 			auto bSuccess = ::GetQueuedCompletionStatus(IOCPHandle.handle(), &numberOfBytesTransferred, &completionKey, &overlapped, INFINITE) == TRUE && KeepGoing;
 			if (overlapped != nullptr) {
 				auto state = reinterpret_cast<overlapped_operation*>(overlapped);
-				if (bSuccess) {
-					on_operation_completed(*state, ERROR_SUCCESS, numberOfBytesTransferred);
-				}
-				else {
-					on_operation_completed(*state, ::WSAGetLastError(), numberOfBytesTransferred);
+				auto status = bSuccess ? ERROR_SUCCESS : ::WSAGetLastError();
+				auto e = TranslateError(status);
+				auto originalvalue = state->exchangestatus(e);
+				if (originalvalue == StatusCode::SC_PENDINGIO || originalvalue == StatusCode::SC_UNSET) {
+					//safe to call the callback since the value was in a safe state 
+					state->awaitingCoroutine(e, numberOfBytesTransferred);
+					delete state;
+					refcounter.decOp();
 				}
 				continue;
 			}
-			if (!KeepGoing && PendingOps.load(std::memory_order::memory_order_relaxed) == 0) {
+			if (!KeepGoing && refcounter.getOpCount() == 0) {
 				PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
 				return;
 			}

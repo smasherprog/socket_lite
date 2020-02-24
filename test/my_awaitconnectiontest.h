@@ -12,26 +12,16 @@ namespace myawaitconnectiontest {
 	bool keepgoing = true;
 	std::vector<SL::Network::SocketAddress> endpoints;
 
-	std::future<void> connect(SL::Network::io_service& context)
+	void connect(SL::Network::io_service& context)
 	{
-		while (keepgoing) {
-			auto [statuscode, socket] = SL::Network::socket::create(context);
-			if (statuscode == SL::Network::StatusCode::SC_SUCCESS) {
-				auto status  = co_await socket.connect(endpoints.back());
+		if (keepgoing) {
+			SL::Network::socket::connect(context, endpoints.back(), [&context](SL::Network::StatusCode, SL::Network::socket&) {
 				connections += 1.0;
-			}
+				connect(context);
+				});
 		}
 	}
 
-	std::future<void> accept(SL::Network::socket& acceptsocket, SL::Network::io_service& context)
-	{
-		while (keepgoing) {
-			auto [statuscode, socket] = SL::Network::socket::create(context);
-			if (statuscode == SL::Network::StatusCode::SC_SUCCESS) {
-				co_await acceptsocket.accept(socket);
-			}
-		}
-	}
 	void myconnectiontest()
 	{
 		SL::Network::io_thread_service context(4);
@@ -41,14 +31,13 @@ namespace myawaitconnectiontest {
 
 		endpoints = SL::Network::getaddrinfo("127.0.0.1", porttouse);
 		auto acceptsocket(myechomodels::Create_and_Bind_Listen_Socket(nullptr, porttouse, SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4, context.getio_service()));
-		auto t1(std::thread([&]() { accept(acceptsocket.value(), context.getio_service()).wait(); }));
-		auto t2(std::thread([&]() { connect(context.getio_service()).wait(); }));
 
+		auto t2(std::thread([&]() { connect(context.getio_service()); }));
+		SL::Network::async_acceptor acceptor(acceptsocket.value(), [](const SL::Network::socket&) {});
 		std::this_thread::sleep_for(10s); // sleep for 10 seconds
 		keepgoing = false;
+		acceptor.stop();
 		std::cout << "My Await Connections per Second " << connections / 10 << std::endl;
-		acceptsocket.value().close();
-		t1.join();
 		t2.join();
 
 	}

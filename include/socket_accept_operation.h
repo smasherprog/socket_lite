@@ -8,8 +8,8 @@ namespace SL::Network {
 	public:
 		socket_accept_operation(SOCKETTYPE& listeningSocket, SOCKETTYPE& acceptingSocket) noexcept : listeningSocket(listeningSocket), acceptingSocket(acceptingSocket) {
 			listeningSocket.get_ioservice().incOp();
-		}	
-		socket_accept_operation(socket_accept_operation&& other) noexcept : listeningSocket(other.listeningSocket), acceptingSocket(other.acceptingSocket){}
+		}
+		socket_accept_operation(socket_accept_operation&& other) noexcept : listeningSocket(other.listeningSocket), acceptingSocket(other.acceptingSocket) {}
 		~socket_accept_operation() {
 			listeningSocket.get_ioservice().decOp();
 		}
@@ -59,6 +59,11 @@ namespace SL::Network {
 		SOCKETTYPE& acceptingSocket;
 		std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
 	};
+
+	inline void socket_accept() {
+
+	}
+
 } // namespace SL::Network
 
 #endif

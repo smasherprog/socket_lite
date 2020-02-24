@@ -2,40 +2,34 @@
 #define SL_NETWORK_SOCKET_CONNECT_OP
 
 #include "utils.h"
+#include "io_service.h"
 
 namespace SL::Network {
 
-	template<class SOCKETTYPE> class socket_connect_operation : public overlapped_operation {
+	class socket_connect_operation : public overlapped_operation {
 	public:
-		socket_connect_operation(SOCKETTYPE& socket, const SocketAddress& remoteEndPoint) noexcept : socket(socket), remoteEndPoint(remoteEndPoint) {
-			socket.get_ioservice().incOp();
+		socket_connect_operation(SOCKET socket, refcounter& refcounter, const SocketAddress& remoteEndPoint) noexcept : socket(socket), remoteEndPoint(remoteEndPoint), refcounter(refcounter) {
+			refcounter.incOp();
 		}
-		socket_connect_operation(socket_connect_operation&& other) noexcept : socket(other.socket), remoteEndPoint(other.remoteEndPoint) {}
+		socket_connect_operation(socket_connect_operation&& other) noexcept : socket(other.socket), remoteEndPoint(other.remoteEndPoint), refcounter(other.refcounter) {}
 		~socket_connect_operation() {
-			socket.get_ioservice().decOp();
+			refcounter.decOp();
 		}
 
 		auto await_ready() noexcept
-		{ 
-			if (win32::win32Bind(remoteEndPoint.getFamily(), socket.native_handle()) == SOCKET_ERROR) {
-				socket.close();
+		{
+			if (win32::win32Bind(remoteEndPoint.getFamily(), socket) == SOCKET_ERROR) {
 				setstatus(TranslateError());
 				return true;
 			}
 
-			if (::CreateIoCompletionPort((HANDLE)socket.native_handle(), socket.get_ioservice().getHandle(), socket.native_handle(), 0) == NULL) {
-				socket.close();
-				setstatus(TranslateError());
-				return true;
-			}
-			if (SetFileCompletionNotificationModes((HANDLE)socket.native_handle(), FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
-				socket.close();
+			if (SetFileCompletionNotificationModes((HANDLE)socket, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
 				setstatus(TranslateError());
 				return true;
 			}
 
 			DWORD transferedbytes = 0;
-			if (win32::ConnectEx_(socket.native_handle(), remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, getOverlappedStruct()) == FALSE) {
+			if (win32::ConnectEx_(socket, remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, getOverlappedStruct()) == FALSE) {
 				auto e = TranslateError();
 				auto originalvalue = trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to the erro
@@ -51,16 +45,27 @@ namespace SL::Network {
 				return status;
 			}
 
-			if (::setsockopt(socket.native_handle(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+			if (::setsockopt(socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
 				status = TranslateError();
 			}
 			return status;
 		}
 
 	private:
-		SOCKETTYPE& socket;
+		SOCKET socket;
+		refcounter& refcounter;
 		const SocketAddress& remoteEndPoint;
 	};
+
+	template<class T> inline void socket_connect(socket& socket, const SocketAddress& remoteEndPoint, T& cb) {
+
+
+
+
+
+
+
+	}
 }
 #endif
 

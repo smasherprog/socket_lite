@@ -7,8 +7,7 @@
 #include <crtdbg.h>
 #endif
 #include "cpumem_monitor.h" 
-#include "my_awaitconnectiontest.h"
-#include "my_multithreadedecho.h"
+#include "my_awaitconnectiontest.h" 
 #include <chrono>
 #include <iomanip>
 #include <iostream>

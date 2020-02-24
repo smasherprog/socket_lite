@@ -18,6 +18,7 @@
 #include <vector>
 #include <compare>
 #include <variant>
+#include <functional>
 
 #if _WIN32 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -76,7 +77,7 @@ namespace SL::Network::win32 {
 
 namespace SL::Network {
 
-	enum class [[nodiscard]] StatusCode{ SC_UNSET, SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_NOTSUPPORTED, SC_PENDINGIO1, SC_PENDINGIO2 };
+	enum class [[nodiscard]] StatusCode{ SC_UNSET, SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_NOTSUPPORTED, SC_PENDINGIO };
 
 #if _WIN32
 
@@ -99,7 +100,7 @@ namespace SL::Network {
 		case WSAEWOULDBLOCK:
 			return StatusCode::SC_EWOULDBLOCK;
 		case ERROR_IO_PENDING:
-			return StatusCode::SC_PENDINGIO1;
+			return StatusCode::SC_PENDINGIO;
 		default:
 			return StatusCode::SC_CLOSED;
 		};
@@ -127,30 +128,30 @@ namespace SL::Network {
 	class SocketAddress {
 		::sockaddr_storage Storage;
 		int Length;
-
+		SocketType socktype;
 	public:
-		SocketAddress() : Storage{ 0 }, Length(0){}
-		SocketAddress(SocketAddress&& addr) noexcept : Length(addr.Length)
+		SocketAddress() : Storage{ 0 }, Length(0), socktype(SocketType::TCP){}
+		SocketAddress(SocketAddress&& addr) noexcept : Length(addr.Length), socktype(addr.socktype)
 		{
 			memcpy(&Storage, &addr.Storage, addr.Length);
 			addr.Length = 0;
 		}
-		SocketAddress(const SocketAddress& addr) noexcept : Length(addr.Length) { memcpy(&Storage, &addr.Storage, addr.Length); }
-		SocketAddress(::sockaddr* buffer, socklen_t len) : Length(static_cast<int>(len))
+		SocketAddress(const SocketAddress& addr) noexcept : Length(addr.Length), socktype(addr.socktype) { memcpy(&Storage, &addr.Storage, addr.Length); }
+		SocketAddress(::sockaddr* buffer, socklen_t len, SocketType socktype) noexcept : Length(static_cast<int>(len)), socktype(socktype)
 		{
 			assert(len < sizeof(Storage));
 			memcpy(&Storage, buffer, len);
 
 		}
-		SocketAddress(::sockaddr_storage* buffer, socklen_t len) noexcept
+		SocketAddress(::sockaddr_storage* buffer, socklen_t len, SocketType socktype) noexcept : Length(static_cast<int>(len)), socktype(socktype)
 		{
 			assert(len < sizeof(Storage));
 			memcpy(&Storage, buffer, len);
-			Length = static_cast<int>(len);
 		}
 
 		[[nodiscard]] const sockaddr* getSocketAddr() const noexcept { return reinterpret_cast<const ::sockaddr*>(&Storage); }
 		[[nodiscard]] int getSocketAddrLen() const noexcept { return Length; }
+		[[nodiscard]] SocketType getSocketType() const noexcept { return socktype; }
 		[[nodiscard]] std::string getHost() const noexcept
 		{
 			char str[INET_ADDRSTRLEN] = {};
@@ -173,7 +174,7 @@ namespace SL::Network {
 		::addrinfo* result(nullptr);
 		memset(&hints, 0, sizeof(addrinfo));
 		hints.ai_family = family;
-		hints.ai_socktype = sockettype; 
+		hints.ai_socktype = sockettype;
 		hints.ai_protocol = sockettype == SocketType::TCP ? IPPROTO_TCP : IPPROTO_UDP;
 		hints.ai_flags = AI_PASSIVE; /* All interfaces */
 		std::vector<SocketAddress> addrs;
@@ -183,7 +184,7 @@ namespace SL::Network {
 			return addrs;
 		}
 		for (auto ptr = result; ptr != NULL; ptr = ptr->ai_next) {
-			addrs.emplace_back(SocketAddress(ptr->ai_addr, static_cast<socklen_t>(ptr->ai_addrlen)));
+			addrs.emplace_back(SocketAddress(ptr->ai_addr, static_cast<socklen_t>(ptr->ai_addrlen), sockettype));
 		}
 		freeaddrinfo(result);
 		return addrs;
@@ -219,10 +220,19 @@ namespace SL::Network {
 	private:
 		void* shandle;
 	};
+	class refcounter {
+		std::atomic<size_t> PendingOps;
+	public:
+		refcounter() { PendingOps = 0; }
+		size_t getOpCount() const { return PendingOps.load(std::memory_order::memory_order_relaxed); }
+		size_t incOp() { return PendingOps.fetch_add(1, std::memory_order::memory_order_relaxed); }
+		size_t decOp() { return PendingOps.fetch_sub(1, std::memory_order::memory_order_relaxed); }
+	};
 	namespace win32 {
-		extern LPFN_DISCONNECTEX DisconnectEx_ ;
+		extern LPFN_DISCONNECTEX DisconnectEx_;
 		extern LPFN_CONNECTEX ConnectEx_;
-		extern LPFN_ACCEPTEX AcceptEx_; 
+		extern LPFN_ACCEPTEX AcceptEx_;
+		extern std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
 		inline void SetupWindowsEvents() {
 			if (!DisconnectEx_) {
 				auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
@@ -233,7 +243,7 @@ namespace SL::Network {
 				assert(DisconnectEx_ != nullptr);
 				closesocket(temphandle);
 			}
-			if (!AcceptEx_) { 
+			if (!AcceptEx_) {
 				auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
 				GUID acceptex_guid = WSAID_ACCEPTEX;
 				DWORD bytes = 0;
@@ -275,20 +285,8 @@ namespace SL::Network {
 	private:
 		std::atomic<StatusCode> errorCode;
 	public:
-		overlapped_operation() : WSAOVERLAPPED({ 0 }) {
+		overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : awaitingCoroutine(std::move(coro)), WSAOVERLAPPED({ 0 }) {
 			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
-			numberOfBytesTransferred = 0;
-			awaitingCoroutine = nullptr;
-		}
-		auto await_suspend(std::experimental::coroutine_handle<> coro)
-		{
-			awaitingCoroutine = coro;
-			auto originalvalue = trysetstatus(StatusCode::SC_PENDINGIO2, StatusCode::SC_PENDINGIO1);
-			if (originalvalue == StatusCode::SC_PENDINGIO1) {///successfully change from pending01 to pending02
-				return true;
-			}
-			//otherwise, the ioservice changed the status to some other value and the corouting should resume here and will not be resumved in the ioservice
-			return false;
 		}
 		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
 			auto originalexpected = expected;
@@ -305,22 +303,9 @@ namespace SL::Network {
 			return errorCode.exchange(code, std::memory_order::memory_order_relaxed);
 		}
 
-		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); }
-
-		size_t numberOfBytesTransferred;
-		std::experimental::coroutine_handle<> awaitingCoroutine;
+		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); } 
+		std::function<void(StatusCode, size_t)> awaitingCoroutine;
 	};
-
-	inline void on_operation_completed(overlapped_operation& ioState, int errorCode, size_t numberOfBytesTransferred) noexcept
-	{
-		auto e = TranslateError(errorCode);
-		ioState.numberOfBytesTransferred = numberOfBytesTransferred;
-		auto originalvalue = ioState.exchangestatus(e);
-		if (originalvalue == StatusCode::SC_PENDINGIO2) {
-			//safe to call the coroutine since the value was in a safe state
-			ioState.awaitingCoroutine.resume();
-		}
-	}
 
 #endif
 } // namespace SL::Network

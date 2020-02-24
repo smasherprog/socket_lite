@@ -28,6 +28,10 @@ namespace SL::Network {
 					return e != StatusCode::SC_PENDINGIO1;
 				}
 			}
+			else {
+				numberOfBytesTransferred = transferedbytes;
+				setstatus(StatusCode::SC_SUCCESS);
+			}
 
 			return true;
 		}

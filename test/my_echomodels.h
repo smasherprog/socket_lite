@@ -16,23 +16,23 @@ namespace myechomodels {
 	auto writeechos = 0.0;
 	bool keepgoing = true;
 
-	class asioserver {
-	public:
-		SL::Network::socket listensocket;
+	//class asioserver {
+	//public:
+	//	SL::Network::socket listensocket;
 
-		asioserver(SL::Network::socket& lsocket) : listensocket(std::move(lsocket)) {} 
-		std::future<void> do_accept()
-		{
-			while (keepgoing) {
-				auto [statuscode, socket] = SL::Network::socket::create(listensocket.get_ioservice());
-				if (statuscode == SL::Network::StatusCode::SC_SUCCESS) {
-					co_await listensocket.accept(socket);
-					co_await socket.send(writeechob.data(), writeechob.size());
-					co_await socket.recv(readechob.data(), readechob.size());
-				}
-			}
-		}
-	};
+	//	asioserver(SL::Network::socket& lsocket) : listensocket(std::move(lsocket)) {}
+	//	std::future<void> do_accept()
+	//	{
+	//		while (keepgoing) {
+	//			auto [statuscode, socket] = SL::Network::socket::create(listensocket.get_ioservice());
+	//			if (statuscode == SL::Network::StatusCode::SC_SUCCESS) {
+	//				auto status = co_await listensocket.accept(socket);
+	//				auto [s, bytes] = co_await socket.send(writeechob.data(), writeechob.size());
+	//				auto [s1, bytes1] = co_await socket.recv(readechob.data(), readechob.size());
+	//			}
+	//		}
+	//	}
+	//};
 
 	std::optional<SL::Network::socket> Create_and_Bind_Listen_Socket(const char* nodename, unsigned short port, SL::Network::SocketType sockt, SL::Network::AddressFamily family, SL::Network::io_service& context)
 	{
@@ -47,9 +47,7 @@ namespace myechomodels {
 		}
 		return std::nullopt;
 	}
-
-
-
+	 /*
 	class awaitclient {
 		SL::Network::io_service& context_;
 	public:
@@ -65,12 +63,12 @@ namespace myechomodels {
 				auto connectstatus = co_await socket.connect(addrs.back());
 				if (connectstatus == SL::Network::StatusCode::SC_SUCCESS) {
 					while (keepgoing) {
-						co_await socket.recv(readechob.data(), readechob.size());
-						co_await socket.send(writeechob.data(), writeechob.size());
+						auto [s, bytes] = co_await socket.send(readechob.data(), readechob.size());
+						auto [s1, bytes1] = co_await socket.recv(writeechob.data(), writeechob.size());
 						writeechos += 1.0;
 					}
 				}
 			}
 		}
-	};
+	};*/
 } // namespace myechomodels
