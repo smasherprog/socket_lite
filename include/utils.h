@@ -76,7 +76,7 @@ namespace SL::Network::win32 {
 };
 
 namespace SL::Network {
-
+	class socket;
 	enum class [[nodiscard]] StatusCode{ SC_UNSET, SC_CLOSED, SC_SUCCESS, SC_EAGAIN, SC_EWOULDBLOCK, SC_EBADF, SC_ECONNRESET, SC_EINTR, SC_EINVAL, SC_ENOTCONN, SC_ENOTSOCK, SC_EOPNOTSUPP, SC_ETIMEDOUT, SC_NOTSUPPORTED, SC_PENDINGIO };
 
 #if _WIN32
@@ -285,7 +285,7 @@ namespace SL::Network {
 	private:
 		std::atomic<StatusCode> errorCode;
 	public:
-		overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : awaitingCoroutine(std::move(coro)), WSAOVERLAPPED({ 0 }) {
+		overlapped_operation() : WSAOVERLAPPED({ 0 }) {
 			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
 		}
 		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
@@ -303,8 +303,19 @@ namespace SL::Network {
 			return errorCode.exchange(code, std::memory_order::memory_order_relaxed);
 		}
 
-		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); } 
+		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); }
+	};
+	class rw_overlapped_operation : public overlapped_operation {
+	public:
+		rw_overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : awaitingCoroutine(coro) {}
 		std::function<void(StatusCode, size_t)> awaitingCoroutine;
+	};
+
+	class connect_overlapped_operation : public overlapped_operation {
+	public:
+		connect_overlapped_operation(SOCKET s, std::function<void(StatusCode, SL::Network::socket&&)>&& coro) : awaitingCoroutine(coro), socket(s) {}
+		std::function<void(StatusCode, SL::Network::socket&&)> awaitingCoroutine;
+		SOCKET socket;
 	};
 
 #endif

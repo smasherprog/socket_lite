@@ -18,7 +18,7 @@ namespace SL::Network {
 		std::mutex mutex;
 
 	public:
-		async_acceptor(socket& s, const SOCKETHANDLERTYPE& callback, std::uint32_t num_threads = 4) :
+		async_acceptor(socket& s, const SOCKETHANDLERTYPE& callback, std::uint32_t num_threads = 1) :
 			Context_(s.get_ioservice()),
 			AcceptorSocket(std::move(s)),
 			Handler(callback) {
@@ -31,6 +31,12 @@ namespace SL::Network {
 					while (Keepgoing) {
 #if _WIN32
 						auto handle = INVALID_SOCKET;
+						if (num_threads == 1) 
+						{ 
+							if (!Keepgoing) break;
+							handle = ::accept(AcceptorSocket.native_handle(), NULL, NULL);
+						}
+						else
 						{
 							std::lock_guard<std::mutex> lk(mutex);
 							if (!Keepgoing) break;
@@ -54,18 +60,18 @@ namespace SL::Network {
 								if (epoll_ctl(ContextImpl_.getIOHandle(), EPOLL_CTL_ADD, handle.value, &ev) == 0) {
 									Handler(std::move(s));
 								}
-							}
 						}
+					}
 #endif
 					}
 					runningcount -= 1;
-					}));
-			}
+			}));
 		}
+	}
 
 		~async_acceptor() {
 			stop();
-		}
+}
 		void stop() {
 			Keepgoing = false;
 #if _WIN32

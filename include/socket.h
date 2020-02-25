@@ -33,9 +33,7 @@ namespace SL::Network {
 			return std::tuple(StatusCode::SC_SUCCESS, std::move(socket(socketHandle, ioSvc)));
 		}
 		socket(socket&& other) noexcept : shandle(std::exchange(other.shandle, INVALID_SOCKET)), ioservice(other.ioservice) {}
-		~socket() {
-			close();
-		}
+		~socket() { close(); }
 		[[nodiscard]] auto local_endpoint() const
 		{
 			sockaddr_storage addr = { 0 };
@@ -89,12 +87,6 @@ namespace SL::Network {
 				shandle = INVALID_SOCKET;
 			}
 		}
-		auto onconnectsuccess() {
-			if (::setsockopt(shandle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
-				return TranslateError();
-			}
-			return StatusCode::SC_SUCCESS;
-		}
 
 		template<class T>static void connect(io_service& context, const SocketAddress& remoteEndPoint, T&& cb) noexcept {
 			auto [statuscode, s] = SL::Network::socket::create(context, remoteEndPoint.getSocketType(), remoteEndPoint.getFamily());
@@ -102,7 +94,6 @@ namespace SL::Network {
 				return cb(statuscode, std::move(s));
 			}
 			auto handle = s.shandle;
-			s.shandle = INVALID_SOCKET;
 			auto& ioservice = s.get_ioservice();
 			if (::CreateIoCompletionPort((HANDLE)handle, ioservice.getHandle(), handle, 0) == NULL) {
 				return cb(TranslateError(), std::move(s));
@@ -113,32 +104,36 @@ namespace SL::Network {
 			if (SetFileCompletionNotificationModes((HANDLE)handle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
 				return cb(TranslateError(), std::move(s));
 			}
-			auto overlapped = new overlapped_operation([callback(std::move(cb)), handle = handle, &c(context)](StatusCode status, size_t) {
-				if (status == StatusCode::SC_SUCCESS) {
-					if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
-						status = TranslateError();
-					}
-				}
-				callback(status, std::move(socket(handle, c)));
-			});
-
+			auto overlapped = new connect_overlapped_operation(handle, cb);
 			ioservice.getRefCounter().incOp();
 			DWORD transferedbytes = 0;
+			s.shandle = INVALID_SOCKET;
 			if (win32::ConnectEx_(handle, remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
 				auto e = TranslateError();
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
+						if (e == StatusCode::SC_SUCCESS) {
+							if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+								e = TranslateError();
+							}
+						}
 						ioservice.getRefCounter().decOp();
-						overlapped->awaitingCoroutine(e, 0);
+						s.shandle = handle;
+						overlapped->awaitingCoroutine(e, std::move(s));
 						delete overlapped;
 					}
 				}
 				////otherwise, the op is pending and ioservice will handle this
 			}
-			else {
+			else { 
+				auto e = StatusCode::SC_SUCCESS;
+				if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+					e = TranslateError();
+				}
 				ioservice.getRefCounter().decOp();
-				overlapped->awaitingCoroutine(StatusCode::SC_SUCCESS, 0);
+				s.shandle = handle;
+				overlapped->awaitingCoroutine(e, std::move(s));
 				delete overlapped;
 			}
 		}

@@ -1,4 +1,5 @@
 #include "io_service.h"
+#include "socket.h"
 
 namespace SL::Network {
 #if _WIN32
@@ -49,9 +50,18 @@ namespace SL::Network {
 				auto e = TranslateError(status);
 				auto originalvalue = state->exchangestatus(e);
 				if (originalvalue == StatusCode::SC_PENDINGIO || originalvalue == StatusCode::SC_UNSET) {
-					//safe to call the callback since the value was in a safe state 
-					state->awaitingCoroutine(e, numberOfBytesTransferred);
-					delete state;
+					if (numberOfBytesTransferred == 0) {
+						auto connectstate = reinterpret_cast<connect_overlapped_operation*>(overlapped);
+						;
+						connectstate->awaitingCoroutine(e, SL::Network::socket(connectstate->socket, *this));
+						delete connectstate;
+					}
+					else {
+						//safe to call the callback since the value was in a safe state 
+						auto rwstate = reinterpret_cast<rw_overlapped_operation*>(overlapped);
+						rwstate->awaitingCoroutine(e, numberOfBytesTransferred);
+						delete rwstate;
+					}
 					refcounter.decOp();
 				}
 				continue;

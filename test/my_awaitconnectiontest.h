@@ -33,7 +33,7 @@ namespace myawaitconnectiontest {
 		auto acceptsocket(myechomodels::Create_and_Bind_Listen_Socket(nullptr, porttouse, SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4, context.getio_service()));
 
 		auto t2(std::thread([&]() { connect(context.getio_service()); }));
-		SL::Network::async_acceptor acceptor(acceptsocket.value(), [](const SL::Network::socket&) {});
+		SL::Network::async_acceptor acceptor(acceptsocket.value(), [](SL::Network::socket&&) {});
 		std::this_thread::sleep_for(10s); // sleep for 10 seconds
 		keepgoing = false;
 		acceptor.stop();
