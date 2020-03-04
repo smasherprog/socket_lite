@@ -136,6 +136,14 @@ namespace SL::Network {
 			memcpy(&Storage, &addr.Storage, addr.Length);
 			addr.Length = 0;
 		}
+		SocketAddress& operator=(const SocketAddress& other)
+		{
+			if (this != &other) {
+				memcpy(&Storage, &other.Storage, other.Length);
+				Length = other.Length;
+			}
+			return *this;
+		}
 		SocketAddress(const SocketAddress& addr) noexcept : Length(addr.Length), socktype(addr.socktype) { memcpy(&Storage, &addr.Storage, addr.Length); }
 		SocketAddress(::sockaddr* buffer, socklen_t len, SocketType socktype) noexcept : Length(static_cast<int>(len)), socktype(socktype)
 		{
@@ -148,7 +156,6 @@ namespace SL::Network {
 			assert(len < sizeof(Storage));
 			memcpy(&Storage, buffer, len);
 		}
-
 		[[nodiscard]] const sockaddr* getSocketAddr() const noexcept { return reinterpret_cast<const ::sockaddr*>(&Storage); }
 		[[nodiscard]] int getSocketAddrLen() const noexcept { return Length; }
 		[[nodiscard]] SocketType getSocketType() const noexcept { return socktype; }
@@ -280,12 +287,13 @@ namespace SL::Network {
 			}
 		}
 	} // namespace win32
-
+	enum class OP_Type : unsigned char { Connect, RW, RF, ST, Disconnect };
 	class overlapped_operation : public WSAOVERLAPPED {
 	private:
 		std::atomic<StatusCode> errorCode;
 	public:
-		overlapped_operation() : WSAOVERLAPPED({ 0 }) {
+		OP_Type OpType;
+		overlapped_operation(OP_Type o) :OpType(o), WSAOVERLAPPED({ 0 }) {
 			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
 		}
 		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
@@ -307,17 +315,38 @@ namespace SL::Network {
 	};
 	class rw_overlapped_operation : public overlapped_operation {
 	public:
-		rw_overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : awaitingCoroutine(coro) {}
+		rw_overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : overlapped_operation(OP_Type::RW), awaitingCoroutine(coro), wsabuf({ 0 }) {}
 		std::function<void(StatusCode, size_t)> awaitingCoroutine;
+		WSABUF wsabuf;
 	};
-
+	class rf_overlapped_operation : public overlapped_operation {
+	public:
+		rf_overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : overlapped_operation(OP_Type::RF), awaitingCoroutine(coro), wsabuf({ 0 }), socklen(0), storage({ 0 }) {}
+		std::function<void(StatusCode, size_t)> awaitingCoroutine;
+		WSABUF wsabuf;
+		DWORD socklen;
+		::sockaddr_storage storage;
+	};
+	class st_overlapped_operation : public overlapped_operation {
+	public:
+		st_overlapped_operation(std::function<void(StatusCode, size_t)>&& coro) : overlapped_operation(OP_Type::ST), awaitingCoroutine(coro), wsabuf({ 0 }) {}
+		std::function<void(StatusCode, size_t)> awaitingCoroutine;
+		WSABUF wsabuf;
+		SocketAddress remoteEndPoint;
+	};
 	class connect_overlapped_operation : public overlapped_operation {
 	public:
-		connect_overlapped_operation(SOCKET s, std::function<void(StatusCode, SL::Network::socket&&)>&& coro) : awaitingCoroutine(coro), socket(s) {}
+		connect_overlapped_operation(SOCKET s, std::function<void(StatusCode, SL::Network::socket&&)>&& coro) : overlapped_operation(OP_Type::Connect), awaitingCoroutine(coro), socket(s) {}
 		std::function<void(StatusCode, SL::Network::socket&&)> awaitingCoroutine;
 		SOCKET socket;
 	};
 
+	class disconnect_overlapped_operation : public overlapped_operation {
+	public:
+		disconnect_overlapped_operation(SOCKET s, std::function<void(StatusCode)>&& coro) : overlapped_operation(OP_Type::Disconnect), awaitingCoroutine(coro), socket(s) {}
+		std::function<void(StatusCode)> awaitingCoroutine;
+		SOCKET socket;
+	};
 #endif
 } // namespace SL::Network
 #endif

@@ -19,7 +19,7 @@ namespace SL::Network {
 
 	public:
 		async_acceptor(socket& s, const SOCKETHANDLERTYPE& callback, std::uint32_t num_threads = 1) :
-			Context_(s.get_ioservice()),
+			Context_(s.ioservice),
 			AcceptorSocket(std::move(s)),
 			Handler(callback) {
 			runningcount = 0;

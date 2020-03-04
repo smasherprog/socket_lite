@@ -50,18 +50,46 @@ namespace SL::Network {
 				auto e = TranslateError(status);
 				auto originalvalue = state->exchangestatus(e);
 				if (originalvalue == StatusCode::SC_PENDINGIO || originalvalue == StatusCode::SC_UNSET) {
-					if (numberOfBytesTransferred == 0) {
+					switch (state->OpType) {
+					case OP_Type::Connect:
+					{
 						auto connectstate = reinterpret_cast<connect_overlapped_operation*>(overlapped);
-						;
 						connectstate->awaitingCoroutine(e, SL::Network::socket(connectstate->socket, *this));
 						delete connectstate;
 					}
-					else {
-						//safe to call the callback since the value was in a safe state 
+					break;
+					case OP_Type::RW:
+					{
 						auto rwstate = reinterpret_cast<rw_overlapped_operation*>(overlapped);
 						rwstate->awaitingCoroutine(e, numberOfBytesTransferred);
 						delete rwstate;
 					}
+					break;
+					case OP_Type::RF:
+					{
+						auto rwstate = reinterpret_cast<rf_overlapped_operation*>(overlapped);
+						rwstate->awaitingCoroutine(e, numberOfBytesTransferred);
+						delete rwstate;
+					}
+					break;
+					case OP_Type::ST:
+					{
+						auto rwstate = reinterpret_cast<st_overlapped_operation*>(overlapped);
+						rwstate->awaitingCoroutine(e, numberOfBytesTransferred);
+						delete rwstate;
+					}
+					break;
+					case OP_Type::Disconnect:
+					{
+						auto dconnectstate = reinterpret_cast<disconnect_overlapped_operation*>(overlapped);
+						dconnectstate->awaitingCoroutine(e);
+						delete dconnectstate;
+					}
+					break;
+					default:
+						break;
+					}
+
 					refcounter.decOp();
 				}
 				continue;
