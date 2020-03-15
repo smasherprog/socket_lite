@@ -4,23 +4,23 @@
 #include "io_service.h"
 
 namespace SL::Network {
-	class io_thread_service {
+	template<typename IOEVENTS>class io_thread_service {
 	public:
-
-		io_thread_service(std::uint32_t num_threads = std::thread::hardware_concurrency()) : ioservice(num_threads) {
+		io_thread_service(IOEVENTS&& ioevents, std::uint32_t num_threads = std::thread::hardware_concurrency()) :ios(std::forward<IOEVENTS>(ioevents), num_threads)
+		{
 			runningcount = 0;
 			threads.reserve(num_threads);
 			for (std::uint32_t i = 0; i < num_threads; i++) {
 				threads.emplace_back(std::thread([&]() {
 					runningcount += 1;
-					ioservice.run();
+					ios.run();
 					runningcount -= 1;
 					}));
 			}
 		}
 
 		~io_thread_service() {
-			ioservice.stop();
+			ios.stop();
 			while (runningcount != 0) {
 				std::this_thread::sleep_for(std::chrono::milliseconds(20));
 			}
@@ -34,10 +34,10 @@ namespace SL::Network {
 		io_thread_service& operator=(io_thread_service&& other) = delete;
 		io_thread_service& operator=(const io_thread_service& other) = delete;
 
-		io_service& getio_service() { return ioservice; }
+		io_service<IOEVENTS>& ioservice() { return ios; }
 
 	private:
-		io_service ioservice;
+		io_service<IOEVENTS> ios;
 		std::vector<std::thread> threads;
 		std::atomic<size_t> runningcount;
 	};

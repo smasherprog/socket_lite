@@ -2,31 +2,118 @@
 #define SL_NETWORK_IO_SERVICE
 
 #include <cstdint> 
-#include "utils.h"
+#include "impl.h"
+#include "error_handling.h"
+#include "socket_address.h"
+#include "socket_io_events.h"
 
 namespace SL::Network {
-	class io_service {
+#if _WIN32
+	namespace win32 {
+		LPFN_DISCONNECTEX DisconnectEx_ = nullptr;
+		LPFN_CONNECTEX ConnectEx_ = nullptr;
+		LPFN_ACCEPTEX AcceptEx_ = nullptr;
+		std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2] = { 0 };
+	}
+#endif
+
+	template<typename IOEVENTS>class io_service {
+		IOEVENTS IOEvents;
+		std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
 	public:
 
-		io_service(std::uint32_t concurrencyHint = 1);
-		~io_service();
+		io_service(IOEVENTS&& ioevents, std::uint32_t concurrencyHint = 1) :IOEvents(ioevents), KeepGoing(true)
+		{
+#if _WIN32
+			WSADATA winsockData;
+			if (WSAStartup(MAKEWORD(2, 2), &winsockData) == SOCKET_ERROR) {
+				assert(false);
+			}
+			IOCPHandle = safe_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrencyHint));
+			if (!IOCPHandle) {
+				assert(false);
+			}
+			win32::SetupWindowsEvents();
+#endif 
+		}
+
+		~io_service()
+		{
+#if _WIN32
+			WSACleanup();
+#endif
+		}
 
 		io_service(io_service&& other) = delete;
 		io_service(const io_service& other) = delete;
 		io_service& operator=(io_service&& other) = delete;
 		io_service& operator=(const io_service& other) = delete;
-		void run();
-		void stop();
+		void run() {
+			while (true) {
+				DWORD numberOfBytesTransferred = 0;
+				ULONG_PTR completionKey = 0;
+				LPOVERLAPPED overlapped = nullptr;
+				auto bSuccess = ::GetQueuedCompletionStatus(IOCPHandle.handle(), &numberOfBytesTransferred, &completionKey, &overlapped, INFINITE) == TRUE && KeepGoing;
+				if (overlapped != nullptr) {
+					auto state = reinterpret_cast<overlapped_operation*>(overlapped);
+					auto status = bSuccess ? ERROR_SUCCESS : ::WSAGetLastError();
+					auto e = TranslateError(status);
+					auto originalvalue = state->exchangestatus(e);
+					if (originalvalue == StatusCode::SC_PENDINGIO || originalvalue == StatusCode::SC_UNSET) {
+						switch (state->OpType)
+						{
+						case OP_Type::OnAccept:
+							auto acceptstate = reinterpret_cast<accept_overlapped_operation<acceptor<io_service<IOEVENTS>>>*>(overlapped);
+							if (e == StatusCode::SC_SUCCESS && ::setsockopt(acceptstate->Socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&(acceptstate->ListenSocket), sizeof(SOCKET)) == SOCKET_ERROR) {
+								e = TranslateError();
+							}
+							IOEvents.OnAccept(SL::Network::socket(state->Socket, *this), e, acceptstate->Acceptor);
+						case OP_Type::OnConnect: 
+							if (e == StatusCode::SC_SUCCESS && ::setsockopt(state->Socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+								e = TranslateError();
+							}
+							IOEvents.OnConnect(SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred, *this);
+							delete state;
+							break;
+						case SL::Network::OP_Type::OnSend: 
+							IOEvents.OnSend(SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred, *this);
+							delete state;
+							break;
+						case SL::Network::OP_Type::OnRead:
+							IOEvents.OnRecv(SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred, *this);
+							delete state;
+							break;
+						case SL::Network::OP_Type::OnReadFrom:
+							break;
+						case SL::Network::OP_Type::OnSendTo:
+							break;
+						default:
+							break; 
+						} 
+						refcounter.decOp();
+					}
+					continue;
+				}
+				if (!KeepGoing && refcounter.getOpCount() == 0) {
+					PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
+					return;
+				}
+			}
+		}
+		void stop()
+		{
+			KeepGoing = false;
+			PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
+		}
 
-		void* getHandle() const { return IOCPHandle.handle(); }
-		refcounter& getRefCounter() { return refcounter; }
 	private:
-		refcounter refcounter;
-		safe_handle IOCPHandle;
+		Impl::refcounter refcounter;
+		Impl::safe_handle IOCPHandle;
 #ifndef _WIN32 
 		int EventWakeFd;
 #endif
 		bool KeepGoing;
+		template<typename>friend class socket;
 	};
 }
 

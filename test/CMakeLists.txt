@@ -11,17 +11,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 )
 add_executable(${PROJECT_NAME}  
 	../include/socket.h 
+	../include/socket_io_events.h 
+	../include/impl.h 
+	../include/error_handling.h 
+	../include/socket_address.h 
+
 	../include/io_service.h 
-	../include/io_thread_service.h 
-	../include/utils.h 
-
-	../include/async_acceptor.h  
-
+	../include/io_thread_service.h  
 	../Socket_Lite.h
-	../src/io_service.cpp  
 	
 	../test/my_echomodels.h
-	../test/my_awaitconnectiontest.h 
+	../test/my_connectiontest.h 
 	../test/my_multithreadedecho.h 
 	main.cpp
 ) 
@@ -29,8 +29,6 @@ find_package(Threads REQUIRED)
 if(WIN32) 
 	add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /await")
-	add_definitions(-D_SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING)
-	add_definitions(-D_SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING)
 	target_link_libraries(${PROJECT_NAME} Ws2_32)
 elseif(APPLE) 
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic")

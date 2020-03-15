@@ -34,14 +34,14 @@ namespace myechomodels {
 	//	}
 	//};
 
-	std::optional<SL::Network::socket> Create_and_Bind_Listen_Socket(const char* nodename, unsigned short port, SL::Network::SocketType sockt, SL::Network::AddressFamily family, SL::Network::io_service& context)
+	template<class CONTEXTTYPE, class SOCKETTYPE>std::optional<SOCKETTYPE> Create_and_Bind_Listen_Socket(const char* nodename, unsigned short port, SL::Network::SocketType sockt, SL::Network::AddressFamily family, CONTEXTTYPE& context)
 	{
 		auto addrs = SL::Network::getaddrinfo(nodename, port, sockt, family);
 		for (auto& a : addrs) {
 			auto [statuscode, socket] = SL::Network::socket::create(context, sockt, family);
 			if (statuscode == SL::Network::StatusCode::SC_SUCCESS && socket.bind(a) == SL::Network::StatusCode::SC_SUCCESS) {
 				if (socket.listen(500) == SL::Network::StatusCode::SC_SUCCESS) {
-					return std::move(socket);
+					return socket;
 				}
 			}
 		}
