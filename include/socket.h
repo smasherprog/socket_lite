@@ -82,7 +82,7 @@ namespace SL::Network {
 			ios.refcounter.incOp();
 			DWORD transferedbytes = 0;
 			auto e = StatusCode::SC_SUCCESS;
-			if (win32::ConnectEx_(shandle, remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
+			if (ios.ConnectEx_(shandle, remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
 				e = Impl::TranslateError();
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
@@ -115,7 +115,7 @@ namespace SL::Network {
 			ios.refcounter.incOp();    
 			DWORD transferedbytes = 0;
 			auto e = StatusCode::SC_SUCCESS;
-			if (win32::AcceptEx_(shandle, acceptsocket.shandle, ios.addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
+			if (ios.AcceptEx_(shandle, acceptsocket.shandle, ios.addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
 				e = Impl::TranslateError();
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired

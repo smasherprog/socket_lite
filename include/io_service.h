@@ -20,6 +20,8 @@ namespace SL::Network {
 	template<typename IOEVENTS>class io_service {
 		IOEVENTS IOEvents;
 		std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
+		LPFN_CONNECTEX ConnectEx_;
+		LPFN_ACCEPTEX AcceptEx_;
 	public:
 
 		io_service(IOEVENTS&& ioevents, std::uint32_t concurrencyHint = 1) :IOEvents(ioevents), KeepGoing(true)
@@ -33,7 +35,20 @@ namespace SL::Network {
 			if (!IOCPHandle) {
 				assert(false);
 			}
-			Impl::SetupWindowsEvents();
+			auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
+			GUID guid = WSAID_ACCEPTEX;
+			DWORD bytes = 0;
+			WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &AcceptEx_, sizeof(AcceptEx_), &bytes, NULL,
+				NULL);
+			assert(AcceptEx_ != nullptr);
+			 
+			guid = WSAID_CONNECTEX;
+			bytes = 0;
+			ConnectEx_ = nullptr;
+			WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
+			assert(ConnectEx_ != nullptr);
+			closesocket(temphandle);
+
 #endif 
 		}
 
@@ -63,15 +78,15 @@ namespace SL::Network {
 						switch (state->OpType)
 						{
 						case OP_Type::OnAccept:
-							{
-								auto acceptstate = reinterpret_cast<accept_overlapped_operation*>(overlapped);
-								if (e == StatusCode::SC_SUCCESS && ::setsockopt(acceptstate->Socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&(acceptstate->ListenSocket), sizeof(SOCKET)) == SOCKET_ERROR) {
-									e = Impl::TranslateError();
-								}
-								IOEvents.OnAccept(*this, SL::Network::socket(state->Socket, *this), e, SL::Network::socket(acceptstate->ListenSocket, *this));
-								delete acceptstate;
+						{
+							auto acceptstate = reinterpret_cast<accept_overlapped_operation*>(overlapped);
+							if (e == StatusCode::SC_SUCCESS && ::setsockopt(acceptstate->Socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&(acceptstate->ListenSocket), sizeof(SOCKET)) == SOCKET_ERROR) {
+								e = Impl::TranslateError();
 							}
-							break;
+							IOEvents.OnAccept(*this, SL::Network::socket(state->Socket, *this), e, SL::Network::socket(acceptstate->ListenSocket, *this));
+							delete acceptstate;
+						}
+						break;
 						case OP_Type::OnConnect:
 							if (e == StatusCode::SC_SUCCESS && ::setsockopt(state->Socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
 								e = Impl::TranslateError();
@@ -119,6 +134,6 @@ namespace SL::Network {
 		bool KeepGoing;
 		template<typename>friend class socket;
 	};
-}
+	}
 
 #endif

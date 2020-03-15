@@ -91,39 +91,6 @@ namespace SL::Network::Impl {
 		void* shandle;
 	};
 
-	extern LPFN_DISCONNECTEX DisconnectEx_;
-	extern LPFN_CONNECTEX ConnectEx_;
-	extern LPFN_ACCEPTEX AcceptEx_;
-	extern std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
-	inline void SetupWindowsEvents() {
-		if (!DisconnectEx_) {
-			auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-			GUID disconnectex_guid = WSAID_DISCONNECTEX;
-			DWORD bytes = 0;
-			WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &disconnectex_guid, sizeof(disconnectex_guid), &DisconnectEx_, sizeof(DisconnectEx_), &bytes, NULL,
-				NULL);
-			assert(DisconnectEx_ != nullptr);
-			closesocket(temphandle);
-		}
-		if (!AcceptEx_) {
-			auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-			GUID acceptex_guid = WSAID_ACCEPTEX;
-			DWORD bytes = 0;
-			WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &acceptex_guid, sizeof(acceptex_guid), &AcceptEx_, sizeof(AcceptEx_), &bytes, NULL,
-				NULL);
-			assert(AcceptEx_ != nullptr);
-			closesocket(temphandle);
-		}
-		if (!ConnectEx_) {
-			auto temphandle = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_IP, NULL, 0, WSA_FLAG_OVERLAPPED);
-			GUID guid = WSAID_CONNECTEX;
-			DWORD bytes = 0;
-			ConnectEx_ = nullptr;
-			WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
-			assert(ConnectEx_ != nullptr);
-			closesocket(temphandle);
-		}
-	}
 #endif
 } // namespace SL::Network
 #endif
