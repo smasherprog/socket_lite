@@ -69,17 +69,17 @@ namespace SL::Network {
 		}
 
 		void connect(const SocketAddress& remoteEndPoint) noexcept {
-			if (::CreateIoCompletionPort((HANDLE)shandle, context.IOCPHandle.handle(), shandle, 0) == NULL) {
+			if (::CreateIoCompletionPort((HANDLE)shandle, ios.IOCPHandle.handle(), shandle, 0) == NULL) {
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError()); 
 			}
-			if (win32::win32Bind(remoteEndPoint.getFamily(), shandle) == SOCKET_ERROR) {
+			if (Impl::win32Bind(remoteEndPoint.getFamily(), shandle) == SOCKET_ERROR) {
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 			}
 			if (SetFileCompletionNotificationModes((HANDLE)shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 			}
-			auto overlapped = new overlapped_operation(OP_Type::OnConnect, handle);
-			context.getRefCounter().incOp();
+			auto overlapped = new overlapped_operation(OP_Type::OnConnect, shandle);
+			ios.refcounter.incOp();
 			DWORD transferedbytes = 0;
 			auto e = StatusCode::SC_SUCCESS;
 			if (win32::ConnectEx_(shandle, remoteEndPoint.getSocketAddr(), remoteEndPoint.getSocketAddrLen(), 0, 0, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
@@ -87,7 +87,7 @@ namespace SL::Network {
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
-						context.getRefCounter().decOp();
+						ios.refcounter.decOp();
 						delete overlapped;
 						return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError()); 
 					}
@@ -95,10 +95,10 @@ namespace SL::Network {
 				////otherwise, the op is pending and ioservice will handle this
 			}
 			else {
-				if (::setsockopt(handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+				if (::setsockopt(shandle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
 					e = Impl::TranslateError();
 				}
-				context.getRefCounter().decOp();
+				ios.refcounter.decOp();
 				delete overlapped;
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 			} 
@@ -106,13 +106,13 @@ namespace SL::Network {
 
 		void accept(socket<IOCONTEXT>& acceptsocket) noexcept {  
 			if (::CreateIoCompletionPort((HANDLE)acceptsocket.shandle, ios.IOCPHandle.handle(), shandle, 0) == NULL) {
-				return ios.IOEvents.OnAccept(ios, acceptsocket.shandle, Impl::TranslateError(), *this);
+				return ios.IOEvents.OnAccept(ios, acceptsocket, Impl::TranslateError(), *this);
 			}
 			if (SetFileCompletionNotificationModes((HANDLE)acceptsocket.shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
-				return ios.IOEvents.OnAccept(ios, acceptsocket.shandle, Impl::TranslateError(), *this);
+				return ios.IOEvents.OnAccept(ios, acceptsocket, Impl::TranslateError(), *this);
 			}
 			auto overlapped = new accept_overlapped_operation(OP_Type::OnAccept, acceptsocket.shandle, shandle);
-			ioservice.getRefCounter().incOp();    
+			ios.refcounter.incOp();    
 			DWORD transferedbytes = 0;
 			auto e = StatusCode::SC_SUCCESS;
 			if (win32::AcceptEx_(shandle, acceptsocket.shandle, ios.addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
@@ -120,9 +120,9 @@ namespace SL::Network {
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
-						ios.getRefCounter().decOp();
+						ios.refcounter.decOp();
 						delete overlapped;
-						return ios.IOEvents.OnAccept(ios, *this, e);
+						return ios.IOEvents.OnAccept(ios, acceptsocket, e, *this);
 					}
 				}
 			}
@@ -130,15 +130,15 @@ namespace SL::Network {
 				if (::setsockopt(acceptsocket.shandle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&shandle, sizeof(SOCKET)) == SOCKET_ERROR) {
 					e = Impl::TranslateError();
 				}
-				ios.getRefCounter().decOp();
+				ios.refcounter.decOp();
 				delete overlapped;
-				return ios.IOEvents.OnAccept(ios, *this, e, *this);
+				return ios.IOEvents.OnAccept(ios, acceptsocket, e, *this);
 			}
 		}
 
 		auto send(std::byte* buffer, std::size_t size) noexcept {
 			auto overlapped = new overlapped_operation(OP_Type::OnSend, shandle);
-			ioservice.getRefCounter().incOp();
+			ios.refcounter.incOp();
 			WSABUF wsabuf;
 			wsabuf.buf = reinterpret_cast<char*>(buffer);
 			wsabuf.len = static_cast<decltype(wsabuf.len)>(size);
@@ -149,14 +149,14 @@ namespace SL::Network {
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
-						ioservice.getRefCounter().decOp();
+						ioservice.refcounter.decOp();
 						delete overlapped;
 						return ios.IOEvents.OnSend(ios, *this, e, 0); 
 					}
 				}
 			}
 			else {
-				ioservice.getRefCounter().decOp();
+				ios.refcounter.decOp();
 				delete overlapped;
 				return ios.IOEvents.OnSend(ios, *this, e, numberOfBytesTransferred); 
 			} 
@@ -165,7 +165,7 @@ namespace SL::Network {
 		template<class T>auto send_to(const SocketAddress& remoteEndPoint, std::byte* buffer, std::size_t size, T&& cb) noexcept {
 			auto overlapped = new st_overlapped_operation(shandle, cb);
 			overlapped->remoteEndPoint = remoteEndPoint;
-			ioservice.getRefCounter().incOp();
+			ioservice.refcounter.incOp();
 			overlapped->wsabuf.buf = reinterpret_cast<char*>(buffer);
 			overlapped->wsabuf.len = static_cast<decltype(wsabuf.len)>(size);
 			DWORD numberOfBytesTransferred(0), dwFlags(0);
@@ -176,20 +176,20 @@ namespace SL::Network {
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
-						ioservice.getRefCounter().decOp();
+						ioservice.refcounter.decOp();
 						delete overlapped;
 					}
 				}
 			}
 			else {
-				ioservice.getRefCounter().decOp();
+				ioservice.refcounter.decOp();
 				delete overlapped;
 			}
 			return std::tuple(e, numberOfBytesTransferred);
 		}*/
 		auto recv(std::byte* buffer, std::size_t size) noexcept {
 			auto overlapped = new overlapped_operation(OP_Type::OnRead, shandle);
-			ioservice.getRefCounter().incOp();
+			ioservice.refcounter.incOp();
 			WSABUF wsabuf;
 			wsabuf.buf = reinterpret_cast<char*>(buffer);
 			wsabuf.len = static_cast<decltype(wsabuf.len)>(size);
@@ -200,14 +200,14 @@ namespace SL::Network {
 				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
-						ioservice.getRefCounter().decOp();
+						ioservice.refcounter.decOp();
 						delete overlapped;
 						return ios.IOEvents.OnRecv(ios, *this, e, dwSendNumBytes);
 					}
 				}
 			}
 			else {
-				ioservice.getRefCounter().decOp();
+				ioservice.refcounter.decOp();
 				delete overlapped;
 				return ios.IOEvents.OnRecv(ios, *this, e, dwSendNumBytes);
 			} 
@@ -215,7 +215,7 @@ namespace SL::Network {
 
 		//auto recv_from(std::byte* buffer, std::size_t size) noexcept {
 		//	auto overlapped = new rf_overlapped_operation(shandle, cb);
-		//	ioservice.getRefCounter().incOp();
+		//	ioservice.refcounter.incOp();
 		//	overlapped->wsabuf.buf = reinterpret_cast<char*>(buffer);
 		//	overlapped->wsabuf.len = static_cast<decltype(wsabuf.len)>(size);
 		//	DWORD numberOfBytesTransferred(0), dwFlags(0);
@@ -226,13 +226,13 @@ namespace SL::Network {
 		//		auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
 		//		if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 		//			if (e != StatusCode::SC_PENDINGIO) {
-		//				ioservice.getRefCounter().decOp();
+		//				ioservice.refcounter.decOp();
 		//				delete overlapped;
 		//			}
 		//		}
 		//	}
 		//	else {
-		//		ioservice.getRefCounter().decOp();
+		//		ioservice.refcounter.decOp();
 		//		sa = std::move(SocketAddress(overlapped->storage, socklen));
 		//		delete overlapped;
 		//	}

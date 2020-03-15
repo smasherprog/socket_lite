@@ -29,11 +29,11 @@ namespace SL::Network {
 			if (WSAStartup(MAKEWORD(2, 2), &winsockData) == SOCKET_ERROR) {
 				assert(false);
 			}
-			IOCPHandle = safe_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrencyHint));
+			IOCPHandle = Impl::safe_handle(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrencyHint));
 			if (!IOCPHandle) {
 				assert(false);
 			}
-			win32::SetupWindowsEvents();
+			Impl::SetupWindowsEvents();
 #endif 
 		}
 
@@ -57,30 +57,34 @@ namespace SL::Network {
 				if (overlapped != nullptr) {
 					auto state = reinterpret_cast<overlapped_operation*>(overlapped);
 					auto status = bSuccess ? ERROR_SUCCESS : ::WSAGetLastError();
-					auto e = TranslateError(status);
+					auto e = Impl::TranslateError(status);
 					auto originalvalue = state->exchangestatus(e);
 					if (originalvalue == StatusCode::SC_PENDINGIO || originalvalue == StatusCode::SC_UNSET) {
 						switch (state->OpType)
 						{
 						case OP_Type::OnAccept:
-							auto acceptstate = reinterpret_cast<accept_overlapped_operation<acceptor<io_service<IOEVENTS>>>*>(overlapped);
-							if (e == StatusCode::SC_SUCCESS && ::setsockopt(acceptstate->Socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&(acceptstate->ListenSocket), sizeof(SOCKET)) == SOCKET_ERROR) {
-								e = TranslateError();
+							{
+								auto acceptstate = reinterpret_cast<accept_overlapped_operation*>(overlapped);
+								if (e == StatusCode::SC_SUCCESS && ::setsockopt(acceptstate->Socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&(acceptstate->ListenSocket), sizeof(SOCKET)) == SOCKET_ERROR) {
+									e = Impl::TranslateError();
+								}
+								IOEvents.OnAccept(*this, SL::Network::socket(state->Socket, *this), e, SL::Network::socket(acceptstate->ListenSocket, *this));
+								delete acceptstate;
 							}
-							IOEvents.OnAccept(SL::Network::socket(state->Socket, *this), e, acceptstate->Acceptor);
-						case OP_Type::OnConnect: 
+							break;
+						case OP_Type::OnConnect:
 							if (e == StatusCode::SC_SUCCESS && ::setsockopt(state->Socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
-								e = TranslateError();
+								e = Impl::TranslateError();
 							}
-							IOEvents.OnConnect(SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred, *this);
+							IOEvents.OnConnect(*this, SL::Network::socket(state->Socket, *this), e);
 							delete state;
 							break;
-						case SL::Network::OP_Type::OnSend: 
-							IOEvents.OnSend(SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred, *this);
+						case SL::Network::OP_Type::OnSend:
+							IOEvents.OnSend(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
 							delete state;
 							break;
 						case SL::Network::OP_Type::OnRead:
-							IOEvents.OnRecv(SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred, *this);
+							IOEvents.OnRecv(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
 							delete state;
 							break;
 						case SL::Network::OP_Type::OnReadFrom:
@@ -88,8 +92,8 @@ namespace SL::Network {
 						case SL::Network::OP_Type::OnSendTo:
 							break;
 						default:
-							break; 
-						} 
+							break;
+						}
 						refcounter.decOp();
 					}
 					continue;

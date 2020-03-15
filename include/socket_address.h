@@ -77,7 +77,7 @@ namespace SL::Network {
 		freeaddrinfo(result);
 		return addrs;
 	}
-	namespace impl {
+	namespace Impl {
 		auto inline win32Bind(AddressFamily family, SOCKET socket) {
 			if (family == AddressFamily::IPV4) {
 				sockaddr_in bindaddr = { 0 };

@@ -17,7 +17,7 @@ namespace myawaitconnectiontest {
 	template<class CONTEXTTYPE>void connect(CONTEXTTYPE& context)
 	{
 		if (keepgoing) {
-			auto [statuscode, s] = SL::Network::create(context, connectendpoint.getSocketType(), connectendpoint.getFamily());
+			auto [statuscode, s] = SL::Network::create_socket(context, connectendpoint.getSocketType(), connectendpoint.getFamily());
 			s.connect(connectendpoint);
 		}
 	}
@@ -25,20 +25,20 @@ namespace myawaitconnectiontest {
 	void myconnectiontest()
 	{
 		SL::Network::io_thread_service threadcontext(SL::Network::IO_Events(
-			[&](auto ioservice, auto socket, SL::Network::StatusCode code) {
+			[&](auto& ioservice, auto socket, SL::Network::StatusCode code) {
 				connections += 1.0;
 				socket.close();
 				connect(ioservice);
 			},
-			[&](auto ioservice, auto socket, SL::Network::StatusCode code, auto acceptsocket) {
+			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, auto acceptsocket) {
 				socket.close();
 				auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
 				acceptsocket.accept(s);
 			},
-			[&](auto ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
+			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
 				socket.close();
 			},
-			[&](auto ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
+			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
 				socket.close();
 			}), 4);
 
