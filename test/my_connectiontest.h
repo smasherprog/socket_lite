@@ -38,7 +38,7 @@ namespace myawaitconnectiontest {
 			},
 				[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
 				socket.close();
-			}), 4);
+			}));
 
 		std::cout << "Starting My Await Connections per Second Test" << std::endl;
 		connections = 0.0;
