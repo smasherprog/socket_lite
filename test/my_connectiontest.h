@@ -28,7 +28,8 @@ namespace myawaitconnectiontest {
 			[&](auto& ioservice, auto socket, SL::Network::StatusCode code) {
 				connections += 1.0;
 				socket.close();
-				connect(ioservice);
+				auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
+				s.connect(connectendpoint);
 			},
 			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, auto acceptsocket) {
 				socket.close();
@@ -45,22 +46,21 @@ namespace myawaitconnectiontest {
 		std::cout << "Starting My Await Connections per Second Test" << std::endl;
 		connections = 0.0;
 		auto porttouse = static_cast<unsigned short>(std::rand() % 3000 + 10000);
+		auto addrs = SL::Network::getaddrinfo(nullptr, porttouse, SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4);
+		auto [statuscode, acceptsocket] = SL::Network::create_socket(threadcontext.ioservice(), SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4);
+		auto binderro = acceptsocket.bind(addrs.back());
+		auto listenerror = acceptsocket.listen(500);
+		auto [astatuscode, as] = SL::Network::create_socket(threadcontext.ioservice(), addrs.back().getSocketType(), addrs.back().getFamily());
+		acceptsocket.accept(as);
 
 		auto endpoints = SL::Network::getaddrinfo("127.0.0.1", porttouse);
 		connectendpoint = endpoints.back(); 
-
-		auto t2(std::thread([&]() { connect(threadcontext.ioservice()); }));
-		auto [astatuscode, as] = SL::Network::create_socket(threadcontext.ioservice(), connectendpoint.getSocketType(), connectendpoint.getFamily());	
-		auto addrs = SL::Network::getaddrinfo(nullptr, porttouse, SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4);
-		auto [statuscode, acceptsocket] = SL::Network::create_socket(threadcontext.ioservice(), SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4);
-		acceptsocket.bind(addrs.back());
-		acceptsocket.listen(500);
-		acceptsocket.accept(as);
+		auto [constatuscode, s] = SL::Network::create_socket(threadcontext.ioservice(), connectendpoint.getSocketType(), connectendpoint.getFamily());
+		s.connect(connectendpoint);
 
 		std::this_thread::sleep_for(10s); // sleep for 10 seconds
 		keepgoing = false;
 		std::cout << "My Await Connections per Second " << connections / 10 << std::endl;
-		t2.join();
-
+		acceptsocket.close();
 	}
 } // namespace myconnectiontest

@@ -76,7 +76,14 @@ namespace SL::Network {
 					auto originalvalue = state->exchangestatus(e);
 					if (originalvalue == StatusCode::SC_PENDINGIO || originalvalue == StatusCode::SC_UNSET) {
 						switch (state->OpType)
-						{
+						{ 
+						case OP_Type::OnConnect:
+							if (e == StatusCode::SC_SUCCESS && ::setsockopt(state->Socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
+								e = Impl::TranslateError();
+							}
+							IOEvents.OnConnect(*this, SL::Network::socket(state->Socket, *this), e);
+							delete state;
+							break;	
 						case OP_Type::OnAccept:
 						{
 							auto acceptstate = reinterpret_cast<accept_overlapped_operation*>(overlapped);
@@ -87,13 +94,6 @@ namespace SL::Network {
 							delete acceptstate;
 						}
 						break;
-						case OP_Type::OnConnect:
-							if (e == StatusCode::SC_SUCCESS && ::setsockopt(state->Socket, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, nullptr, 0) == SOCKET_ERROR) {
-								e = Impl::TranslateError();
-							}
-							IOEvents.OnConnect(*this, SL::Network::socket(state->Socket, *this), e);
-							delete state;
-							break;
 						case SL::Network::OP_Type::OnSend:
 							IOEvents.OnSend(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
 							delete state;
@@ -110,8 +110,10 @@ namespace SL::Network {
 							break;
 						}
 						refcounter.decOp();
-					}
-					continue;
+					} 
+				}
+				else {
+					int k = 6;
 				}
 				if (!KeepGoing && refcounter.getOpCount() == 0) {
 					PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
@@ -132,7 +134,8 @@ namespace SL::Network {
 		int EventWakeFd;
 #endif
 		bool KeepGoing;
-		template<typename>friend class socket;
+		template<typename>friend class socket; 
+		template <typename T> friend std::tuple<StatusCode, socket<T>> create_socket(T& ioSvc, SocketType sockettype, AddressFamily family);
 	};
 	}
 

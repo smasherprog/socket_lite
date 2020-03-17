@@ -69,9 +69,6 @@ namespace SL::Network {
 		}
 
 		void connect(const SocketAddress& remoteEndPoint) noexcept {
-			if (::CreateIoCompletionPort((HANDLE)shandle, ios.IOCPHandle.handle(), shandle, 0) == NULL) {
-				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError()); 
-			}
 			if (Impl::win32Bind(remoteEndPoint.getFamily(), shandle) == SOCKET_ERROR) {
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 			}
@@ -253,7 +250,7 @@ namespace SL::Network {
 		IOCONTEXT& ios;
 #endif
 	};
-	template<typename IOCONTEXT>static auto create_socket(IOCONTEXT& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4) {
+	template<typename IOCONTEXT>std::tuple<StatusCode, socket<IOCONTEXT>> create_socket(IOCONTEXT& ioSvc, SocketType sockettype = SocketType::TCP, AddressFamily family = AddressFamily::IPV4) {
 		auto protocol = sockettype == SocketType::TCP ? IPPROTO_TCP : IPPROTO_UDP;
 
 		auto socketHandle = ::socket(family, sockettype, protocol);
@@ -273,6 +270,10 @@ namespace SL::Network {
 				closesocket(socketHandle);
 				return std::tuple(Impl::TranslateError(), socket(ioSvc));
 			}
+		}
+		if (::CreateIoCompletionPort((HANDLE)socketHandle, ioSvc.IOCPHandle.handle(), socketHandle, 0) == NULL) {
+			closesocket(socketHandle);
+			return std::tuple(Impl::TranslateError(), socket(ioSvc));
 		}
 		return std::tuple(StatusCode::SC_SUCCESS, socket(socketHandle, ioSvc));
 	}
