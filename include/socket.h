@@ -101,33 +101,10 @@ namespace SL::Network {
 			} 
 		}
 
-		void accept(socket<IOCONTEXT>& acceptsocket) noexcept {  
-			if (SetFileCompletionNotificationModes((HANDLE)acceptsocket.shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
-				return ios.IOEvents.OnAccept(ios, acceptsocket, Impl::TranslateError(), *this);
-			}
-			auto overlapped = new accept_overlapped_operation(OP_Type::OnAccept, acceptsocket.shandle, shandle);
+		void accept() noexcept {  
+			auto overlapped = new overlapped_operation(OP_Type::OnAccept, shandle);
 			ios.refcounter.incOp();    
-			DWORD transferedbytes = 0;
-			auto e = StatusCode::SC_SUCCESS;
-			if (ios.AcceptEx_(shandle, acceptsocket.shandle, ios.addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
-				e = Impl::TranslateError();
-				auto originalvalue = overlapped->trysetstatus(e, StatusCode::SC_UNSET);
-				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
-					if (e != StatusCode::SC_PENDINGIO) {
-						ios.refcounter.decOp();
-						delete overlapped;
-						return ios.IOEvents.OnAccept(ios, acceptsocket, e, *this);
-					}
-				}
-			}
-			else {
-				if (::setsockopt(acceptsocket.shandle, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&shandle, sizeof(SOCKET)) == SOCKET_ERROR) {
-					e = Impl::TranslateError();
-				}
-				ios.refcounter.decOp();
-				delete overlapped;
-				return ios.IOEvents.OnAccept(ios, acceptsocket, e, *this);
-			}
+			PostQueuedCompletionStatus((HANDLE)ios.IOCPHandle.handle(), 0, 0, overlapped->getOverlappedStruct());
 		}
 
 		auto send(std::byte* buffer, std::size_t size) noexcept {
@@ -256,20 +233,13 @@ namespace SL::Network {
 		}
 
 		if (sockettype == SocketType::TCP) {
-			// Turn off linger so that the destructor doesn't block while closing
-			// the socket or silently continue to flush remaining data in the
-			// background after ::closesocket() is called, which could fail and
-			// we'd never know about it.
-			// We expect clients to call Disconnect() or use CloseSend() to cleanly
-			// shut-down connections instead.
 			BOOL value = TRUE;
 			if (::setsockopt(socketHandle, SOL_SOCKET, SO_DONTLINGER, reinterpret_cast<const char*>(&value), sizeof(value)) == SOCKET_ERROR) {
 				closesocket(socketHandle);
 				return std::tuple(Impl::TranslateError(), socket(ioSvc));
 			}
-		}
-		if (::CreateIoCompletionPort((HANDLE)socketHandle, ioSvc.IOCPHandle.handle(), socketHandle, 0) == NULL) {
-			closesocket(socketHandle);
+		}			
+		if (::CreateIoCompletionPort((HANDLE)socketHandle, ioSvc.IOCPHandle.handle(), 0, 0) == NULL) {
 			return std::tuple(Impl::TranslateError(), socket(ioSvc));
 		}
 		return std::tuple(StatusCode::SC_SUCCESS, socket(socketHandle, ioSvc));

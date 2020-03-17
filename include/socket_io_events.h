@@ -21,7 +21,7 @@ namespace SL::Network {
 
 		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
 			auto originalexpected = expected;
-			while (!errorCode.compare_exchange_weak(expected, code) && expected == originalexpected);
+			while (!errorCode.compare_exchange_weak(expected, code, std::memory_order::memory_order_relaxed) && expected == originalexpected);
 			return expected;
 		}
 		void setstatus(StatusCode code) {
@@ -36,11 +36,6 @@ namespace SL::Network {
 
 		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); }
 		SOCKET Socket;
-	};
-	class accept_overlapped_operation : public overlapped_operation {
-	public:
-		accept_overlapped_operation(OP_Type o, SOCKET acceptsocket, SOCKET listensocket) :overlapped_operation(o, acceptsocket), ListenSocket(listensocket){}
-		SOCKET ListenSocket;
 	};
 
 	template<typename ONCONNECT, typename ONACCEPT, typename ONRECV, typename ONSEND> struct IO_Events {
