@@ -102,9 +102,6 @@ namespace SL::Network {
 		}
 
 		void accept(socket<IOCONTEXT>& acceptsocket) noexcept {  
-			if (::CreateIoCompletionPort((HANDLE)acceptsocket.shandle, ios.IOCPHandle.handle(), shandle, 0) == NULL) {
-				return ios.IOEvents.OnAccept(ios, acceptsocket, Impl::TranslateError(), *this);
-			}
 			if (SetFileCompletionNotificationModes((HANDLE)acceptsocket.shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
 				return ios.IOEvents.OnAccept(ios, acceptsocket, Impl::TranslateError(), *this);
 			}

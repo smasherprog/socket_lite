@@ -112,9 +112,6 @@ namespace SL::Network {
 						refcounter.decOp();
 					} 
 				}
-				else {
-					int k = 6;
-				}
 				if (!KeepGoing && refcounter.getOpCount() == 0) {
 					PostQueuedCompletionStatus(IOCPHandle.handle(), 0, (DWORD)NULL, NULL);
 					return;

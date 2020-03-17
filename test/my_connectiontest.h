@@ -14,13 +14,6 @@ namespace myawaitconnectiontest {
 	bool keepgoing = true;
 	SL::Network::SocketAddress connectendpoint;
 
-	template<class CONTEXTTYPE>void connect(CONTEXTTYPE& context)
-	{
-		if (keepgoing) {
-			auto [statuscode, s] = SL::Network::create_socket(context, connectendpoint.getSocketType(), connectendpoint.getFamily());
-			s.connect(connectendpoint);
-		}
-	}
 
 	void myconnectiontest()
 	{
@@ -28,18 +21,22 @@ namespace myawaitconnectiontest {
 			[&](auto& ioservice, auto socket, SL::Network::StatusCode code) {
 				connections += 1.0;
 				socket.close();
-				auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
-				s.connect(connectendpoint);
+				if (keepgoing) {
+					auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
+					s.connect(connectendpoint);
+				}
 			},
 			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, auto acceptsocket) {
 				socket.close();
-				auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
-				acceptsocket.accept(s);
+				if (keepgoing) {
+					auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
+					acceptsocket.accept(s);
+				}
 			},
-			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
+				[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
 				socket.close();
 			},
-			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
+				[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
 				socket.close();
 			}), 4);
 
@@ -54,7 +51,7 @@ namespace myawaitconnectiontest {
 		acceptsocket.accept(as);
 
 		auto endpoints = SL::Network::getaddrinfo("127.0.0.1", porttouse);
-		connectendpoint = endpoints.back(); 
+		connectendpoint = endpoints.back();
 		auto [constatuscode, s] = SL::Network::create_socket(threadcontext.ioservice(), connectendpoint.getSocketType(), connectendpoint.getFamily());
 		s.connect(connectendpoint);
 
