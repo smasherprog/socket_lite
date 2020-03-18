@@ -29,7 +29,8 @@ namespace myawaitconnectiontest {
 			[&](auto& ioservice, auto socket, SL::Network::StatusCode code, auto acceptsocket) {
 				socket.close();
 				if (keepgoing) {
-					acceptsocket.accept();
+					auto [statuscode, s] = SL::Network::create_socket(ioservice, connectendpoint.getSocketType(), connectendpoint.getFamily());
+					acceptsocket.accept(s);
 				}
 			},
 				[&](auto& ioservice, auto socket, SL::Network::StatusCode code, int bytestransfered) {
@@ -46,7 +47,8 @@ namespace myawaitconnectiontest {
 		auto [statuscode, acceptsocket] = SL::Network::create_socket(threadcontext.ioservice(), SL::Network::SocketType::TCP, SL::Network::AddressFamily::IPV4);
 		auto binderro = acceptsocket.bind(addrs.back());
 		auto listenerror = acceptsocket.listen(500);
-		acceptsocket.accept();
+		auto [astatuscode, as] = SL::Network::create_socket(threadcontext.ioservice(), addrs.back().getSocketType(), addrs.back().getFamily());
+		acceptsocket.accept(as);
 
 		auto endpoints = SL::Network::getaddrinfo("127.0.0.1", porttouse);
 		connectendpoint = endpoints.back();

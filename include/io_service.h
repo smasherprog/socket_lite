@@ -82,31 +82,25 @@ namespace SL::Network {
 								e = Impl::TranslateError();
 							}
 							IOEvents.OnConnect(*this, SL::Network::socket(state->Socket, *this), e);
+							delete state;
 							break;
 						case OP_Type::OnAccept:
 						{
-							auto e = StatusCode::SC_SUCCESS;
-							auto handle = ::accept(state->Socket, NULL, NULL);
-							if (handle != INVALID_SOCKET) {
-								if (::CreateIoCompletionPort((HANDLE)handle, IOCPHandle.handle(), 0, 0) == NULL) {
-									e = Impl::TranslateError();
-								}
-								else if (SetFileCompletionNotificationModes((HANDLE)handle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
-									e = Impl::TranslateError();
-								}
-							}
-							else {
+							auto acceptstate = reinterpret_cast<accept_overlapped_operation*>(overlapped);
+							if (e == StatusCode::SC_SUCCESS && ::setsockopt(acceptstate->Socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (const char*)&(acceptstate->ListenSocket), sizeof(SOCKET)) == SOCKET_ERROR) {
 								e = Impl::TranslateError();
 							}
-							IOEvents.OnAccept(*this, SL::Network::socket(handle, *this), e, SL::Network::socket(state->Socket, *this));
+							IOEvents.OnAccept(*this, SL::Network::socket(state->Socket, *this), e, SL::Network::socket(acceptstate->ListenSocket, *this));
+							delete acceptstate;
 						}
 						break;
 						case SL::Network::OP_Type::OnSend:
 							IOEvents.OnSend(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
+							delete state;
 							break;
 						case SL::Network::OP_Type::OnRead:
 							IOEvents.OnRecv(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
-
+							delete state;
 							break;
 						case SL::Network::OP_Type::OnReadFrom:
 							break;
@@ -115,7 +109,6 @@ namespace SL::Network {
 						default:
 							break;
 						}
-						delete state;
 						refcounter.decOp();
 					}
 				}
