@@ -11,13 +11,7 @@ namespace SL::Network {
 	private:
 		std::atomic<StatusCode> errorCode;
 	public:
-		OP_Type OpType;
-		overlapped_operation(OP_Type o) :OpType(o), WSAOVERLAPPED({ 0 }), Socket(INVALID_SOCKET) {
-			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
-		}
-		overlapped_operation(OP_Type o, SOCKET s) :OpType(o), WSAOVERLAPPED({ 0 }), Socket(s) {
-			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
-		}
+		OP_Type OpType; 
 
 		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
 			auto originalexpected = expected;
@@ -33,14 +27,16 @@ namespace SL::Network {
 		StatusCode exchangestatus(StatusCode code) {
 			return errorCode.exchange(code, std::memory_order::memory_order_relaxed);
 		}
-
+		void clear() {
+			memset(getOverlappedStruct(), 0, sizeof(WSAOVERLAPPED)); 
+			setstatus(StatusCode::SC_UNSET);
+		}
 		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); }
 		SOCKET Socket;
 	};
 
 	class accept_overlapped_operation : public overlapped_operation {
 	public:
-		accept_overlapped_operation(OP_Type o, SOCKET acceptsocket, SOCKET listensocket) :overlapped_operation(o, acceptsocket), ListenSocket(listensocket) {}
 		SOCKET ListenSocket;
 	};
 

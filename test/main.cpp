@@ -8,6 +8,7 @@
 #endif
 #include "cpumem_monitor.h" 
 #include "my_connectiontest.h" 
+#include "my_echotest.h"
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -38,16 +39,13 @@ int main()
 		});
 
 
-	myawaitconnectiontest::myconnectiontest();
+	myawaitconnectiontest::runtest();
 	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
 	counts = totalusage = 0;
 
-	//mymultithreadedechotest::myechotest();
-	//std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	//counts = totalusage = 0;
-	//mymultithreadedechotest::myechotest(1024 * 10); // 10k
-	//std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	//counts = totalusage = 0;
+	myechotest::runtest(128);
+	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	counts = totalusage = 0;
 
 	startwatching = false;
 	t.join();

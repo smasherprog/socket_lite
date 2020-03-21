@@ -6,6 +6,7 @@
 #include "error_handling.h"
 #include "socket_address.h"
 #include "socket_io_events.h"
+#include <deque>
 
 namespace SL::Network {
 #if _WIN32
@@ -22,6 +23,11 @@ namespace SL::Network {
 		std::uint8_t addressBuffer[(sizeof(SOCKADDR_STORAGE) + 16) * 2];
 		LPFN_CONNECTEX ConnectEx_;
 		LPFN_ACCEPTEX AcceptEx_;
+		std::atomic_flag AcceptLBufferLock = ATOMIC_FLAG_INIT;
+		std::deque<accept_overlapped_operation*> AcceptBuffer;
+		std::atomic_flag IOBufferLock = ATOMIC_FLAG_INIT;
+		std::deque<overlapped_operation*> IOBuffer;
+
 	public:
 
 		io_service(IOEVENTS&& ioevents, std::uint32_t concurrencyHint = 1) :IOEvents(ioevents), KeepGoing(true)
@@ -48,7 +54,6 @@ namespace SL::Network {
 			WSAIoctl(temphandle, SIO_GET_EXTENSION_FUNCTION_POINTER, &guid, sizeof(guid), &ConnectEx_, sizeof(ConnectEx_), &bytes, NULL, NULL);
 			assert(ConnectEx_ != nullptr);
 			closesocket(temphandle);
-
 #endif 
 		}
 
@@ -57,12 +62,65 @@ namespace SL::Network {
 #if _WIN32
 			WSACleanup();
 #endif
+			while (!IOBuffer.empty()) {
+				auto p = IOBuffer.back();
+				IOBuffer.pop_back();
+				delete p;
+			}
+			while (!AcceptBuffer.empty()) {
+				auto p = AcceptBuffer.back();
+				AcceptBuffer.pop_back();
+				delete p;
+			} 
 		}
 
 		io_service(io_service&& other) = delete;
 		io_service(const io_service& other) = delete;
 		io_service& operator=(io_service&& other) = delete;
 		io_service& operator=(const io_service& other) = delete;
+
+		overlapped_operation* alloc_o() {
+			overlapped_operation* obj = nullptr;
+			while (IOBufferLock.test_and_set(std::memory_order_acquire));
+			if (IOBuffer.empty()) {
+				IOBufferLock.clear(std::memory_order_release);
+				obj = new overlapped_operation();
+			}
+			else { 
+				obj = IOBuffer.back();
+				IOBuffer.pop_back();
+				IOBufferLock.clear(std::memory_order_release);
+			} 
+			return obj;
+		}
+
+		accept_overlapped_operation* alloc_a() {
+			accept_overlapped_operation* obj = nullptr; 
+			while (AcceptLBufferLock.test_and_set(std::memory_order_acquire));
+			if (AcceptBuffer.empty()) {
+				AcceptLBufferLock.clear(std::memory_order_release);
+				obj = new accept_overlapped_operation();
+			}
+			else {
+				obj = AcceptBuffer.back();
+				AcceptBuffer.pop_back();
+				AcceptLBufferLock.clear(std::memory_order_release);
+			} 
+			return obj;
+		}
+
+		void free_o(overlapped_operation* obj) {
+			while (IOBufferLock.test_and_set(std::memory_order_acquire));
+			IOBuffer.push_back(obj);
+			IOBufferLock.clear(std::memory_order_release);
+		}
+
+		void free_a(accept_overlapped_operation* obj) {
+			while (AcceptLBufferLock.test_and_set(std::memory_order_acquire));
+			AcceptBuffer.push_back(obj);
+			AcceptLBufferLock.clear(std::memory_order_release);
+		}
+
 		void run() {
 			while (true) {
 				DWORD numberOfBytesTransferred = 0;
@@ -82,7 +140,7 @@ namespace SL::Network {
 								e = Impl::TranslateError();
 							}
 							IOEvents.OnConnect(*this, SL::Network::socket(state->Socket, *this), e);
-							delete state;
+							free_o(state);
 							break;
 						case OP_Type::OnAccept:
 						{
@@ -91,16 +149,16 @@ namespace SL::Network {
 								e = Impl::TranslateError();
 							}
 							IOEvents.OnAccept(*this, SL::Network::socket(state->Socket, *this), e, SL::Network::socket(acceptstate->ListenSocket, *this));
-							delete acceptstate;
+							free_a(acceptstate);
 						}
 						break;
 						case SL::Network::OP_Type::OnSend:
 							IOEvents.OnSend(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
-							delete state;
+							free_o(state);
 							break;
 						case SL::Network::OP_Type::OnRead:
 							IOEvents.OnRecv(*this, SL::Network::socket(state->Socket, *this), e, numberOfBytesTransferred);
-							delete state;
+							free_o(state);
 							break;
 						case SL::Network::OP_Type::OnReadFrom:
 							break;

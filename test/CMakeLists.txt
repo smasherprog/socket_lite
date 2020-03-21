@@ -20,11 +20,11 @@ add_executable(${PROJECT_NAME}
 	../include/io_thread_service.h  
 	../Socket_Lite.h
 	
-	../test/my_echomodels.h
+	../test/examplehelpers.h
 	../test/my_connectiontest.h 
-	../test/my_multithreadedecho.h 
+	../test/my_echotest.h 
 	main.cpp
-) 
+	) 
 find_package(Threads REQUIRED)
 if(WIN32) 
 	add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
