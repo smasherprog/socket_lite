@@ -75,8 +75,7 @@ namespace SL::Network {
 			if (SetFileCompletionNotificationModes((HANDLE)shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 			}
-			auto overlapped = ios.alloc_o();
-			overlapped->clear();
+			auto overlapped = new overlapped_operation(); 
 			overlapped->OpType = OP_Type::OnConnect;
 			overlapped->Socket = shandle;
 			ios.refcounter.incOp();
@@ -88,7 +87,7 @@ namespace SL::Network {
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
 						ios.refcounter.decOp();
-						ios.free_o(overlapped);
+						delete overlapped;
 						return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 					}
 				}
@@ -99,7 +98,7 @@ namespace SL::Network {
 					e = Impl::TranslateError();
 				}
 				ios.refcounter.decOp();
-				ios.free_o(overlapped);
+				delete overlapped;
 				return ios.IOEvents.OnConnect(ios, *this, Impl::TranslateError());
 			}
 		}
@@ -108,12 +107,11 @@ namespace SL::Network {
 			if (SetFileCompletionNotificationModes((HANDLE)acceptsocket.shandle, FILE_SKIP_COMPLETION_PORT_ON_SUCCESS) == FALSE) {
 				return ios.IOEvents.OnAccept(ios, acceptsocket, Impl::TranslateError(), *this);
 			}
-			auto overlapped = ios.alloc_a();
-			overlapped->clear();
+			auto overlapped = new accept_overlapped_operation();
 			overlapped->OpType = OP_Type::OnAccept;
 			overlapped->Socket = acceptsocket.shandle;
 			overlapped->ListenSocket = shandle;
-				ios.refcounter.incOp();
+			ios.refcounter.incOp();
 			DWORD transferedbytes = 0;
 			auto e = StatusCode::SC_SUCCESS;
 			if (ios.AcceptEx_(shandle, acceptsocket.shandle, ios.addressBuffer, 0, sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16, &transferedbytes, overlapped->getOverlappedStruct()) == FALSE) {
@@ -122,7 +120,7 @@ namespace SL::Network {
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
 						ios.refcounter.decOp();
-						ios.free_a(overlapped);
+						delete overlapped;
 						return ios.IOEvents.OnAccept(ios, acceptsocket, e, *this);
 					}
 				}
@@ -132,14 +130,13 @@ namespace SL::Network {
 					e = Impl::TranslateError();
 				}
 				ios.refcounter.decOp();
-				ios.free_a(overlapped);
+				delete overlapped;
 				return ios.IOEvents.OnAccept(ios, acceptsocket, e, *this);
 			}
 		}
 
 		void send(std::byte* buffer, std::size_t size) noexcept {
-			auto overlapped = ios.alloc_o();
-			overlapped->clear();
+			auto overlapped = new overlapped_operation();
 			overlapped->OpType = OP_Type::OnSend;
 			overlapped->Socket = shandle;
 			ios.refcounter.incOp();
@@ -154,14 +151,14 @@ namespace SL::Network {
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
 						ios.refcounter.decOp();
-						ios.free_o(overlapped);
+						delete overlapped;
 						return ios.IOEvents.OnSend(ios, *this, e, 0);
 					}
 				}
 			}
 			else {
 				ios.refcounter.decOp();
-				ios.free_o(overlapped);
+				delete overlapped;
 				return ios.IOEvents.OnSend(ios, *this, e, transferedbytes);
 			}
 		}
@@ -192,8 +189,7 @@ namespace SL::Network {
 			return std::tuple(e, numberOfBytesTransferred);
 		}*/
 		void recv(std::byte* buffer, std::size_t size) noexcept {
-			auto overlapped = ios.alloc_o();
-			overlapped->clear();
+			auto overlapped = new overlapped_operation();
 			overlapped->OpType = OP_Type::OnRead;
 			overlapped->Socket = shandle;
 			ios.refcounter.incOp();
@@ -208,14 +204,14 @@ namespace SL::Network {
 				if (originalvalue == StatusCode::SC_UNSET) {///successfully change from unset to my value and a real error has occured, no iocp will be fired
 					if (e != StatusCode::SC_PENDINGIO) {
 						ios.refcounter.decOp();
-						ios.free_o(overlapped);
+						delete overlapped;
 						return ios.IOEvents.OnRecv(ios, *this, e, dwSendNumBytes);
 					}
 				}
 			}
 			else {
 				ios.refcounter.decOp();
-				ios.free_o(overlapped);
+				delete overlapped;
 				return ios.IOEvents.OnRecv(ios, *this, e, dwSendNumBytes);
 			}
 		}

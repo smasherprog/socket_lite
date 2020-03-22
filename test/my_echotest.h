@@ -26,12 +26,14 @@ namespace myechotest {
 					socket.close();
 				}
 			},
-			[&](auto& , auto socket, SL::Network::StatusCode code, auto) {
+			[&](auto& ioservice, auto acceptsocket, SL::Network::StatusCode code, auto listensocket) {
 				if (ExampleHelpers::keepgoing) {
-					socket.recv(ExampleHelpers::readechob.data(), ExampleHelpers::readechob.size());
+					auto [astatuscode, as] = SL::Network::create_socket(ioservice, ExampleHelpers::connectendpoint.getSocketType(), ExampleHelpers::connectendpoint.getFamily());
+					listensocket.accept(as);
+					acceptsocket.recv(ExampleHelpers::readechob.data(), ExampleHelpers::readechob.size());
 				}
 				else {
-					socket.close();
+					acceptsocket.close();
 				}
 			},
 				[&](auto& , auto socket, SL::Network::StatusCode , int) {
@@ -65,8 +67,19 @@ namespace myechotest {
 
 		auto endpoints = SL::Network::getaddrinfo("127.0.0.1", porttouse);
 		ExampleHelpers::connectendpoint = endpoints.back();
-		auto [constatuscode, s] = SL::Network::create_socket(threadcontext.ioservice(), ExampleHelpers::connectendpoint.getSocketType(), ExampleHelpers::connectendpoint.getFamily());
-		s.connect(ExampleHelpers::connectendpoint);
+
+		{
+			auto [constatuscode, s] = SL::Network::create_socket(threadcontext.ioservice(), ExampleHelpers::connectendpoint.getSocketType(), ExampleHelpers::connectendpoint.getFamily());
+			s.connect(ExampleHelpers::connectendpoint);
+		}
+		{
+			auto [constatuscode, s] = SL::Network::create_socket(threadcontext.ioservice(), ExampleHelpers::connectendpoint.getSocketType(), ExampleHelpers::connectendpoint.getFamily());
+			s.connect(ExampleHelpers::connectendpoint);
+		}
+		{
+			auto [constatuscode, s] = SL::Network::create_socket(threadcontext.ioservice(), ExampleHelpers::connectendpoint.getSocketType(), ExampleHelpers::connectendpoint.getFamily());
+			s.connect(ExampleHelpers::connectendpoint);
+		}
 
 		std::this_thread::sleep_for(10s); // sleep for 10 seconds
 		ExampleHelpers::keepgoing = false;

@@ -11,8 +11,10 @@ namespace SL::Network {
 	private:
 		std::atomic<StatusCode> errorCode;
 	public:
-		OP_Type OpType; 
-
+		OP_Type OpType;
+		overlapped_operation() : WSAOVERLAPPED({ 0 }) {
+			errorCode.store(StatusCode::SC_UNSET, std::memory_order::memory_order_relaxed);
+		}
 		StatusCode trysetstatus(StatusCode code, StatusCode expected) {
 			auto originalexpected = expected;
 			while (!errorCode.compare_exchange_weak(expected, code, std::memory_order::memory_order_relaxed) && expected == originalexpected);
@@ -26,10 +28,6 @@ namespace SL::Network {
 		}
 		StatusCode exchangestatus(StatusCode code) {
 			return errorCode.exchange(code, std::memory_order::memory_order_relaxed);
-		}
-		void clear() {
-			memset(getOverlappedStruct(), 0, sizeof(WSAOVERLAPPED)); 
-			setstatus(StatusCode::SC_UNSET);
 		}
 		WSAOVERLAPPED* getOverlappedStruct() { return reinterpret_cast<WSAOVERLAPPED*>(this); }
 		SOCKET Socket;

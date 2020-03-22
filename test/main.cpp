@@ -39,9 +39,9 @@ int main()
 		});
 
 
-	myawaitconnectiontest::runtest();
-	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
-	counts = totalusage = 0;
+	//myconnectiontest::runtest();
+	//std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;
+	//counts = totalusage = 0;
 
 	myechotest::runtest(128);
 	std::cout << "Total: " << totalusage << " Avg:" << totalusage / counts << "%" << std::endl;

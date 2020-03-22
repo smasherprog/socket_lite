@@ -7,7 +7,7 @@
 
 using namespace std::chrono_literals;
 
-namespace myawaitconnectiontest {
+namespace myconnectiontest {
 	void runtest()
 	{
 		SL::Network::io_thread_service threadcontext(SL::Network::IO_Events(
@@ -19,11 +19,11 @@ namespace myawaitconnectiontest {
 					s.connect(ExampleHelpers::connectendpoint);
 				}
 			},
-			[&](auto& ioservice, auto socket, SL::Network::StatusCode, auto acceptsocket) {
-				socket.close();
+			[&](auto& ioservice, auto acceptsocket, SL::Network::StatusCode, auto listensocket) {
+				acceptsocket.close();
 				if (ExampleHelpers::keepgoing) {
 					auto [statuscode, s] = SL::Network::create_socket(ioservice, ExampleHelpers::connectendpoint.getSocketType(), ExampleHelpers::connectendpoint.getFamily());
-					acceptsocket.accept(s);
+					listensocket.accept(s);
 				}
 			},
 				[&](auto&, auto socket, SL::Network::StatusCode, int) {
