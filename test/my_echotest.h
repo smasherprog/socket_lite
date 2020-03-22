@@ -83,7 +83,7 @@ namespace myechotest {
 
 		std::this_thread::sleep_for(10s); // sleep for 10 seconds
 		ExampleHelpers::keepgoing = false;
-		std::cout << "My  Echo per Second " << ExampleHelpers::operations / 10 << std::endl;
+		std::cout << "My Echo per Second " << ExampleHelpers::operations / 10 << std::endl;
 		acceptsocket.close();
 	}
 } // namespace myechotest
