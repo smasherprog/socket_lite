@@ -1,4 +1,4 @@
-image: Visual Studio 2017
+image: Visual Studio 2019
 
 platform:
 - x86
@@ -17,8 +17,8 @@ install:
 
 build_script:
   - cd C:\projects\socket-lite\build\
-  - if %platform%==x86 set generator=Visual Studio 15 2017
-  - if %platform%==x64 set generator=Visual Studio 15 2017 Win64
-  - cmd: cmake -G"%generator%" ..\test 
+  - if %platform%==x86 set plat=Win32
+  - if %platform%==x64 set plat=x64
+  - cmd: cmake -G"Visual Studio 16 2019" -A %plat% ..\test 
   - cmd: cmake --build .  --config %configuration%
   - ctest -C %configuration% -V 
